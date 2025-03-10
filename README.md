@@ -1,4 +1,4 @@
-# HaishinKit for Android, [iOS, macOS and tvOS](https://github.com/HaishinKit/HaishinKit.swift).
+# HaishinKit for Android, [iOS, macOS, tvOS and visionOS](https://github.com/HaishinKit/HaishinKit.swift).
 [![GitHub license](https://img.shields.io/badge/license-New%20BSD-blue.svg)](https://raw.githubusercontent.com/HaishinKit/HaishinKit.kt/master/LICENSE.md)
 [![](https://jitpack.io/v/HaishinKit/HaishinKit~kt.svg)](https://jitpack.io/#HaishinKit/HaishinKit~kt)
 [![GitHub Sponsor](https://img.shields.io/static/v1?label=Sponsor&message=%E2%9D%A4&logo=GitHub&color=ff69b4)](https://github.com/sponsors/shogo4405)
@@ -20,7 +20,7 @@ Sponsor: [$50 per month](https://github.com/sponsors/shogo4405): Technical suppo
 ## 🌏 Related projects
 Project name    |Notes       |License
 ----------------|------------|--------------
-[HaishinKit for iOS, macOS and tvOS.](https://github.com/HaishinKit/HaishinKit.swift)|Camera and Microphone streaming library via RTMP for Android.|[BSD 3-Clause "New" or "Revised" License](https://github.com/HaishinKit/HaishinKit.swift/blob/master/LICENSE.md)
+[HaishinKit for iOS, macOS, tvOS and visionOS.](https://github.com/HaishinKit/HaishinKit.swift)|Camera and Microphone streaming library via RTMP for Android.|[BSD 3-Clause "New" or "Revised" License](https://github.com/HaishinKit/HaishinKit.swift/blob/master/LICENSE.md)
 [HaishinKit for Flutter.](https://github.com/HaishinKit/HaishinKit.dart)|Camera and Microphone streaming library via RTMP for Flutter.|[BSD 3-Clause "New" or "Revised" License](https://github.com/HaishinKit/HaishinKit.dart/blob/master/LICENSE.md)
 
 ## 🎨 Features
@@ -135,7 +135,7 @@ git submodule update --init
 
 ### Gradle dependency
 **JitPack**
-- A common mistake is trying to use implementation 'com.github.shogo4405.**HaishinKit.kt**', which does not work. The correct form is implementation 'com.github.shogo4405.**HaishinKit~kt**'.
+- A common mistake is trying to use implementation 'com.github.HaishinKit.**HaishinKit.kt**', which does not work. The correct form is implementation 'com.github.HaishinKit.**HaishinKit~kt**'.
 - In older versions, there may be cases where Jetpack is not supported. If it's not available, please give up and use the latest version.
 ```
 allprojects {
@@ -145,10 +145,10 @@ allprojects {
 }
 
 dependencies {
-  implementation 'com.github.shogo4405.HaishinKit~kt:haishinkit:x.x.x'
-  implementation 'com.github.shogo4405.HaishinKit~kt:compose:x.x.x'
-  implementation 'com.github.shogo4405.HaishinKit~kt:lottie:x.x.x'
-  implementation 'com.github.shogo4405.HaishinKit~kt:vulkan:x.x.x'
+  implementation 'com.github.HaishinKit.HaishinKit~kt:haishinkit:x.x.x'
+  implementation 'com.github.HaishinKit.HaishinKit~kt:compose:x.x.x'
+  implementation 'com.github.HaishinKit.HaishinKit~kt:lottie:x.x.x'
+  implementation 'com.github.HaishinKit.HaishinKit~kt:vulkan:x.x.x'
 }
 ```
 
