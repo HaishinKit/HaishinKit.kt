@@ -8,7 +8,6 @@ import android.media.MediaMuxer
 import android.os.Build
 import android.os.Environment
 import android.util.Log
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -18,6 +17,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -44,6 +44,7 @@ import com.haishinkit.compose.rememberRecorderState
 import com.haishinkit.event.Event
 import com.haishinkit.event.EventUtils
 import com.haishinkit.event.IEventListener
+import com.haishinkit.graphics.VideoGravity
 import com.haishinkit.graphics.effect.DefaultVideoEffect
 import com.haishinkit.lottie.LottieScreen
 import com.haishinkit.media.AudioRecordSource
@@ -58,7 +59,7 @@ import java.io.File
 
 private const val TAG = "CameraScreen"
 
-@OptIn(ExperimentalPermissionsApi::class, ExperimentalFoundationApi::class)
+@OptIn(ExperimentalPermissionsApi::class)
 @Composable
 fun CameraScreen(
     command: String,
@@ -113,12 +114,13 @@ fun CameraScreen(
 
     HaishinKitView(
         stream = stream,
+        videoGravity = VideoGravity.RESIZE_ASPECT_FILL,
         modifier = Modifier.fillMaxSize(),
     )
 
     Column(
         modifier = Modifier
-            .padding(8.dp)
+            .safeDrawingPadding()
             .fillMaxSize()
             .alpha(0.8F),
         verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -147,14 +149,22 @@ fun CameraScreen(
                                         frame = Rect(20, 20, 90 + 20, 160 + 20)
                                     }
                                 } catch (e: Exception) {
-                                    Log.e(TAG, "Error while setting up multi-camera: ${e.message}", e)
+                                    Log.e(
+                                        TAG,
+                                        "Error while setting up multi-camera: ${e.message}",
+                                        e
+                                    )
                                     // If multi-camera setup fails, revert to single camera
                                     stream.attachVideo(null)
                                     stream.attachVideo(Camera2Source(context).apply {
                                         try {
                                             open(CameraCharacteristics.LENS_FACING_BACK)
                                         } catch (e: Exception) {
-                                            Log.e(TAG, "Error while opening main camera: ${e.message}", e)
+                                            Log.e(
+                                                TAG,
+                                                "Error while opening main camera: ${e.message}",
+                                                e
+                                            )
                                         }
                                     })
                                 }
