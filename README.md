@@ -1,6 +1,6 @@
-# HaishinKit for Android, [iOS, macOS and tvOS](https://github.com/shogo4405/HaishinKit.swift).
-[![GitHub license](https://img.shields.io/badge/license-New%20BSD-blue.svg)](https://raw.githubusercontent.com/shogo4405/HaishinKit.kt/master/LICENSE.md)
-[![](https://jitpack.io/v/shogo4405/HaishinKit~kt.svg)](https://jitpack.io/#shogo4405/HaishinKit~kt)
+# HaishinKit for Android, [iOS, macOS and tvOS](https://github.com/HaishinKit/HaishinKit.swift).
+[![GitHub license](https://img.shields.io/badge/license-New%20BSD-blue.svg)](https://raw.githubusercontent.com/HaishinKit/HaishinKit.kt/master/LICENSE.md)
+[![](https://jitpack.io/v/HaishinKit/HaishinKit~kt.svg)](https://jitpack.io/#HaishinKit/HaishinKit~kt)
 [![GitHub Sponsor](https://img.shields.io/static/v1?label=Sponsor&message=%E2%9D%A4&logo=GitHub&color=ff69b4)](https://github.com/sponsors/shogo4405)
 
 * Camera and Microphone streaming library via RTMP for Android.
@@ -12,7 +12,7 @@ Do you need additional support? Technical support on Issues and Discussions is p
 Sponsor: [$50 per month](https://github.com/sponsors/shogo4405): Technical support via GitHub Issues/Discussions with priority response.
 
 ## 💬 Communication
-* GitHub Issues and Discussions are open spaces for communication among users and are available to everyone as long as [the code of conduct](https://github.com/shogo4405/HaishinKit.swift?tab=coc-ov-file) is followed.
+* GitHub Issues and Discussions are open spaces for communication among users and are available to everyone as long as [the code of conduct](https://github.com/HaishinKit/HaishinKit.swift?tab=coc-ov-file) is followed.
 * Whether someone is a contributor to HaishinKit is mainly determined by their GitHub profile icon. If you are using the default icon, there is a chance your input might be overlooked, so please consider setting a custom one. It could be a picture of your pet, for example. Personally, I like cats.
 * If you want to support e-mail based communication without GitHub.
   * Consulting fee is [$50](https://www.paypal.me/shogo4405/50USD)/1 incident. I'm able to response a few days.
@@ -20,8 +20,8 @@ Sponsor: [$50 per month](https://github.com/sponsors/shogo4405): Technical suppo
 ## 🌏 Related projects
 Project name    |Notes       |License
 ----------------|------------|--------------
-[HaishinKit for iOS, macOS and tvOS.](https://github.com/shogo4405/HaishinKit.swift)|Camera and Microphone streaming library via RTMP for Android.|[BSD 3-Clause "New" or "Revised" License](https://github.com/shogo4405/HaishinKit.swift/blob/master/LICENSE.md)
-[HaishinKit for Flutter.](https://github.com/shogo4405/HaishinKit.dart)|Camera and Microphone streaming library via RTMP for Flutter.|[BSD 3-Clause "New" or "Revised" License](https://github.com/shogo4405/HaishinKit.dart/blob/master/LICENSE.md)
+[HaishinKit for iOS, macOS and tvOS.](https://github.com/HaishinKit/HaishinKit.swift)|Camera and Microphone streaming library via RTMP for Android.|[BSD 3-Clause "New" or "Revised" License](https://github.com/HaishinKit/HaishinKit.swift/blob/master/LICENSE.md)
+[HaishinKit for Flutter.](https://github.com/HaishinKit/HaishinKit.dart)|Camera and Microphone streaming library via RTMP for Flutter.|[BSD 3-Clause "New" or "Revised" License](https://github.com/HaishinKit/HaishinKit.dart/blob/master/LICENSE.md)
 
 ## 🎨 Features
 ### RTMP
@@ -34,7 +34,7 @@ Project name    |Notes       |License
 - [ ] ~~SharedObject~~
 - [x] RTMPS
   - [x] Native (RTMP over SSL/TSL)
-- [ ] [Enhanced RTMP (Working in progress)](https://github.com/shogo4405/HaishinKit.kt/wiki/Supports-Enhanced-RTMP-Status)
+- [ ] [Enhanced RTMP (Working in progress)](https://github.com/HaishinKit/HaishinKit.kt/wiki/Supports-Enhanced-RTMP-Status)
   - [ ] v1
   - [ ] v2
 - [x] Audio Codecs
@@ -92,7 +92,7 @@ stream.videoSettings.IFrameInterval = 2 // The key-frmae interval
 Through off-screen rendering capabilities, it is possible to display any text or bitmap on a video during broadcasting or viewing. This allows for various applications such as watermarking and time display.
 
 <p align="center">
-  <img width="732" alt="" src="https://github.com/shogo4405/HaishinKit.kt/assets/810189/f2e189eb-d98a-41b4-9b4c-0b7d70637675">
+  <img width="732" alt="" src="https://github.com/HaishinKit/HaishinKit.kt/assets/810189/f2e189eb-d98a-41b4-9b4c-0b7d70637675">
 </p>
 
 ```kt
