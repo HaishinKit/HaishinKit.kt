@@ -124,7 +124,7 @@ Examples project are available for Android.
 - [x] Camera and microphone publish.
 - [x] RTMP Playback  
 ```sh
-git clone https://github.com/shogo4405/HaishinKit.kt.git
+git clone https://github.com/HaishinKit/HaishinKit.kt.git
 cd HaishinKit.kt
 git submodule update --init
 
@@ -311,7 +311,7 @@ if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
 
 ### Related Project
 * HaishinKit.swift - Camera and Microphone streaming library via RTMP, HLS for iOS, macOS and tvOS.
-  * https://github.com/shogo4405/HaishinKit.swift
+  * https://github.com/HaishinKit/HaishinKit.swift
 
 ## 📜 License
 BSD-3-Clause
