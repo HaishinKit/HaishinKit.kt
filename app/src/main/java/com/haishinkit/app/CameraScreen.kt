@@ -54,6 +54,7 @@ import com.haishinkit.rtmp.RtmpConnection
 import com.haishinkit.screen.ImageScreenObject
 import com.haishinkit.screen.Screen
 import com.haishinkit.screen.ScreenObject
+import com.haishinkit.screen.StreamScreenObject
 import com.haishinkit.screen.TextScreenObject
 import java.io.File
 
@@ -77,6 +78,16 @@ fun CameraScreen(
     val stream =
         remember(connectionState) {
             connectionState.createStream(context)
+        }
+
+    val playbackConnectionState =
+        rememberConnectionState {
+            RtmpConnection()
+        }
+
+    val playbackStream =
+        remember(playbackConnectionState) {
+            playbackConnectionState.createStream(context)
         }
 
     DisposableEffect(Unit) {
@@ -125,10 +136,10 @@ fun CameraScreen(
 
     Column(
         modifier =
-            Modifier
-                .safeDrawingPadding()
-                .fillMaxSize()
-                .alpha(0.8F),
+        Modifier
+            .safeDrawingPadding()
+            .fillMaxSize()
+            .alpha(0.8F),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         CameraDeviceControllerView(onAudioPermissionStatus = { state ->
@@ -215,13 +226,13 @@ fun CameraScreen(
                     color = Color.White,
                     textAlign = TextAlign.Center,
                     modifier =
-                        Modifier
-                            .align(alignment = Alignment.Center)
-                            .background(
-                                color = Color.Black,
-                                shape = RoundedCornerShape(20.dp),
-                            )
-                            .padding(8.dp, 0.dp),
+                    Modifier
+                        .align(alignment = Alignment.Center)
+                        .background(
+                            color = Color.Black,
+                            shape = RoundedCornerShape(20.dp),
+                        )
+                        .padding(8.dp, 0.dp),
                 )
             }
         }
@@ -230,9 +241,9 @@ fun CameraScreen(
             pagerState = pagerState,
             pageCount = controller.videoEffectItems.size,
             modifier =
-                Modifier
-                    .align(Alignment.CenterHorizontally)
-                    .padding(32.dp),
+            Modifier
+                .align(Alignment.CenterHorizontally)
+                .padding(32.dp),
         )
 
         val recorderState = rememberRecorderState(context, stream)
@@ -285,6 +296,24 @@ fun CameraScreen(
             },
         )
 
+        playbackConnectionState.addEventListener(
+            Event.RTMP_STATUS,
+            object : IEventListener {
+                override fun handleEvent(event: Event) {
+                    val data = EventUtils.toMap(event)
+                    Log.i(TAG, data.toString())
+                    when (data["code"]) {
+                        RtmpConnection.Code.CONNECT_SUCCESS.rawValue -> {
+                            playbackStream.play(streamName)
+                        }
+
+                        else -> {
+                        }
+                    }
+                }
+            },
+        )
+
         val text = TextScreenObject()
         text.size = 60f
         text.value = "Hello World!!"
@@ -306,5 +335,12 @@ fun CameraScreen(
         lottie.horizontalAlignment = ScreenObject.HORIZONTAL_ALIGNMENT_RIGHT
         lottie.playAnimation()
         stream.screen.addChild(lottie)
+
+        val streamScreenObject = StreamScreenObject(context)
+        streamScreenObject.frame.set(0, 0, 200, 200)
+        streamScreenObject.attachStream(playbackStream)
+        stream.screen.addChild(streamScreenObject)
+
+        playbackConnectionState.connect(Preference.shared.rtmpURL)
     }
 }

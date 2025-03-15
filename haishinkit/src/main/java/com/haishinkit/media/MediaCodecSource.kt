@@ -7,7 +7,9 @@ import com.haishinkit.screen.ScreenObjectContainer
 import com.haishinkit.screen.VideoScreenObject
 import java.util.concurrent.atomic.AtomicBoolean
 
-internal class MediaCodecSource(val size: Size) : VideoSource, VideoScreenObject.OnSurfaceChangedListener {
+internal class MediaCodecSource(val size: Size) :
+    VideoSource,
+    VideoScreenObject.OnSurfaceChangedListener {
     override val isRunning: AtomicBoolean = AtomicBoolean(false)
     override var stream: Stream? = null
     override val screen: ScreenObjectContainer by lazy {
