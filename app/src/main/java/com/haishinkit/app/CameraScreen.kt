@@ -54,6 +54,7 @@ import com.haishinkit.rtmp.RtmpConnection
 import com.haishinkit.screen.Image
 import com.haishinkit.screen.Screen
 import com.haishinkit.screen.ScreenObject
+import com.haishinkit.screen.StreamScreenObject
 import com.haishinkit.screen.Text
 import java.io.File
 
@@ -75,6 +76,14 @@ fun CameraScreen(
 
     val stream = remember(connectionState) {
         connectionState.createStream(context)
+    }
+
+    val playbackConnectionState = rememberConnectionState {
+        RtmpConnection()
+    }
+
+    val playbackStream = remember(playbackConnectionState) {
+        playbackConnectionState.createStream(context)
     }
 
     DisposableEffect(Unit) {
@@ -271,6 +280,22 @@ fun CameraScreen(
             }
         })
 
+        playbackConnectionState.addEventListener(Event.RTMP_STATUS, object : IEventListener {
+            override fun handleEvent(event: Event) {
+                val data = EventUtils.toMap(event)
+                Log.i(TAG, data.toString())
+                when (data["code"]) {
+                    RtmpConnection.Code.CONNECT_SUCCESS.rawValue -> {
+                        playbackStream.play(streamName)
+                    }
+
+                    else -> {
+
+                    }
+                }
+            }
+        })
+
         val text = Text()
         text.size = 60f
         text.value = "Hello World!!"
@@ -292,5 +317,12 @@ fun CameraScreen(
         lottie.horizontalAlignment = ScreenObject.HORIZONTAL_ALIGNMENT_RIGHT
         lottie.playAnimation()
         stream.screen.addChild(lottie)
+
+        val streamScreenObject = StreamScreenObject(context)
+        streamScreenObject.frame.set(0, 0, 180, 180)
+        streamScreenObject.attachStream(playbackStream)
+        stream.screen.addChild(streamScreenObject)
+
+        playbackConnectionState.connect("rtmp://192.168.1.6/live")
     }
 }
