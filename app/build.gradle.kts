@@ -21,7 +21,10 @@ android {
     buildTypes {
         release {
             isMinifyEnabled = false
-            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
         }
     }
     compileOptions {
@@ -38,7 +41,6 @@ dependencies {
     implementation(project(":haishinkit"))
     implementation(project(":lottie"))
     implementation(project(":compose"))
-    implementation(project(":vulkan"))
     implementation(libs.accompanist.permissions)
     implementation(libs.accompanist.pager.indicators)
     implementation(libs.material)
