@@ -16,19 +16,19 @@ import android.util.Log
 import android.util.Size
 import android.view.Surface
 import com.haishinkit.graphics.ImageOrientation
-import com.haishinkit.screen.Video
+import com.haishinkit.screen.VideoScreenObject
 import java.util.concurrent.Executors
 
 internal class Camera2Output(
     val context: Context,
     val source: VideoSource,
     private val cameraId: String,
-) : CameraDevice.StateCallback(), Video.OnSurfaceChangedListener {
+) : CameraDevice.StateCallback(), VideoScreenObject.OnSurfaceChangedListener {
     val facing: Int?
         get() = characteristics?.get(CameraCharacteristics.LENS_FACING)
 
-    val video: Video by lazy {
-        Video().apply {
+    val video: VideoScreenObject by lazy {
+        VideoScreenObject().apply {
             isRotatesWithContent = true
             listener = this@Camera2Output
         }

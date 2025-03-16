@@ -12,7 +12,7 @@ import kotlin.math.max
  * An object that manages offscreen rendering a text source.
  */
 @Suppress("MemberVisibilityCanBePrivate")
-class Text : Image() {
+class TextScreenObject : ImageScreenObject() {
     /**
      * Specifies the text value.
      */
@@ -45,8 +45,8 @@ class Text : Image() {
 
     private val paint by lazy {
         Paint(ANTI_ALIAS_FLAG).apply {
-            textSize = this@Text.size
-            color = this@Text.color
+            textSize = this@TextScreenObject.size
+            color = this@TextScreenObject.color
             textAlign = Paint.Align.LEFT
         }
     }

@@ -34,13 +34,15 @@ fun PlaybackScreen(
 ) {
     val context = LocalContext.current
 
-    val connectionState = rememberConnectionState {
-        RtmpConnection()
-    }
+    val connectionState =
+        rememberConnectionState {
+            RtmpConnection()
+        }
 
-    val stream = remember(connectionState) {
-        connectionState.createStream(context)
-    }
+    val stream =
+        remember(connectionState) {
+            connectionState.createStream(context)
+        }
 
     DisposableEffect(Unit) {
         onDispose {
@@ -57,10 +59,11 @@ fun PlaybackScreen(
             modifier = Modifier.fillMaxSize(),
         )
         Button(
-            modifier = Modifier
-                .padding(16.dp)
-                .width(100.dp)
-                .height(50.dp),
+            modifier =
+                Modifier
+                    .padding(16.dp)
+                    .width(100.dp)
+                    .height(50.dp),
             onClick = {
                 if (connectionState.isConnected) {
                     connectionState.close()
@@ -78,21 +81,23 @@ fun PlaybackScreen(
     }
 
     LaunchedEffect(Unit) {
-        connectionState.addEventListener(Event.RTMP_STATUS, object : IEventListener {
-            override fun handleEvent(event: Event) {
-                val data = EventUtils.toMap(event)
-                Log.i(TAG, data.toString())
-                when (data["code"]) {
-                    RtmpConnection.Code.CONNECT_SUCCESS.rawValue -> {
-                        stream.play(streamName)
-                    }
+        connectionState.addEventListener(
+            Event.RTMP_STATUS,
+            object : IEventListener {
+                override fun handleEvent(event: Event) {
+                    val data = EventUtils.toMap(event)
+                    Log.i(TAG, data.toString())
+                    when (data["code"]) {
+                        RtmpConnection.Code.CONNECT_SUCCESS.rawValue -> {
+                            stream.play(streamName)
+                        }
 
-                    else -> {
-
+                        else -> {
+                        }
                     }
                 }
-            }
-        })
+            },
+        )
     }
 }
 

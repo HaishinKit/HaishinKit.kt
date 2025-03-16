@@ -15,7 +15,7 @@ import com.airbnb.lottie.LottieCompositionFactory
 import com.airbnb.lottie.LottieDrawable
 import com.airbnb.lottie.LottieListener
 import com.airbnb.lottie.LottieTask
-import com.haishinkit.screen.Image
+import com.haishinkit.screen.ImageScreenObject
 import com.haishinkit.screen.Renderer
 import java.io.ByteArrayInputStream
 import java.io.InputStream
@@ -27,7 +27,7 @@ import kotlin.math.min
  * An object that manages offscreen rendering a lottie source.
  */
 @Suppress("MemberVisibilityCanBePrivate", "UNUSED")
-class LottieScreen(val context: Context) : Image() {
+class LottieScreen(val context: Context) : ImageScreenObject() {
     /**
      * Wrapper for LottieDrawable#isAnimating.
      */

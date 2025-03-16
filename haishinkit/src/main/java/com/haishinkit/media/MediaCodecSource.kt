@@ -4,18 +4,18 @@ import android.graphics.Rect
 import android.util.Size
 import android.view.Surface
 import com.haishinkit.screen.ScreenObjectContainer
-import com.haishinkit.screen.Video
+import com.haishinkit.screen.VideoScreenObject
 import java.util.concurrent.atomic.AtomicBoolean
 
-internal class MediaCodecSource(val size: Size) : VideoSource, Video.OnSurfaceChangedListener {
+internal class MediaCodecSource(val size: Size) : VideoSource, VideoScreenObject.OnSurfaceChangedListener {
     override val isRunning: AtomicBoolean = AtomicBoolean(false)
     override var stream: Stream? = null
     override val screen: ScreenObjectContainer by lazy {
         ScreenObjectContainer()
     }
 
-    private val video: Video by lazy {
-        Video().apply {
+    private val video: VideoScreenObject by lazy {
+        VideoScreenObject().apply {
             isRotatesWithContent = false
         }
     }

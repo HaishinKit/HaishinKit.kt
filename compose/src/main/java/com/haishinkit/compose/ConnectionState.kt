@@ -19,9 +19,7 @@ import com.haishinkit.rtmp.RtmpStream
 * Create and [remember] a [ConnectionState] instance.
 */
 @Composable
-fun rememberConnectionState(
-    factory: () -> RtmpConnection,
-): ConnectionState =
+fun rememberConnectionState(factory: () -> RtmpConnection): ConnectionState =
     remember {
         ConnectionState(
             factory(),
@@ -80,11 +78,19 @@ class ConnectionState(
         connection.dispatchEvent(event)
     }
 
-    override fun dispatchEventWith(type: String, bubbles: Boolean, data: Any?) {
+    override fun dispatchEventWith(
+        type: String,
+        bubbles: Boolean,
+        data: Any?,
+    ) {
         connection.dispatchEventWith(type, bubbles, data)
     }
 
-    override fun removeEventListener(type: String, listener: IEventListener, useCapture: Boolean) {
+    override fun removeEventListener(
+        type: String,
+        listener: IEventListener,
+        useCapture: Boolean,
+    ) {
         connection.removeEventListener(type, listener, useCapture)
     }
 }
