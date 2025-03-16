@@ -1,9 +1,0 @@
-[submodule "vulkan/vendor/picojson"]
-	path = vulkan/vendor/picojson
-	url = git@github.com:kazuho/picojson.git
-[submodule "vulkan/vendor/Vulkan-Headers"]
-	path = vulkan/vendor/Vulkan-Headers
-	url = git@github.com:KhronosGroup/Vulkan-Headers.git
-[submodule "vulkan/vendor/glm"]
-	path = vulkan/vendor/glm
-	url = git@github.com:g-truc/glm.git
