@@ -16,9 +16,10 @@ import com.haishinkit.media.StreamRecorder
 fun rememberRecorderState(
     context: Context,
     stream: Stream,
-): RecorderState = remember(context) {
-    RecorderState(stream, StreamRecorder(context))
-}
+): RecorderState =
+    remember(context) {
+        RecorderState(stream, StreamRecorder(context))
+    }
 
 @Stable
 class RecorderState(
@@ -32,7 +33,10 @@ class RecorderState(
         recorder.attachStream(stream)
     }
 
-    fun startRecording(path: String, format: Int) {
+    fun startRecording(
+        path: String,
+        format: Int,
+    ) {
         isRecording = true
         recorder.startRecording(path, format)
     }

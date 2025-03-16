@@ -69,13 +69,15 @@ fun CameraScreen(
     val context = LocalContext.current
 
     // HaishinKit
-    val connectionState = rememberConnectionState {
-        RtmpConnection()
-    }
+    val connectionState =
+        rememberConnectionState {
+            RtmpConnection()
+        }
 
-    val stream = remember(connectionState) {
-        connectionState.createStream(context)
-    }
+    val stream =
+        remember(connectionState) {
+            connectionState.createStream(context)
+        }
 
     DisposableEffect(Unit) {
         onDispose {
@@ -86,24 +88,27 @@ fun CameraScreen(
     val configuration = LocalConfiguration.current
     when (configuration.orientation) {
         Configuration.ORIENTATION_PORTRAIT -> {
-            stream.screen.frame = Rect(
-                0, 0, Screen.DEFAULT_HEIGHT, Screen.DEFAULT_WIDTH,
-            )
+            stream.screen.frame =
+                Rect(
+                    0, 0, Screen.DEFAULT_HEIGHT, Screen.DEFAULT_WIDTH,
+                )
         }
 
         Configuration.ORIENTATION_LANDSCAPE -> {
-            stream.screen.frame = Rect(
-                0, 0, Screen.DEFAULT_WIDTH, Screen.DEFAULT_HEIGHT,
-            )
+            stream.screen.frame =
+                Rect(
+                    0, 0, Screen.DEFAULT_WIDTH, Screen.DEFAULT_HEIGHT,
+                )
         }
 
         else -> {
         }
     }
 
-    val pagerState = rememberPagerState(pageCount = {
-        controller.videoEffectItems.size
-    })
+    val pagerState =
+        rememberPagerState(pageCount = {
+            controller.videoEffectItems.size
+        })
 
     LaunchedEffect(pagerState, 0) {
         snapshotFlow { pagerState.currentPage }.collect { page ->
@@ -119,10 +124,11 @@ fun CameraScreen(
     )
 
     Column(
-        modifier = Modifier
-            .safeDrawingPadding()
-            .fillMaxSize()
-            .alpha(0.8F),
+        modifier =
+            Modifier
+                .safeDrawingPadding()
+                .fillMaxSize()
+                .alpha(0.8F),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         CameraDeviceControllerView(onAudioPermissionStatus = { state ->
@@ -152,31 +158,35 @@ fun CameraScreen(
                                     Log.e(
                                         TAG,
                                         "Error while setting up multi-camera: ${e.message}",
-                                        e
+                                        e,
                                     )
                                     // If multi-camera setup fails, revert to single camera
                                     stream.attachVideo(null)
-                                    stream.attachVideo(Camera2Source(context).apply {
-                                        try {
-                                            open(CameraCharacteristics.LENS_FACING_BACK)
-                                        } catch (e: Exception) {
-                                            Log.e(
-                                                TAG,
-                                                "Error while opening main camera: ${e.message}",
-                                                e
-                                            )
-                                        }
-                                    })
+                                    stream.attachVideo(
+                                        Camera2Source(context).apply {
+                                            try {
+                                                open(CameraCharacteristics.LENS_FACING_BACK)
+                                            } catch (e: Exception) {
+                                                Log.e(
+                                                    TAG,
+                                                    "Error while opening main camera: ${e.message}",
+                                                    e,
+                                                )
+                                            }
+                                        },
+                                    )
                                 }
                             }
                         } else {
-                            stream.attachVideo(Camera2Source(context).apply {
-                                try {
-                                    open(CameraCharacteristics.LENS_FACING_BACK)
-                                } catch (e: Exception) {
-                                    Log.e(TAG, "Error while opening camera: ${e.message}", e)
-                                }
-                            })
+                            stream.attachVideo(
+                                Camera2Source(context).apply {
+                                    try {
+                                        open(CameraCharacteristics.LENS_FACING_BACK)
+                                    } catch (e: Exception) {
+                                        Log.e(TAG, "Error while opening camera: ${e.message}", e)
+                                    }
+                                },
+                            )
                         }
                     } catch (e: Exception) {
                         Log.e(TAG, "General error while setting up camera: ${e.message}", e)
@@ -204,13 +214,14 @@ fun CameraScreen(
                     text = item.name,
                     color = Color.White,
                     textAlign = TextAlign.Center,
-                    modifier = Modifier
-                        .align(alignment = Alignment.Center)
-                        .background(
-                            color = Color.Black,
-                            shape = RoundedCornerShape(20.dp),
-                        )
-                        .padding(8.dp, 0.dp),
+                    modifier =
+                        Modifier
+                            .align(alignment = Alignment.Center)
+                            .background(
+                                color = Color.Black,
+                                shape = RoundedCornerShape(20.dp),
+                            )
+                            .padding(8.dp, 0.dp),
                 )
             }
         }
@@ -218,9 +229,10 @@ fun CameraScreen(
         HorizontalPagerIndicator(
             pagerState = pagerState,
             pageCount = controller.videoEffectItems.size,
-            modifier = Modifier
-                .align(Alignment.CenterHorizontally)
-                .padding(32.dp),
+            modifier =
+                Modifier
+                    .align(Alignment.CenterHorizontally)
+                    .padding(32.dp),
         )
 
         val recorderState = rememberRecorderState(context, stream)
@@ -245,7 +257,7 @@ fun CameraScreen(
                     recorderState.startRecording(
                         File(
                             Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
-                            "output.mp4"
+                            "output.mp4",
                         ).toString(),
                         MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4,
                     )
@@ -255,21 +267,23 @@ fun CameraScreen(
     }
 
     LaunchedEffect(Unit) {
-        connectionState.addEventListener(Event.RTMP_STATUS, object : IEventListener {
-            override fun handleEvent(event: Event) {
-                val data = EventUtils.toMap(event)
-                Log.i(TAG, data.toString())
-                when (data["code"]) {
-                    RtmpConnection.Code.CONNECT_SUCCESS.rawValue -> {
-                        stream.publish(streamName)
-                    }
+        connectionState.addEventListener(
+            Event.RTMP_STATUS,
+            object : IEventListener {
+                override fun handleEvent(event: Event) {
+                    val data = EventUtils.toMap(event)
+                    Log.i(TAG, data.toString())
+                    when (data["code"]) {
+                        RtmpConnection.Code.CONNECT_SUCCESS.rawValue -> {
+                            stream.publish(streamName)
+                        }
 
-                    else -> {
-
+                        else -> {
+                        }
                     }
                 }
-            }
-        })
+            },
+        )
 
         val text = TextScreenObject()
         text.size = 60f
