@@ -10,7 +10,7 @@ import android.view.OrientationEventListener
 import android.view.WindowManager
 import androidx.annotation.RequiresApi
 import com.haishinkit.screen.ScreenObjectContainer
-import com.haishinkit.screen.Video
+import com.haishinkit.screen.VideoScreenObject
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
@@ -73,7 +73,7 @@ class MultiCamera2Source(val context: Context) : VideoSource {
     /**
      * Gets the video screen object by channel.
      */
-    fun getVideoByChannel(channel: Int): Video? {
+    fun getVideoByChannel(channel: Int): VideoScreenObject? {
         return outputs[channel]?.video
     }
 

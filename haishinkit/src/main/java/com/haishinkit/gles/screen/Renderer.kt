@@ -7,10 +7,10 @@ import android.opengl.GLUtils
 import android.view.Surface
 import com.haishinkit.gles.ShaderLoader
 import com.haishinkit.gles.Utils
-import com.haishinkit.screen.Image
+import com.haishinkit.screen.ImageScreenObject
 import com.haishinkit.screen.Renderer
 import com.haishinkit.screen.ScreenObject
-import com.haishinkit.screen.Video
+import com.haishinkit.screen.VideoScreenObject
 import javax.microedition.khronos.opengles.GL10
 
 internal class Renderer(applicationContext: Context) :
@@ -23,7 +23,7 @@ internal class Renderer(applicationContext: Context) :
 
     override fun layout(screenObject: ScreenObject) {
         when (screenObject) {
-            is Video -> {
+            is VideoScreenObject -> {
                 surfaceTextures[screenObject.id]?.setDefaultBufferSize(
                     screenObject.videoSize.width,
                     screenObject.videoSize.height,
@@ -50,7 +50,7 @@ internal class Renderer(applicationContext: Context) :
                 )
             }
 
-            is Image -> {
+            is ImageScreenObject -> {
                 val bitmap = screenObject.bitmap ?: return
                 GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, screenObject.id)
                 Utils.checkGlError("glBindTexture")
@@ -99,7 +99,7 @@ internal class Renderer(applicationContext: Context) :
         GLES20.glGenTextures(1, textureIds, 0)
         screenObject.id = textureIds[0]
         when (screenObject) {
-            is Video -> {
+            is VideoScreenObject -> {
                 SurfaceTexture(screenObject.id).apply {
                     surfaceTextures[screenObject.id] = this
                     setDefaultBufferSize(
@@ -116,7 +116,7 @@ internal class Renderer(applicationContext: Context) :
     override fun unbind(screenObject: ScreenObject) {
         textureIds[0] = screenObject.id
         when (screenObject) {
-            is Video -> {
+            is VideoScreenObject -> {
                 screenObject.surface = null
                 surfaceTextures[screenObject.id]?.setOnFrameAvailableListener(null)
                 surfaceTextures[screenObject.id]?.release()

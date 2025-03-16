@@ -16,7 +16,7 @@ import com.haishinkit.lang.Running
 import com.haishinkit.screen.NullRenderer
 import com.haishinkit.screen.Renderer
 import com.haishinkit.screen.Screen
-import com.haishinkit.screen.Video
+import com.haishinkit.screen.VideoScreenObject
 import java.util.concurrent.atomic.AtomicBoolean
 
 internal class PixelTransform(override val applicationContext: Context) :
@@ -89,7 +89,7 @@ internal class PixelTransform(override val applicationContext: Context) :
     private val shaderLoader by lazy {
         ShaderLoader(applicationContext)
     }
-    private val video: Video by lazy { Video(target = GLES20.GL_TEXTURE_2D) }
+    private val video: VideoScreenObject by lazy { VideoScreenObject(target = GLES20.GL_TEXTURE_2D) }
     private val renderer: Renderer by lazy { NullRenderer.SHARED }
     private val fpsController: FpsController by lazy { ScheduledFpsController() }
 

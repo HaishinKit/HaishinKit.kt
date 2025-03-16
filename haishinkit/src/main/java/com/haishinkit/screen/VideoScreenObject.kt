@@ -16,7 +16,7 @@ import com.haishinkit.util.swap
  * An object that manages offscreen rendering a video source.
  */
 @Suppress("MemberVisibilityCanBePrivate")
-class Video(target: Int = GLES11Ext.GL_TEXTURE_EXTERNAL_OES) :
+class VideoScreenObject(target: Int = GLES11Ext.GL_TEXTURE_EXTERNAL_OES) :
     ScreenObject(target),
     SurfaceTexture.OnFrameAvailableListener {
     /**
@@ -217,6 +217,6 @@ class Video(target: Int = GLES11Ext.GL_TEXTURE_EXTERNAL_OES) :
     }
 
     private companion object {
-        private val TAG = Video::class.java.simpleName
+        private val TAG = VideoScreenObject::class.java.simpleName
     }
 }

@@ -18,7 +18,7 @@ import androidx.core.content.getSystemService
 import com.haishinkit.BuildConfig
 import com.haishinkit.graphics.ImageOrientation
 import com.haishinkit.screen.ScreenObjectContainer
-import com.haishinkit.screen.Video
+import com.haishinkit.screen.VideoScreenObject
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
@@ -28,7 +28,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 class MediaProjectionSource(
     private val context: Context,
     private var mediaProjection: MediaProjection,
-) : VideoSource, Video.OnSurfaceChangedListener {
+) : VideoSource, VideoScreenObject.OnSurfaceChangedListener {
     private class Callback(val source: MediaProjectionSource) : MediaProjection.Callback() {
         override fun onCapturedContentVisibilityChanged(isVisible: Boolean) {
             super.onCapturedContentVisibilityChanged(isVisible)
@@ -70,8 +70,8 @@ class MediaProjectionSource(
             addChild(video)
         }
     }
-    val video: Video by lazy {
-        Video()
+    val video: VideoScreenObject by lazy {
+        VideoScreenObject()
     }
     private var virtualDisplay: VirtualDisplay? = null
         set(value) {

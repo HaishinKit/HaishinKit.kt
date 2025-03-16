@@ -3,7 +3,7 @@ package com.haishinkit.rtmp.message
 import junit.framework.TestCase
 import java.nio.ByteBuffer
 
-class RtmpVideoMessageTest : TestCase() {
+class RtmpVideoMessageTestScreenObject : TestCase() {
     fun testGetCompositeTime() {
         val message1 = RtmpVideoMessage()
         message1.data = ByteBuffer.wrap(byteArrayOf(0, 255.toByte(), 251.toByte(), 160.toByte()))

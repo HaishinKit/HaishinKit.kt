@@ -5,7 +5,7 @@ import android.graphics.Bitmap
 /**
  * An object that manages offscreen rendering an image source.
  */
-open class Image : ScreenObject() {
+open class ImageScreenObject : ScreenObject() {
     var bitmap: Bitmap? = null
         set(value) {
             if (field == value) return

@@ -10,7 +10,7 @@ import android.view.OrientationEventListener
 import android.view.WindowManager
 import com.haishinkit.BuildConfig
 import com.haishinkit.screen.ScreenObjectContainer
-import com.haishinkit.screen.Video
+import com.haishinkit.screen.VideoScreenObject
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
@@ -21,7 +21,7 @@ class Camera2Source(private val context: Context) : VideoSource {
     /**
      * The video screen object.
      */
-    val video: Video?
+    val video: VideoScreenObject?
         get() = output?.video
     override var stream: Stream? = null
     override val isRunning = AtomicBoolean(false)

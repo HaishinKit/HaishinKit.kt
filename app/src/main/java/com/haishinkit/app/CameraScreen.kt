@@ -51,10 +51,10 @@ import com.haishinkit.media.AudioRecordSource
 import com.haishinkit.media.Camera2Source
 import com.haishinkit.media.MultiCamera2Source
 import com.haishinkit.rtmp.RtmpConnection
-import com.haishinkit.screen.Image
+import com.haishinkit.screen.ImageScreenObject
 import com.haishinkit.screen.Screen
 import com.haishinkit.screen.ScreenObject
-import com.haishinkit.screen.Text
+import com.haishinkit.screen.TextScreenObject
 import java.io.File
 
 private const val TAG = "CameraScreen"
@@ -271,14 +271,14 @@ fun CameraScreen(
             }
         })
 
-        val text = Text()
+        val text = TextScreenObject()
         text.size = 60f
         text.value = "Hello World!!"
         text.layoutMargins.set(0, 0, 16, 16)
         text.horizontalAlignment = ScreenObject.HORIZONTAL_ALIGNMENT_RIGHT
         text.verticalAlignment = ScreenObject.VERTICAL_ALIGNMENT_BOTTOM
 
-        val image = Image()
+        val image = ImageScreenObject()
         image.bitmap = BitmapFactory.decodeResource(context.resources, R.drawable.game_jikkyou)
         image.verticalAlignment = ScreenObject.VERTICAL_ALIGNMENT_BOTTOM
         image.frame.set(0, 0, 180, 180)
