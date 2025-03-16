@@ -1,6 +1,9 @@
 package com.haishinkit.screen
 
 import android.content.Context
+import android.graphics.Rect
+import android.util.Log
+import android.util.Size
 import android.view.Surface
 import com.haishinkit.graphics.PixelTransform
 import com.haishinkit.media.Stream
@@ -14,18 +17,18 @@ class StreamScreenObject(context: Context) : VideoScreenObject() {
         get() = super.surface
         set(value) {
             super.surface = value
-            pixelTransform.surface = surface
+            stream?.videoCodec?.surface = value
         }
 
     private var stream: Stream? = null
-    private val pixelTransform: PixelTransform by lazy { PixelTransform.create(context) }
 
     /**
      * Attach a stream object.
      */
     fun attachStream(stream: Stream?) {
         this.stream = stream
-        pixelTransform.surface = surface
-        pixelTransform.screen = stream?.screen
+        stream?.videoCodec?.surface = surface
+        videoSize = Size(1000, 1000)
+        Log.e("TAG", surface?.toString() ?: "null")
     }
 }

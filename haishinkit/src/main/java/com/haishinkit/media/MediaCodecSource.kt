@@ -1,6 +1,7 @@
 package com.haishinkit.media
 
 import android.graphics.Rect
+import android.util.Log
 import android.util.Size
 import android.view.Surface
 import com.haishinkit.screen.ScreenObjectContainer
@@ -39,6 +40,6 @@ internal class MediaCodecSource(val size: Size) :
     }
 
     override fun onSurfaceChanged(surface: Surface?) {
-        stream?.videoCodec?.surface = surface
+        // stream?.videoCodec?.surface = surface
     }
 }

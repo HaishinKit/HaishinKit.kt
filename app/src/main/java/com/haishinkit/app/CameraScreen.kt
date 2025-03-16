@@ -286,7 +286,7 @@ fun CameraScreen(
                     Log.i(TAG, data.toString())
                     when (data["code"]) {
                         RtmpConnection.Code.CONNECT_SUCCESS.rawValue -> {
-                            stream.publish(streamName)
+                            stream.publish("live2")
                         }
 
                         else -> {

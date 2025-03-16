@@ -203,7 +203,7 @@ open class VideoScreenObject(target: Int = GLES11Ext.GL_TEXTURE_EXTERNAL_OES) :
 
     override fun onFrameAvailable(surfaceTexture: SurfaceTexture?) {
         try {
-            Log.e("TAG", Thread.currentThread().name)
+            Log.e("TAG", "-----")
             surfaceTexture?.updateTexImage()
             isFrameAvailable = true
         } catch (e: RuntimeException) {
