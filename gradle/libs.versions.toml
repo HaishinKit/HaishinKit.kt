@@ -1,19 +1,19 @@
 [versions]
 accompanistPermissions = "0.37.2"
 accompanistPagerIndicators = "0.36.0"
-agp = "8.4.2"
-annotationJvm = "1.8.2"
-foundation = "1.6.8"
-kotlin = "1.9.23"
-coreKtx = "1.13.1"
+agp = "8.6.1"
+annotationJvm = "1.9.1"
+foundation = "1.7.8"
+kotlin = "2.1.10"
+coreKtx = "1.16.0"
 junit = "4.13.2"
 junitVersion = "1.2.1"
 espressoCore = "3.6.1"
 kotlinxCoroutinesCore = "1.8.1"
 leakcanaryAndroid = "2.14"
-lifecycleRuntimeKtx = "2.8.4"
-activityCompose = "1.9.1"
-composeBom = "2024.06.00"
+lifecycleRuntimeKtx = "2.8.7"
+activityCompose = "1.10.1"
+composeBom = "2025.04.00"
 appcompat = "1.7.0"
 lottie = "6.4.1"
 material = "1.12.0"
@@ -51,3 +51,4 @@ androidApplication = { id = "com.android.application", version.ref = "agp" }
 jetbrainsKotlinAndroid = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 androidLibrary = { id = "com.android.library", version.ref = "agp" }
 jetbrainsDokka = { id = "org.jetbrains.dokka", version.ref = "dokkaPlugin" }
+compose-compiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
