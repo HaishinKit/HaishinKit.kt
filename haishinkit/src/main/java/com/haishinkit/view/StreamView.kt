@@ -1,7 +1,8 @@
-package com.haishinkit.media
+package com.haishinkit.view
 
 import com.haishinkit.graphics.VideoGravity
 import com.haishinkit.graphics.effect.VideoEffect
+import com.haishinkit.screen.Screen
 
 interface StreamView {
     /**
@@ -20,7 +21,7 @@ interface StreamView {
     var frameRate: Int
 
     /**
-     * Attaches a video stream to the view.
+     * Specifies the offscreen object for video input.
      */
-    fun attachStream(stream: Stream?)
+    var screen: Screen?
 }

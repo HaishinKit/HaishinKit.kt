@@ -47,9 +47,10 @@ import com.haishinkit.event.IEventListener
 import com.haishinkit.graphics.VideoGravity
 import com.haishinkit.graphics.effect.DefaultVideoEffect
 import com.haishinkit.lottie.LottieScreen
-import com.haishinkit.media.AudioRecordSource
-import com.haishinkit.media.Camera2Source
-import com.haishinkit.media.MultiCamera2Source
+import com.haishinkit.media.MediaMixer
+import com.haishinkit.media.source.AudioRecordSource
+import com.haishinkit.media.source.Camera2Source
+import com.haishinkit.media.source.MultiCamera2Source
 import com.haishinkit.rtmp.RtmpConnection
 import com.haishinkit.screen.ImageScreenObject
 import com.haishinkit.screen.Screen
@@ -79,6 +80,9 @@ fun CameraScreen(
             connectionState.createStream(context)
         }
 
+    val mixer =
+        remember { MediaMixer(context) }
+
     DisposableEffect(Unit) {
         onDispose {
             connectionState.dispose()
@@ -88,14 +92,14 @@ fun CameraScreen(
     val configuration = LocalConfiguration.current
     when (configuration.orientation) {
         Configuration.ORIENTATION_PORTRAIT -> {
-            stream.screen.frame =
+            mixer.screen.frame =
                 Rect(
                     0, 0, Screen.DEFAULT_HEIGHT, Screen.DEFAULT_WIDTH,
                 )
         }
 
         Configuration.ORIENTATION_LANDSCAPE -> {
-            stream.screen.frame =
+            mixer.screen.frame =
                 Rect(
                     0, 0, Screen.DEFAULT_WIDTH, Screen.DEFAULT_HEIGHT,
                 )
@@ -113,8 +117,12 @@ fun CameraScreen(
     LaunchedEffect(pagerState, 0) {
         snapshotFlow { pagerState.currentPage }.collect { page ->
             val item = controller.videoEffectItems[page]
-            stream.videoEffect = item.videoEffect ?: DefaultVideoEffect.shared
+            mixer.screen.videoEffect = item.videoEffect ?: DefaultVideoEffect.shared
         }
+    }
+
+    LaunchedEffect(Unit) {
+        mixer.registerStream(stream)
     }
 
     HaishinKitView(
@@ -134,11 +142,11 @@ fun CameraScreen(
         CameraDeviceControllerView(onAudioPermissionStatus = { state ->
             when (state.status) {
                 PermissionStatus.Granted -> {
-                    stream.attachAudio(AudioRecordSource(context))
+                    mixer.attachAudio(AudioRecordSource(context))
                 }
 
                 is PermissionStatus.Denied -> {
-                    stream.attachAudio(null)
+                    mixer.attachAudio(null)
                 }
             }
         }, onVideoPermissionStatus = { state ->
@@ -146,8 +154,8 @@ fun CameraScreen(
                 PermissionStatus.Granted -> {
                     try {
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                            stream.attachVideo(MultiCamera2Source(context))
-                            (stream.videoSource as? MultiCamera2Source)?.apply {
+                            mixer.attachVideo(MultiCamera2Source(context))
+                            (mixer.videoSource as? MultiCamera2Source)?.apply {
                                 try {
                                     open(0, CameraCharacteristics.LENS_FACING_BACK)
                                     open(1, CameraCharacteristics.LENS_FACING_FRONT)
@@ -161,8 +169,8 @@ fun CameraScreen(
                                         e,
                                     )
                                     // If multi-camera setup fails, revert to single camera
-                                    stream.attachVideo(null)
-                                    stream.attachVideo(
+                                    mixer.attachVideo(null)
+                                    mixer.attachVideo(
                                         Camera2Source(context).apply {
                                             try {
                                                 open(CameraCharacteristics.LENS_FACING_BACK)
@@ -178,7 +186,7 @@ fun CameraScreen(
                                 }
                             }
                         } else {
-                            stream.attachVideo(
+                            mixer.attachVideo(
                                 Camera2Source(context).apply {
                                     try {
                                         open(CameraCharacteristics.LENS_FACING_BACK)
@@ -194,7 +202,7 @@ fun CameraScreen(
                 }
 
                 is PermissionStatus.Denied -> {
-                    stream.attachVideo(null)
+                    mixer.attachVideo(null)
                 }
             }
         })
@@ -235,13 +243,13 @@ fun CameraScreen(
                     .padding(32.dp),
         )
 
-        val recorderState = rememberRecorderState(context, stream)
+        val recorderState = rememberRecorderState(context, mixer)
 
         CameraControllerView(
             isRecording = recorderState.isRecording,
             isConnected = connectionState.isConnected,
             onClickScreenShot = {
-                controller.onScreenShot(stream.screen)
+                controller.onScreenShot(mixer.screen)
             },
             onClickConnect = {
                 if (connectionState.isConnected) {
@@ -297,14 +305,14 @@ fun CameraScreen(
         image.verticalAlignment = ScreenObject.VERTICAL_ALIGNMENT_BOTTOM
         image.frame.set(0, 0, 180, 180)
 
-        stream.screen.addChild(image)
-        stream.screen.addChild(text)
+        mixer.screen.addChild(image)
+        mixer.screen.addChild(text)
 
         val lottie = LottieScreen(context)
         lottie.setAnimation(R.raw.a1707149669115)
         lottie.frame.set(0, 0, 200, 200)
         lottie.horizontalAlignment = ScreenObject.HORIZONTAL_ALIGNMENT_RIGHT
         lottie.playAnimation()
-        stream.screen.addChild(lottie)
+        mixer.screen.addChild(lottie)
     }
 }

@@ -21,12 +21,14 @@ import com.haishinkit.event.EventUtils
 import com.haishinkit.event.IEventListener
 import com.haishinkit.graphics.effect.LanczosVideoEffect
 import com.haishinkit.graphics.effect.VideoEffect
-import com.haishinkit.media.AudioRecordSource
-import com.haishinkit.media.MediaProjectionSource
+import com.haishinkit.media.MediaMixer
+import com.haishinkit.media.source.AudioRecordSource
+import com.haishinkit.media.source.MediaProjectionSource
 import com.haishinkit.rtmp.RtmpConnection
 import com.haishinkit.rtmp.RtmpStream
 
 class MediaProjectionService : Service(), IEventListener {
+    private lateinit var mixer: MediaMixer
     private lateinit var stream: RtmpStream
     private lateinit var connection: RtmpConnection
     private lateinit var videoSource: MediaProjectionSource
@@ -47,13 +49,14 @@ class MediaProjectionService : Service(), IEventListener {
                     MSG_SET_VIDEO_EFFECT -> {
                         if (msg.obj is LanczosVideoEffect) {
                             val lanczosVideoEffect = msg.obj as LanczosVideoEffect
-                            lanczosVideoEffect.texelWidth = videoSource.video.videoSize.width.toFloat()
+                            lanczosVideoEffect.texelWidth =
+                                videoSource.video.videoSize.width.toFloat()
                             lanczosVideoEffect.texelHeight =
                                 videoSource.video.videoSize.height.toFloat()
-                            stream.videoEffect = lanczosVideoEffect
+                            mixer.screen.videoEffect = lanczosVideoEffect
                             return
                         }
-                        stream.videoEffect = msg.obj as VideoEffect
+                        mixer.screen.videoEffect = msg.obj as VideoEffect
                     }
                 }
             }
@@ -92,7 +95,8 @@ class MediaProjectionService : Service(), IEventListener {
         }
         val mediaProjectionManager =
             getSystemService(MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
-        stream.attachAudio(AudioRecordSource(this))
+
+        mixer.attachAudio(AudioRecordSource(this))
         stream.listener = listener
         data?.let {
             val source =
@@ -100,18 +104,20 @@ class MediaProjectionService : Service(), IEventListener {
                     this,
                     mediaProjectionManager.getMediaProjection(Activity.RESULT_OK, it),
                 )
-            stream.attachVideo(source)
+            mixer.attachVideo(source)
             stream.videoSetting.width = source.video.videoSize.width shr 2
             stream.videoSetting.height = source.video.videoSize.height shr 2
             videoSource = source
             Log.e(TAG, "${stream.videoSetting.width}:${stream.videoSetting.height}")
         }
+
         connection.connect(Preference.shared.rtmpURL)
         return START_NOT_STICKY
     }
 
     override fun onCreate() {
         super.onCreate()
+        mixer = MediaMixer(applicationContext)
         messenger = Messenger(handler)
         connection = RtmpConnection()
         connection.addEventListener(Event.RTMP_STATUS, this)

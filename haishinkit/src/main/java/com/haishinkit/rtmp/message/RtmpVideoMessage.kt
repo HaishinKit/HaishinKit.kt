@@ -8,7 +8,6 @@ import com.haishinkit.codec.CodecCapabilities
 import com.haishinkit.iso.AvcDecoderConfigurationRecord
 import com.haishinkit.iso.DecoderConfigurationRecord
 import com.haishinkit.iso.IsoTypeBufferUtils
-import com.haishinkit.media.MediaCodecSource
 import com.haishinkit.rtmp.RtmpChunk
 import com.haishinkit.rtmp.RtmpConnection
 import com.haishinkit.rtmp.RtmpMuxer
@@ -27,11 +26,11 @@ internal class RtmpVideoMessage(pool: Pools.Pool<RtmpMessage>? = null) :
     private val headerSize: Int
         get() =
             5 +
-                    if (isExHeader && fourCC == RtmpMuxer.FLV_VIDEO_FOUR_CC_HVC1 && packetType == RtmpMuxer.FLV_VIDEO_PACKET_TYPE_CODED_FRAMES) {
-                        3
-                    } else {
-                        0
-                    }
+                if (isExHeader && fourCC == RtmpMuxer.FLV_VIDEO_FOUR_CC_HVC1 && packetType == RtmpMuxer.FLV_VIDEO_PACKET_TYPE_CODED_FRAMES) {
+                    3
+                } else {
+                    0
+                }
 
     override var length: Int
         get() {
@@ -152,9 +151,6 @@ internal class RtmpVideoMessage(pool: Pools.Pool<RtmpMessage>? = null) :
                     val record = DecoderConfigurationRecord.decode(mime, payload) ?: return this
                     record.videoSize?.let {
                         Log.i(TAG, it.toString())
-                        stream.attachVideo(
-                            MediaCodecSource(it),
-                        )
                     }
                     if (record.configure(stream.videoCodec)) {
                         timestamp = 0
@@ -186,9 +182,6 @@ internal class RtmpVideoMessage(pool: Pools.Pool<RtmpMessage>? = null) :
                 RtmpMuxer.FLV_AVC_PACKET_TYPE_SEQ -> {
                     val record = AvcDecoderConfigurationRecord.decode(payload)
                     record.videoSize?.let {
-                        stream.attachVideo(
-                            MediaCodecSource(it),
-                        )
                     }
                     if (record.configure(stream.videoCodec)) {
                         data = record.toByteBuffer()

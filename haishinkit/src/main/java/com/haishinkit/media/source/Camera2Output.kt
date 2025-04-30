@@ -1,4 +1,4 @@
-package com.haishinkit.media
+package com.haishinkit.media.source
 
 import android.annotation.SuppressLint
 import android.content.Context
@@ -78,7 +78,7 @@ internal class Camera2Output(
 
     override fun onOpened(camera: CameraDevice) {
         device = camera
-        source.stream?.screen?.frame?.let {
+        source.mixer?.screen?.frame?.let {
             if (it.height() <= it.width()) {
                 getCameraSize(it.width(), it.height())?.let { size ->
                     video.videoSize = size

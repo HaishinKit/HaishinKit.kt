@@ -9,15 +9,15 @@ import java.lang.ref.WeakReference
 import java.nio.ByteBuffer
 import java.util.concurrent.atomic.AtomicBoolean
 
-internal class StreamMediaMuxer(stream: Stream?, private var muxer: MediaMuxer?) :
+internal class MediaRecorderMuxer(mixer: MediaMixer?, private var muxer: MediaMuxer?) :
     Running,
     Codec.Listener {
     override val isRunning: AtomicBoolean = AtomicBoolean(false)
-    private var stream = WeakReference(stream)
+    private var mixer = WeakReference(mixer)
     private val isReady: Boolean
         get() {
-            val audioSource = stream.get()?.audioSource
-            val videoSource = stream.get()?.videoSource
+            val audioSource = mixer.get()?.audioSource
+            val videoSource = mixer.get()?.videoSource
             if (audioSource != null && videoSource != null) {
                 return DEFAULT_TRACK_INDEX < audioTrackIndex && DEFAULT_TRACK_INDEX < videoTrackIndex
             }
@@ -42,7 +42,7 @@ internal class StreamMediaMuxer(stream: Stream?, private var muxer: MediaMuxer?)
         muxer?.stop()
         muxer?.release()
         muxer = null
-        stream.clear()
+        mixer.clear()
     }
 
     override fun onInputBufferAvailable(
@@ -89,6 +89,6 @@ internal class StreamMediaMuxer(stream: Stream?, private var muxer: MediaMuxer?)
 
     private companion object {
         private const val DEFAULT_TRACK_INDEX = -1
-        private val TAG = StreamMediaMuxer::class.java.simpleName
+        private val TAG = MediaRecorderMuxer::class.java.simpleName
     }
 }

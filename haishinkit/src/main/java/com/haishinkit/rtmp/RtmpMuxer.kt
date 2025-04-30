@@ -95,12 +95,12 @@ internal class RtmpMuxer(private val stream: RtmpStream) :
         }
         when (mode) {
             Codec.MODE_ENCODE -> {
-                stream.audioSource?.let {
+                stream.mixer?.audioSource?.let {
                     stream.audioCodec.listener = this
                     stream.audioCodec.startRunning()
                     it.registerAudioCodec(stream.audioCodec)
                 }
-                stream.videoSource?.let {
+                stream.mixer?.videoSource?.let {
                     stream.videoCodec.listener = this
                     stream.videoCodec.startRunning()
                 }
@@ -124,7 +124,7 @@ internal class RtmpMuxer(private val stream: RtmpStream) :
             Codec.MODE_ENCODE -> {
                 stream.audioCodec.stopRunning()
                 stream.videoCodec.stopRunning()
-                stream.audioSource?.unregisterAudioCodec(stream.audioCodec)
+                stream.mixer?.audioSource?.unregisterAudioCodec(stream.audioCodec)
             }
 
             Codec.MODE_DECODE -> {
