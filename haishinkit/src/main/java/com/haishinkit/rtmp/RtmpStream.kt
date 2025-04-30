@@ -9,11 +9,11 @@ import com.haishinkit.event.EventDispatcher
 import com.haishinkit.event.EventUtils
 import com.haishinkit.event.IEventDispatcher
 import com.haishinkit.event.IEventListener
-import com.haishinkit.media.Stream
 import com.haishinkit.rtmp.message.RtmpCommandMessage
 import com.haishinkit.rtmp.message.RtmpDataMessage
 import com.haishinkit.rtmp.message.RtmpMessage
 import com.haishinkit.rtmp.message.RtmpMessageFactory
+import com.haishinkit.stream.Stream
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
@@ -417,7 +417,7 @@ class RtmpStream(context: Context, internal var connection: RtmpConnection) :
 
     private fun toMetaData(): Map<String, Any> {
         val metadata = mutableMapOf<String, Any>()
-        videoSource?.let {
+        mixer?.videoSource?.let {
             metadata["width"] = videoCodec.width
             metadata["height"] = videoCodec.height
             metadata["framerate"] = videoCodec.frameRate
@@ -435,7 +435,7 @@ class RtmpStream(context: Context, internal var connection: RtmpConnection) :
             }
             metadata["videodatarate"] = videoCodec.bitRate / 1000
         }
-        audioSource?.let {
+        mixer?.audioSource?.let {
             metadata["audiocodecid"] = RtmpMuxer.FLV_AUDIO_CODEC_AAC.toInt()
             metadata["audiodatarate"] = audioCodec.bitRate / 1000
         }

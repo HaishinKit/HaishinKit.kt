@@ -1,4 +1,4 @@
-package com.haishinkit.media
+package com.haishinkit.media.source
 
 import android.Manifest
 import android.annotation.SuppressLint
@@ -12,6 +12,7 @@ import android.util.Log
 import androidx.core.app.ActivityCompat
 import com.haishinkit.BuildConfig
 import com.haishinkit.codec.AudioCodec
+import com.haishinkit.media.MediaMixer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -30,7 +31,7 @@ class AudioRecordSource(
     var audioSource = DEFAULT_AUDIO_SOURCE
     var sampleRate = DEFAULT_SAMPLE_RATE
     override var isMuted = false
-    override var stream: Stream? = null
+    override var mixer: MediaMixer? = null
     override val isRunning = AtomicBoolean(false)
     override val coroutineContext: CoroutineContext
         get() = Dispatchers.IO

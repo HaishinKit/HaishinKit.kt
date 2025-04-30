@@ -1,4 +1,4 @@
-package com.haishinkit.media
+package com.haishinkit.media.source
 
 import android.content.Context
 import android.graphics.Point
@@ -17,6 +17,7 @@ import android.view.WindowManager
 import androidx.core.content.getSystemService
 import com.haishinkit.BuildConfig
 import com.haishinkit.graphics.ImageOrientation
+import com.haishinkit.media.MediaMixer
 import com.haishinkit.screen.ScreenObjectContainer
 import com.haishinkit.screen.VideoScreenObject
 import java.util.concurrent.atomic.AtomicBoolean
@@ -63,7 +64,7 @@ class MediaProjectionSource(
         }
     }
 
-    override var stream: Stream? = null
+    override var mixer: MediaMixer? = null
     override val isRunning = AtomicBoolean(false)
     override val screen: ScreenObjectContainer by lazy {
         ScreenObjectContainer().apply {
@@ -123,7 +124,7 @@ class MediaProjectionSource(
         // Android 14 must register an callback.
         mediaProjection.registerCallback(callback, null)
         video.videoSize = displaySize
-        stream?.screen?.frame = Rect(0, 0, video.videoSize.width, video.videoSize.height)
+        mixer?.screen?.frame = Rect(0, 0, video.videoSize.width, video.videoSize.height)
         isRunning.set(true)
     }
 
