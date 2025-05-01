@@ -4,7 +4,9 @@ import androidx.core.util.Pools
 import java.util.Collections
 import java.util.concurrent.ConcurrentHashMap
 
-open class EventDispatcher(private val target: IEventDispatcher?) : IEventDispatcher {
+open class EventDispatcher(
+    private val target: IEventDispatcher?,
+) : IEventDispatcher {
     private val pool = Pools.SynchronizedPool<Event>(MAX_POOL_SIZE)
     private val listeners = ConcurrentHashMap<String, MutableList<IEventListener>>()
 

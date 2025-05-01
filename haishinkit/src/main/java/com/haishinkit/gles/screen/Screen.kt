@@ -15,8 +15,9 @@ import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.util.concurrent.atomic.AtomicBoolean
 
-internal class Screen(applicationContext: Context) :
-    com.haishinkit.screen.Screen(applicationContext),
+internal class Screen(
+    applicationContext: Context,
+) : com.haishinkit.screen.Screen(applicationContext),
     Running,
     Choreographer.FrameCallback {
     val graphicsContext: GraphicsContext by lazy { GraphicsContext() }

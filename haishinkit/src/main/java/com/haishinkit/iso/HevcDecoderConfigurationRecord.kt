@@ -46,7 +46,10 @@ internal data class HevcDecoderConfigurationRecord(
         get() {
             val payload = arrays[NAL_UNIT_TYPE_SPS]?.firstOrNull()?.payload ?: return null
             val sequenceParameterSet = HevcSequenceParameterSet.decode(payload)
-            return Size(sequenceParameterSet.picWidthInLumaSamples, sequenceParameterSet.picHeightIntLumaSamples)
+            return Size(
+                sequenceParameterSet.picWidthInLumaSamples,
+                sequenceParameterSet.picHeightIntLumaSamples,
+            )
         }
 
     override fun encode(buffer: ByteBuffer): HevcDecoderConfigurationRecord {
@@ -134,16 +137,35 @@ internal data class HevcDecoderConfigurationRecord(
             arrays[NAL_UNIT_TYPE_VPS] = units.filter { it.type == NAL_UNIT_TYPE_VPS }
             arrays[NAL_UNIT_TYPE_SPS] = units.filter { it.type == NAL_UNIT_TYPE_SPS }
             arrays[NAL_UNIT_TYPE_PPS] = units.filter { it.type == NAL_UNIT_TYPE_PPS }
-            val spsUnit = units.firstOrNull { it.type == NAL_UNIT_TYPE_SPS } ?: throw IllegalArgumentException()
+            val spsUnit =
+                units.firstOrNull { it.type == NAL_UNIT_TYPE_SPS }
+                    ?: throw IllegalArgumentException()
             val sps = HevcSequenceParameterSet.decode(spsUnit.payload)
             return HevcDecoderConfigurationRecord(
-                configurationVersion = 1u, generalProfileSpace = sps.profileTierLevel.generalProfileSpace, generalTierFlag = sps.profileTierLevel.generalTierFlag, generalProfileIdc = sps.profileTierLevel.generalProfileIdc, generalProfileCompatibilityFlags = sps.profileTierLevel.generalProfileCompatFlags, generalConstraintIndicatorFlags = sps.profileTierLevel.generalConstraintIndicatorFlags, generalLevelIdc = sps.profileTierLevel.generalLevelIdc, minSpatialSegmentationIdc = 0u, parallelismType = 0u, chromaFormat = sps.chromaFormatIdc, bitDepthLumaMinus8 = sps.bitDepthLumaMinus8, bitDepthChromaMinus8 = sps.bitDepthChromaMinus8, avgFrameRate = 0u, constantFrameRate = 0u, numTemporalLayers = 0u, temporalIdNested = false, lengthSizeMinusOne = 3u, numberOfArrays = units.size.toUByte(), arrays = arrays,
+                configurationVersion = 1u,
+                generalProfileSpace = sps.profileTierLevel.generalProfileSpace,
+                generalTierFlag = sps.profileTierLevel.generalTierFlag,
+                generalProfileIdc = sps.profileTierLevel.generalProfileIdc,
+                generalProfileCompatibilityFlags = sps.profileTierLevel.generalProfileCompatFlags,
+                generalConstraintIndicatorFlags = sps.profileTierLevel.generalConstraintIndicatorFlags,
+                generalLevelIdc = sps.profileTierLevel.generalLevelIdc,
+                minSpatialSegmentationIdc = 0u,
+                parallelismType = 0u,
+                chromaFormat = sps.chromaFormatIdc,
+                bitDepthLumaMinus8 = sps.bitDepthLumaMinus8,
+                bitDepthChromaMinus8 = sps.bitDepthChromaMinus8,
+                avgFrameRate = 0u,
+                constantFrameRate = 0u,
+                numTemporalLayers = 0u,
+                temporalIdNested = false,
+                lengthSizeMinusOne = 3u,
+                numberOfArrays = units.size.toUByte(),
+                arrays = arrays,
             )
         }
 
-        override fun create(mediaFormat: MediaFormat): HevcDecoderConfigurationRecord {
-            return create(mediaFormat.getByteBuffer(CSD0) ?: throw IllegalArgumentException())
-        }
+        override fun create(mediaFormat: MediaFormat): HevcDecoderConfigurationRecord =
+            create(mediaFormat.getByteBuffer(CSD0) ?: throw IllegalArgumentException())
 
         override fun decode(buffer: ByteBuffer): HevcDecoderConfigurationRecord {
             val isoTypeBuffer = IsoTypeBuffer(buffer)
@@ -186,7 +208,8 @@ internal data class HevcDecoderConfigurationRecord(
                 generalLevelIdc = generalLevelIdc,
                 minSpatialSegmentationIdc = minSpatialSegmentationIdc,
                 parallelismType = parallelismType,
-                chromaFormat = chromaFormat, bitDepthLumaMinus8 = bitDepthLumaMinus8,
+                chromaFormat = chromaFormat,
+                bitDepthLumaMinus8 = bitDepthLumaMinus8,
                 bitDepthChromaMinus8 = bitDepthChromaMinus8,
                 avgFrameRate = avgFrameRate,
                 constantFrameRate = constantFrameRate,

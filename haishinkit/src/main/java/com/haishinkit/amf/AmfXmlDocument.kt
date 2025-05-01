@@ -5,8 +5,8 @@ package com.haishinkit.amf
  *
  * 2.17 XML Document Type.
  */
-data class AmfXmlDocument(val document: String) {
-    override fun toString(): String {
-        return document
-    }
+data class AmfXmlDocument(
+    val document: String,
+) {
+    override fun toString(): String = document
 }

@@ -5,7 +5,9 @@ import kotlin.math.pow
 import kotlin.math.sqrt
 
 internal class FrameTracker {
-    private class Frame(val type: String) {
+    private class Frame(
+        val type: String,
+    ) {
         private var count = 0
         private var rotated = DEFAULT_TIMESTAMP
         private var timestamp = DEFAULT_TIMESTAMP
@@ -45,9 +47,7 @@ internal class FrameTracker {
             timestamps.clear()
         }
 
-        private fun average(timestamps: List<Long>): Double {
-            return timestamps.average()
-        }
+        private fun average(timestamps: List<Long>): Double = timestamps.average()
 
         private fun sd(timestamps: List<Long>): Double {
             val mean = average(timestamps)

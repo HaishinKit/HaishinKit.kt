@@ -19,7 +19,9 @@ import java.util.concurrent.atomic.AtomicBoolean
  */
 @RequiresApi(Build.VERSION_CODES.P)
 @Suppress("MemberVisibilityCanBePrivate")
-class MultiCamera2Source(val context: Context) : VideoSource {
+class MultiCamera2Source(
+    val context: Context,
+) : VideoSource {
     override var mixer: MediaMixer? = null
     override val isRunning = AtomicBoolean(false)
     override val screen: ScreenObjectContainer by lazy {
@@ -74,9 +76,7 @@ class MultiCamera2Source(val context: Context) : VideoSource {
     /**
      * Gets the video screen object by channel.
      */
-    fun getVideoByChannel(channel: Int): VideoScreenObject? {
-        return outputs[channel]?.video
-    }
+    fun getVideoByChannel(channel: Int): VideoScreenObject? = outputs[channel]?.video
 
     override fun startRunning() {
         if (isRunning.get()) return

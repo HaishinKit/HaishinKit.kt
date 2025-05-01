@@ -2,7 +2,10 @@ package com.haishinkit.iso
 
 import java.nio.ByteBuffer
 
-internal sealed class NalUnit(open val type: UByte, open val payload: ByteBuffer) {
+internal sealed class NalUnit(
+    open val type: UByte,
+    open val payload: ByteBuffer,
+) {
     data class Hevc(
         override val type: UByte,
         val temporalIdPlusOne: UByte,

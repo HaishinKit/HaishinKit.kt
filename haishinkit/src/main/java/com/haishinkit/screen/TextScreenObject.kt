@@ -59,13 +59,14 @@ class TextScreenObject : ImageScreenObject() {
         frame.set(textBounds)
         if (bitmap?.width != textBounds.width() || bitmap?.height != textBounds.height()) {
             bitmap =
-                Bitmap.createBitmap(
-                    max(textBounds.width(), 1),
-                    max(textBounds.height(), 1),
-                    Bitmap.Config.ARGB_8888,
-                ).apply {
-                    canvas = Canvas(this)
-                }
+                Bitmap
+                    .createBitmap(
+                        max(textBounds.width(), 1),
+                        max(textBounds.height(), 1),
+                        Bitmap.Config.ARGB_8888,
+                    ).apply {
+                        canvas = Canvas(this)
+                    }
         }
         bitmap?.eraseColor(Color.TRANSPARENT)
         canvas?.drawText(value, -textBounds.left.toFloat(), -textBounds.top.toFloat(), paint)

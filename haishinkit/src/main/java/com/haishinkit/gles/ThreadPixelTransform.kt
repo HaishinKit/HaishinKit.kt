@@ -12,8 +12,9 @@ import com.haishinkit.graphics.effect.VideoEffect
 import com.haishinkit.screen.Screen
 import java.lang.ref.WeakReference
 
-internal class ThreadPixelTransform(override val applicationContext: Context) :
-    PixelTransform {
+internal class ThreadPixelTransform(
+    override val applicationContext: Context,
+) : PixelTransform {
     override var screen: Screen?
         get() = pixelTransform.screen
         set(value) {
@@ -67,8 +68,10 @@ internal class ThreadPixelTransform(override val applicationContext: Context) :
         PixelTransform(applicationContext)
     }
 
-    private class Handler(frame: com.haishinkit.gles.PixelTransform, looper: Looper) :
-        android.os.Handler(looper) {
+    private class Handler(
+        frame: com.haishinkit.gles.PixelTransform,
+        looper: Looper,
+    ) : android.os.Handler(looper) {
         private val weakTransform =
             WeakReference(frame)
 

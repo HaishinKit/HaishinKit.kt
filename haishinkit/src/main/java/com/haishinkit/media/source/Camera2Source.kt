@@ -18,7 +18,9 @@ import java.util.concurrent.atomic.AtomicBoolean
  * A video source that captures a camera by the Camera2 API.
  */
 @Suppress("MemberVisibilityCanBePrivate")
-class Camera2Source(private val context: Context) : VideoSource {
+class Camera2Source(
+    private val context: Context,
+) : VideoSource {
     /**
      * The video screen object.
      */

@@ -19,9 +19,7 @@ object FeatureUtil {
     /**
      * Whether or not a flag is enabled.
      */
-    fun isEnabled(feature: String): Boolean {
-        return flags[feature] ?: false
-    }
+    fun isEnabled(feature: String): Boolean = flags[feature] ?: false
 
     /**
      * Setter for a feature flag.
@@ -33,7 +31,5 @@ object FeatureUtil {
         flags[feature] = isEnabled
     }
 
-    override fun toString(): String {
-        return JSONObject(flags.toMap()).toString()
-    }
+    override fun toString(): String = JSONObject(flags.toMap()).toString()
 }

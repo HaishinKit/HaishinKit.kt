@@ -18,7 +18,9 @@ import javax.net.ssl.SSLSocket
 import javax.net.ssl.SSLSocketFactory
 import kotlin.coroutines.CoroutineContext
 
-internal class NetSocketImpl : NetSocket, CoroutineScope {
+internal class NetSocketImpl :
+    NetSocket,
+    CoroutineScope {
     override var timeout = DEFAULT_TIMEOUT
     override var listener: NetSocket.Listener? = null
     override val totalBytesIn = AtomicLong(0)

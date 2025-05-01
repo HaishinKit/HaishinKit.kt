@@ -20,7 +20,10 @@ internal object IsoTypeBufferUtils {
         val remaining = input.remaining() - 3 + offset
         output.put(input)
         for (i in offset until remaining) {
-            if (output.get(i) == ZERO && output.get(i + 1) == ZERO && output.get(i + 2) == ZERO && output.get(
+            if (output.get(i) == ZERO &&
+                output.get(i + 1) == ZERO &&
+                output.get(i + 2) == ZERO &&
+                output.get(
                     i + 3,
                 ) == ONE
             ) {

@@ -3,7 +3,10 @@ package com.haishinkit.codec
 import android.media.MediaFormat
 import java.nio.ByteBuffer
 
-data class CodecOption(val key: String, val value: Any) {
+data class CodecOption(
+    val key: String,
+    val value: Any,
+) {
     internal fun apply(format: MediaFormat) {
         when (true) {
             (value is Int) -> format.setInteger(key, value)

@@ -8,7 +8,9 @@ import android.graphics.Rect
 /**
  * An object that manages offscreen rendering a foundation.
  */
-abstract class Screen(val applicationContext: Context) : ScreenObjectContainer() {
+abstract class Screen(
+    val applicationContext: Context,
+) : ScreenObjectContainer() {
     abstract class Callback {
         abstract fun onEnterFrame()
     }
@@ -56,10 +58,9 @@ abstract class Screen(val applicationContext: Context) : ScreenObjectContainer()
         const val DEFAULT_WIDTH = 1280
         const val DEFAULT_HEIGHT = 720
 
-        fun create(context: Context): Screen {
-            return com.haishinkit.gles.screen.ThreadScreen(context).apply {
+        fun create(context: Context): Screen =
+            com.haishinkit.gles.screen.ThreadScreen(context).apply {
                 frame = Rect(0, 0, DEFAULT_WIDTH, DEFAULT_HEIGHT)
             }
-        }
     }
 }

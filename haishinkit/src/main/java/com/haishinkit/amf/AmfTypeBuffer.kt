@@ -6,7 +6,9 @@ import java.nio.ByteBuffer
 import java.util.Date
 import java.util.IllegalFormatFlagsException
 
-internal class AmfTypeBuffer(private val buffer: ByteBuffer) {
+internal class AmfTypeBuffer(
+    private val buffer: ByteBuffer,
+) {
     val data: Any?
         get() {
             val marker = buffer.get()
@@ -203,7 +205,10 @@ internal class AmfTypeBuffer(private val buffer: ByteBuffer) {
             return this
         }
         val length = value.length
-        val isShort = length <= java.lang.Short.MAX_VALUE.toInt()
+        val isShort =
+            length <=
+                java.lang.Short.MAX_VALUE
+                    .toInt()
         buffer.put(if (isShort) STRING else LONG_STRING)
         return putString(value, isShort)
     }
@@ -301,9 +306,7 @@ internal class AmfTypeBuffer(private val buffer: ByteBuffer) {
         return this
     }
 
-    override fun toString(): String {
-        return buffer.toString()
-    }
+    override fun toString(): String = buffer.toString()
 
     private fun putString(
         value: String,

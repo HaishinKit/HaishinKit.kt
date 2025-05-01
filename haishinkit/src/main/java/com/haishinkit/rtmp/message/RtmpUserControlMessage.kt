@@ -9,9 +9,12 @@ import java.nio.ByteBuffer
 /**
  * 7.1.5. Video Message (9)
  */
-internal class RtmpUserControlMessage(pool: Pools.Pool<RtmpMessage>? = null) :
-    RtmpMessage(TYPE_USER, pool) {
-    enum class Event(val rawValue: Short) {
+internal class RtmpUserControlMessage(
+    pool: Pools.Pool<RtmpMessage>? = null,
+) : RtmpMessage(TYPE_USER, pool) {
+    enum class Event(
+        val rawValue: Short,
+    ) {
         STREAM_BEGIN(0x00),
         STREAM_EOF(0x01),
         STREAM_DRY(0x02),

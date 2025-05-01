@@ -12,7 +12,9 @@ import kotlin.properties.Delegates
  */
 class AudioCodec : Codec() {
     @Suppress("UNUSED")
-    data class Setting(private var codec: AudioCodec? = null) : Codec.Setting(codec) {
+    data class Setting(
+        private var codec: AudioCodec? = null,
+    ) : Codec.Setting(codec) {
         /**
          * The channel of audio output.
          */
@@ -81,8 +83,8 @@ class AudioCodec : Codec() {
         }
     }
 
-    override fun createMediaFormat(mime: String): MediaFormat {
-        return MediaFormat.createAudioFormat(mime, sampleRate, channelCount).apply {
+    override fun createMediaFormat(mime: String): MediaFormat =
+        MediaFormat.createAudioFormat(mime, sampleRate, channelCount).apply {
             if (mode == MODE_ENCODE) {
                 setInteger(MediaFormat.KEY_AAC_PROFILE, aacProfile)
                 setInteger(MediaFormat.KEY_BIT_RATE, bitRate)
@@ -90,7 +92,6 @@ class AudioCodec : Codec() {
                 setInteger(MediaFormat.KEY_MAX_INPUT_SIZE, DEFAULT_KEY_MAX_INPUT_SIZE)
             }
         }
-    }
 
     override fun dispose() {
         buffer.clear()

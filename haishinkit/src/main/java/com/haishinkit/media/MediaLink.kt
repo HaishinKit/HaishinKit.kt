@@ -24,8 +24,10 @@ import kotlin.coroutines.CoroutineContext
 /**
  * The MediaLink class can be used to synchronously play audio and video streams.
  */
-internal class MediaLink(val audio: AudioCodec, val video: VideoCodec) :
-    Running,
+internal class MediaLink(
+    val audio: AudioCodec,
+    val video: VideoCodec,
+) : Running,
     CoroutineScope,
     Choreographer.FrameCallback {
     data class Buffer(

@@ -8,7 +8,9 @@ import com.haishinkit.event.IEventListener
 import com.haishinkit.util.Md5Util
 import java.net.URI
 
-internal class RtmpAuthenticator(val connection: RtmpConnection) : IEventListener {
+internal class RtmpAuthenticator(
+    val connection: RtmpConnection,
+) : IEventListener {
     data class Info(
         val user: String,
         val password: String,

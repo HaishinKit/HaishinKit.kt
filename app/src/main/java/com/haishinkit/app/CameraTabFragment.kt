@@ -26,7 +26,9 @@ interface CameraController {
     fun onScreenShot(screen: Screen)
 }
 
-class CameraTabFragment : Fragment(), CameraController {
+class CameraTabFragment :
+    Fragment(),
+    CameraController {
     override val videoEffectItems: List<VideoEffectItem> by lazy {
         val items = mutableListOf<VideoEffectItem>()
         items.add(VideoEffectItem("Normal", null))
@@ -40,8 +42,8 @@ class CameraTabFragment : Fragment(), CameraController {
         inflater: LayoutInflater,
         container: ViewGroup?,
         savedInstanceState: Bundle?,
-    ): View {
-        return ComposeView(requireContext()).apply {
+    ): View =
+        ComposeView(requireContext()).apply {
             setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
             setContent {
                 Log.i(TAG, "setContent:${this@CameraTabFragment}")
@@ -56,14 +58,19 @@ class CameraTabFragment : Fragment(), CameraController {
                 }
             }
         }
-    }
 
     override fun onScreenShot(screen: Screen) {
         screen.readPixels {
             val bitmap = it ?: return@readPixels
             val bytes = ByteArrayOutputStream()
             bitmap.compress(Bitmap.CompressFormat.JPEG, 100, bytes)
-            val path = MediaStore.Images.Media.insertImage(requireActivity().contentResolver, bitmap, "Title", null)
+            val path =
+                MediaStore.Images.Media.insertImage(
+                    requireActivity().contentResolver,
+                    bitmap,
+                    "Title",
+                    null,
+                )
             val imageUri = Uri.parse(path)
             val share = Intent(Intent.ACTION_SEND)
             share.setType("image/jpeg")
@@ -75,8 +82,6 @@ class CameraTabFragment : Fragment(), CameraController {
     companion object {
         private const val TAG = "CameraTabFragment"
 
-        fun newInstance(): CameraTabFragment {
-            return CameraTabFragment()
-        }
+        fun newInstance(): CameraTabFragment = CameraTabFragment()
     }
 }

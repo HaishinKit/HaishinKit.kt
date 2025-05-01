@@ -11,15 +11,17 @@ import java.io.FileNotFoundException
 import java.lang.reflect.Method
 import java.util.Locale
 
-internal class ShaderLoader(private val applicationContext: Context) {
+internal class ShaderLoader(
+    private val applicationContext: Context,
+) {
     private var texture2dPrograms = mutableMapOf<VideoEffect, Program>()
     private var textureOesPrograms = mutableMapOf<VideoEffect, Program>()
 
     fun getProgram(
         target: Int,
         videoEffect: VideoEffect,
-    ): Program? {
-        return if (target == GLES11Ext.GL_TEXTURE_EXTERNAL_OES) {
+    ): Program? =
+        if (target == GLES11Ext.GL_TEXTURE_EXTERNAL_OES) {
             if (!textureOesPrograms.containsKey(videoEffect)) {
                 createProgram(target, videoEffect)?.let {
                     textureOesPrograms[videoEffect] = it
@@ -34,7 +36,6 @@ internal class ShaderLoader(private val applicationContext: Context) {
             }
             texture2dPrograms[videoEffect]
         }
-    }
 
     fun release() {
         texture2dPrograms.forEach {
@@ -98,7 +99,9 @@ internal class ShaderLoader(private val applicationContext: Context) {
         for (method in clazz.methods) {
             method.getAnnotation(Uniform::class.java) ?: continue
             val propertyName =
-                method.name.split("$")[0].substring(3, 4)
+                method.name
+                    .split("$")[0]
+                    .substring(3, 4)
                     .lowercase(Locale.ROOT) + method.name.split("$")[0].substring(4)
             val location = GLES20.glGetUniformLocation(program, propertyName)
             handlers[location] = clazz.getDeclaredMethod(method.name.split("$")[0])
@@ -114,7 +117,8 @@ internal class ShaderLoader(private val applicationContext: Context) {
         var suffix = ""
         var shader = GLES20.glCreateShader(shaderType)
         Utils.checkGlError("glCreateShader type=$shaderType")
-        if (shaderType == GLES20.GL_VERTEX_SHADER && videoEffect::class.java.getAnnotation(
+        if (shaderType == GLES20.GL_VERTEX_SHADER &&
+            videoEffect::class.java.getAnnotation(
                 RequirementsDirective::class.java,
             ) != null
         ) {

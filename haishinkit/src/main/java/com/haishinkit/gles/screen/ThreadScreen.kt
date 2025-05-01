@@ -11,7 +11,9 @@ import com.haishinkit.screen.Screen
 import com.haishinkit.screen.ScreenObject
 import java.lang.ref.WeakReference
 
-internal class ThreadScreen(applicationContext: Context) : Screen(applicationContext) {
+internal class ThreadScreen(
+    applicationContext: Context,
+) : Screen(applicationContext) {
     val graphicsContext: GraphicsContext
         get() {
             return screen.graphicsContext
@@ -123,8 +125,10 @@ internal class ThreadScreen(applicationContext: Context) : Screen(applicationCon
         handler.looper.quitSafely()
     }
 
-    private class Handler(frame: com.haishinkit.gles.screen.Screen, looper: Looper) :
-        android.os.Handler(looper) {
+    private class Handler(
+        frame: com.haishinkit.gles.screen.Screen,
+        looper: Looper,
+    ) : android.os.Handler(looper) {
         private val transform = WeakReference(frame)
 
         override fun handleMessage(message: Message) {

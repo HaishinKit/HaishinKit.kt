@@ -9,8 +9,9 @@ import java.nio.ByteBuffer
 /**
  *  7.1.1. Command Message (20, 17)
  */
-internal class RtmpCommandMessage(objectEncoding: RtmpObjectEncoding) :
-    RtmpMessage(objectEncoding.commandType) {
+internal class RtmpCommandMessage(
+    objectEncoding: RtmpObjectEncoding,
+) : RtmpMessage(objectEncoding.commandType) {
     var commandName: String? = null
     var transactionID = 0
     var commandObject: Map<String, Any?>? = null

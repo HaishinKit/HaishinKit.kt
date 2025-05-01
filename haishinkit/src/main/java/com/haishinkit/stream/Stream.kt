@@ -10,7 +10,9 @@ import com.haishinkit.view.StreamView
  * The Stream class is the foundation of a RtmpStream.
  */
 @Suppress("UNUSED")
-abstract class Stream(applicationContext: Context) {
+abstract class Stream(
+    applicationContext: Context,
+) {
     var mixer: MediaMixer? = null
         set(value) {
             videoCodec.pixelTransform.screen = value?.screen

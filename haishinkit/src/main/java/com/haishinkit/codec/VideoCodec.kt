@@ -15,9 +15,13 @@ import kotlin.properties.Delegates
 /**
  * The VideoCodec class provides methods for encode or decode for video.
  */
-class VideoCodec(applicationContext: Context) : Codec() {
+class VideoCodec(
+    applicationContext: Context,
+) : Codec() {
     @Suppress("UNUSED")
-    data class Setting(private val codec: VideoCodec? = null) : Codec.Setting(codec) {
+    data class Setting(
+        private val codec: VideoCodec? = null,
+    ) : Codec.Setting(codec) {
         /**
          * Specifies the video codec profile level.
          *
@@ -158,8 +162,8 @@ class VideoCodec(applicationContext: Context) : Codec() {
      */
     private var colorFormat = DEFAULT_COLOR_FORMAT
 
-    override fun createMediaFormat(mime: String): MediaFormat {
-        return MediaFormat.createVideoFormat(mime, width, height).apply {
+    override fun createMediaFormat(mime: String): MediaFormat =
+        MediaFormat.createVideoFormat(mime, width, height).apply {
             if (mode == MODE_ENCODE) {
                 setInteger(MediaFormat.KEY_BIT_RATE, bitRate)
                 setInteger(MediaFormat.KEY_FRAME_RATE, frameRate)
@@ -180,7 +184,6 @@ class VideoCodec(applicationContext: Context) : Codec() {
                 }
             }
         }
-    }
 
     override fun configure(codec: MediaCodec) {
         super.configure(codec)

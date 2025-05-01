@@ -8,8 +8,9 @@ import java.nio.ByteBuffer
 /**
  * 7.1.2. Data Message (18, 15)
  */
-internal class RtmpDataMessage(objectEncoding: RtmpObjectEncoding) :
-    RtmpMessage(objectEncoding.dataType) {
+internal class RtmpDataMessage(
+    objectEncoding: RtmpObjectEncoding,
+) : RtmpMessage(objectEncoding.dataType) {
     var handlerName: String? = null
     var arguments: ArrayList<Any?> = ArrayList()
     override var length: Int = CAPACITY
@@ -36,9 +37,7 @@ internal class RtmpDataMessage(objectEncoding: RtmpObjectEncoding) :
         return this
     }
 
-    override fun execute(connection: RtmpConnection): RtmpMessage {
-        return this
-    }
+    override fun execute(connection: RtmpConnection): RtmpMessage = this
 
     companion object {
         private const val CAPACITY = 1024

@@ -2,7 +2,9 @@ package com.haishinkit.iso
 
 import java.nio.ByteBuffer
 
-internal class IsoTypeBuffer(val buffer: ByteBuffer) {
+internal class IsoTypeBuffer(
+    val buffer: ByteBuffer,
+) {
     private var position = -1
     private var bitPosition: Int = 0
     private var currentUByte: UByte = 0u
@@ -48,17 +50,11 @@ internal class IsoTypeBuffer(val buffer: ByteBuffer) {
         return result
     }
 
-    fun getUByte(): UByte {
-        return buffer.get().toUByte()
-    }
+    fun getUByte(): UByte = buffer.get().toUByte()
 
-    fun getUInt(): UInt {
-        return buffer.getInt().toUInt()
-    }
+    fun getUInt(): UInt = buffer.getInt().toUInt()
 
-    fun getUShort(): UShort {
-        return buffer.getShort().toUShort()
-    }
+    fun getUShort(): UShort = buffer.getShort().toUShort()
 
     fun getULong(bit: Int): ULong {
         condition()

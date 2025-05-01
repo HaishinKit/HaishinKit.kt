@@ -27,7 +27,9 @@ import com.haishinkit.media.source.MediaProjectionSource
 import com.haishinkit.rtmp.RtmpConnection
 import com.haishinkit.rtmp.RtmpStream
 
-class MediaProjectionService : Service(), IEventListener {
+class MediaProjectionService :
+    Service(),
+    IEventListener {
     private lateinit var mixer: MediaMixer
     private lateinit var stream: RtmpStream
     private lateinit var connection: RtmpConnection
@@ -50,9 +52,11 @@ class MediaProjectionService : Service(), IEventListener {
                         if (msg.obj is LanczosVideoEffect) {
                             val lanczosVideoEffect = msg.obj as LanczosVideoEffect
                             lanczosVideoEffect.texelWidth =
-                                videoSource.video.videoSize.width.toFloat()
+                                videoSource.video.videoSize.width
+                                    .toFloat()
                             lanczosVideoEffect.texelHeight =
-                                videoSource.video.videoSize.height.toFloat()
+                                videoSource.video.videoSize.height
+                                    .toFloat()
                             mixer.screen.videoEffect = lanczosVideoEffect
                             return
                         }
@@ -62,9 +66,7 @@ class MediaProjectionService : Service(), IEventListener {
             }
         }
 
-    override fun onBind(intent: Intent?): IBinder? {
-        return messenger?.binder
-    }
+    override fun onBind(intent: Intent?): IBinder? = messenger?.binder
 
     @RequiresApi(Build.VERSION_CODES.O)
     override fun onStartCommand(
@@ -82,12 +84,14 @@ class MediaProjectionService : Service(), IEventListener {
             manager.createNotificationChannel(channel)
         }
         val notification =
-            NotificationCompat.Builder(this, CHANNEL_ID).apply {
-                setColorized(true)
-                setSmallIcon(R.mipmap.ic_launcher)
-                setStyle(NotificationCompat.DecoratedCustomViewStyle())
-                setContentTitle(NOTIFY_TITLE)
-            }.build()
+            NotificationCompat
+                .Builder(this, CHANNEL_ID)
+                .apply {
+                    setColorized(true)
+                    setSmallIcon(R.mipmap.ic_launcher)
+                    setStyle(NotificationCompat.DecoratedCustomViewStyle())
+                    setContentTitle(NOTIFY_TITLE)
+                }.build()
         if (Build.VERSION_CODES.Q <= Build.VERSION.SDK_INT) {
             startForeground(ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION)
         } else {

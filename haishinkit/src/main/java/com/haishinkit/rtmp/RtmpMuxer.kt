@@ -20,8 +20,9 @@ import com.haishinkit.util.MediaFormatUtil
 import java.nio.ByteBuffer
 import java.util.concurrent.atomic.AtomicBoolean
 
-internal class RtmpMuxer(private val stream: RtmpStream) :
-    Running,
+internal class RtmpMuxer(
+    private val stream: RtmpStream,
+) : Running,
     BufferController.Listener,
     Codec.Listener {
     override var isRunning = AtomicBoolean(false)

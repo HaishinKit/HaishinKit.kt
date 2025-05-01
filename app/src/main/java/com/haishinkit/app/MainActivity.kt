@@ -6,7 +6,9 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.fragment.app.Fragment
 import com.google.android.material.bottomnavigation.BottomNavigationView
 
-class MainActivity : AppCompatActivity(), BottomNavigationView.OnNavigationItemSelectedListener {
+class MainActivity :
+    AppCompatActivity(),
+    BottomNavigationView.OnNavigationItemSelectedListener {
     private var fragment: Fragment? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {

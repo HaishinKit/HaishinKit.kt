@@ -43,24 +43,28 @@ object MediaFormatUtil {
             }
         val bufferSize =
             AudioTrack.getMinBufferSize(sampleRate, channelMask, AudioFormat.ENCODING_PCM_16BIT)
-        Log.d(TAG, "sampleRate=$sampleRate, channelCount=$channelCount, channelMask:$channelMask, bufferSize=$bufferSize")
+        Log.d(
+            TAG,
+            "sampleRate=$sampleRate, channelCount=$channelCount, channelMask:$channelMask, bufferSize=$bufferSize",
+        )
         try {
             return if (Build.VERSION_CODES.M <= Build.VERSION.SDK_INT) {
-                AudioTrack.Builder()
+                AudioTrack
+                    .Builder()
                     .setAudioAttributes(
-                        AudioAttributes.Builder()
+                        AudioAttributes
+                            .Builder()
                             .setUsage(AudioAttributes.USAGE_MEDIA)
                             .setContentType(AudioAttributes.CONTENT_TYPE_MOVIE)
                             .build(),
-                    )
-                    .setAudioFormat(
-                        AudioFormat.Builder()
+                    ).setAudioFormat(
+                        AudioFormat
+                            .Builder()
                             .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
                             .setSampleRate(sampleRate)
                             .setChannelMask(channelMask)
                             .build(),
-                    )
-                    .setBufferSizeInBytes(bufferSize)
+                    ).setBufferSizeInBytes(bufferSize)
                     .setTransferMode(AudioTrack.MODE_STREAM)
                     .apply {
                         if (Build.VERSION_CODES.O <= Build.VERSION.SDK_INT) {

@@ -5,7 +5,10 @@ import com.haishinkit.rtmp.RtmpChunk
 import com.haishinkit.rtmp.RtmpConnection
 import java.nio.ByteBuffer
 
-internal open class RtmpMessage(val type: Byte, private val pool: Pools.Pool<RtmpMessage>? = null) {
+internal open class RtmpMessage(
+    val type: Byte,
+    private val pool: Pools.Pool<RtmpMessage>? = null,
+) {
     var chunk: RtmpChunk = RtmpChunk.ZERO
     var chunkStreamID: Short = 0
     var streamID: Int = 0
@@ -33,9 +36,7 @@ internal open class RtmpMessage(val type: Byte, private val pool: Pools.Pool<Rtm
         TODO("$TAG#execute")
     }
 
-    open fun release(): Boolean {
-        return pool?.release(this) ?: false
-    }
+    open fun release(): Boolean = pool?.release(this) ?: false
 
     companion object {
         const val TYPE_CHUNK_SIZE: Byte = 0x01

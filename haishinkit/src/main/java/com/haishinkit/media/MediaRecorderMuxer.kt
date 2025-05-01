@@ -9,8 +9,10 @@ import java.lang.ref.WeakReference
 import java.nio.ByteBuffer
 import java.util.concurrent.atomic.AtomicBoolean
 
-internal class MediaRecorderMuxer(mixer: MediaMixer?, private var muxer: MediaMuxer?) :
-    Running,
+internal class MediaRecorderMuxer(
+    mixer: MediaMixer?,
+    private var muxer: MediaMuxer?,
+) : Running,
     Codec.Listener {
     override val isRunning: AtomicBoolean = AtomicBoolean(false)
     private var mixer = WeakReference(mixer)

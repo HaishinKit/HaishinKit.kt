@@ -10,7 +10,9 @@ import kotlin.math.max
  * The ScreenObject class is the abstract class for all objects that are rendered on the screen.
  */
 @Suppress("MemberVisibilityCanBePrivate")
-abstract class ScreenObject(val target: Int = GLES20.GL_TEXTURE_2D) {
+abstract class ScreenObject(
+    val target: Int = GLES20.GL_TEXTURE_2D,
+) {
     open var id: Int = -1
         internal set
 

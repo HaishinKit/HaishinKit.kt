@@ -4,7 +4,9 @@ import com.haishinkit.rtmp.message.RtmpMessage
 import java.nio.ByteBuffer
 import kotlin.math.min
 
-internal enum class RtmpChunk(val rawValue: Byte) {
+internal enum class RtmpChunk(
+    val rawValue: Byte,
+) {
     ZERO(0x00),
     ONE(0x01),
     TWO(0x02),
@@ -25,22 +27,31 @@ internal enum class RtmpChunk(val rawValue: Byte) {
         val chunkSize = socket.chunkSizeS
         var buffer = socket.createByteBuffer(length(message.chunkStreamID) + chunkSize)
         putHeader(buffer, message.chunkStreamID)
-        buffer.put((timestamp shr 16).toByte()).put((timestamp shr 8).toByte())
+        buffer
+            .put((timestamp shr 16).toByte())
+            .put((timestamp shr 8).toByte())
             .put(timestamp.toByte())
 
         when (this) {
             ZERO -> {
-                buffer.put((length shr 16).toByte()).put((length shr 8).toByte())
+                buffer
+                    .put((length shr 16).toByte())
+                    .put((length shr 8).toByte())
                     .put(length.toByte())
                 buffer.put(message.type)
                 val streamID = message.streamID
                 // message streamID is a litleEndian
-                buffer.put(streamID.toByte()).put((streamID shr 8).toByte())
-                    .put((streamID shr 16).toByte()).put((streamID shr 24).toByte())
+                buffer
+                    .put(streamID.toByte())
+                    .put((streamID shr 8).toByte())
+                    .put((streamID shr 16).toByte())
+                    .put((streamID shr 24).toByte())
             }
 
             ONE -> {
-                buffer.put((length shr 16).toByte()).put((length shr 8).toByte())
+                buffer
+                    .put((length shr 16).toByte())
+                    .put((length shr 8).toByte())
                     .put(length.toByte())
                 buffer.put(message.type)
             }
@@ -161,7 +172,9 @@ internal enum class RtmpChunk(val rawValue: Byte) {
             buffer.put((rawValue.toInt() shl 6 or 0).toByte()).put((streamID - 64).toByte())
             return
         }
-        buffer.put((rawValue.toInt() shl 6 or 1).toByte()).put((streamID - 64 shr 8).toByte())
+        buffer
+            .put((rawValue.toInt() shl 6 or 1).toByte())
+            .put((streamID - 64 shr 8).toByte())
             .put((streamID - 64).toByte())
     }
 
@@ -179,15 +192,14 @@ internal enum class RtmpChunk(val rawValue: Byte) {
         const val VIDEO: Short = 0x05
         const val DEFAULT_SIZE = 128
 
-        fun chunk(value: Byte): RtmpChunk {
-            return when ((value.toInt() and 0xff) shr 6) {
+        fun chunk(value: Byte): RtmpChunk =
+            when ((value.toInt() and 0xff) shr 6) {
                 0 -> ZERO
                 1 -> ONE
                 2 -> TWO
                 3 -> THREE
                 else -> throw IllegalArgumentException("value=$value")
             }
-        }
 
         private val TAG = RtmpChunk::class.java.simpleName
     }

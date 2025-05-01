@@ -26,7 +26,8 @@ import kotlin.coroutines.CoroutineContext
 @Suppress("MemberVisibilityCanBePrivate")
 class AudioRecordSource(
     private val context: Context,
-) : CoroutineScope, AudioSource {
+) : CoroutineScope,
+    AudioSource {
     var channel = DEFAULT_CHANNEL
     var audioSource = DEFAULT_AUDIO_SOURCE
     var sampleRate = DEFAULT_SAMPLE_RATE
@@ -153,10 +154,18 @@ class AudioRecordSource(
         ): AudioRecord {
             if (Build.VERSION_CODES.M <= Build.VERSION.SDK_INT) {
                 return try {
-                    AudioRecord.Builder().setAudioSource(audioSource).setAudioFormat(
-                        AudioFormat.Builder().setEncoding(encoding).setSampleRate(sampleRate)
-                            .setChannelMask(channel).build(),
-                    ).setBufferSizeInBytes(minBufferSize).build()
+                    AudioRecord
+                        .Builder()
+                        .setAudioSource(audioSource)
+                        .setAudioFormat(
+                            AudioFormat
+                                .Builder()
+                                .setEncoding(encoding)
+                                .setSampleRate(sampleRate)
+                                .setChannelMask(channel)
+                                .build(),
+                        ).setBufferSizeInBytes(minBufferSize)
+                        .build()
                 } catch (e: Exception) {
                     AudioRecord(
                         audioSource,
@@ -177,15 +186,14 @@ class AudioRecordSource(
             }
         }
 
-        private fun error(result: Int): String {
-            return when (result) {
+        private fun error(result: Int): String =
+            when (result) {
                 AudioRecord.ERROR_INVALID_OPERATION -> "ERROR_INVALID_OPERATION"
                 AudioRecord.ERROR_BAD_VALUE -> "ERROR_BAD_VALUE"
                 AudioRecord.ERROR_DEAD_OBJECT -> "ERROR_DEAD_OBJECT"
                 AudioRecord.ERROR -> "ERROR"
                 else -> "ERROR($result)"
             }
-        }
 
         private val TAG = AudioRecordSource::class.java.simpleName
     }

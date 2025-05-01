@@ -32,7 +32,9 @@ import java.io.FileDescriptor
  * ```
  */
 @Suppress("UNUSED", "MemberVisibilityCanBePrivate")
-class MediaRecorder(applicationContext: Context) {
+class MediaRecorder(
+    applicationContext: Context,
+) {
     /**
      * The isRecording value indicates whether the audio recorder is recording.
      */

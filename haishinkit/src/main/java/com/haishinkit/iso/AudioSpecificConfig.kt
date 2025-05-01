@@ -17,7 +17,9 @@ internal data class AudioSpecificConfig(
     val frequency: SamplingFrequency = SamplingFrequency.HZ44100,
     val channel: ChannelConfiguration = ChannelConfiguration.FRONT_OF_CENTER,
 ) {
-    enum class AudioObjectType(val rawValue: Byte) {
+    enum class AudioObjectType(
+        val rawValue: Byte,
+    ) {
         UNKNOWN(0x00),
         AAC_MAIN(0x01),
         AAC_LC(0x02),
@@ -30,7 +32,10 @@ internal data class AudioSpecificConfig(
         HXVC(0x09),
     }
 
-    enum class SamplingFrequency(val rawValue: Byte, val int: Int) {
+    enum class SamplingFrequency(
+        val rawValue: Byte,
+        val int: Int,
+    ) {
         HZ96000(0x00, 96000),
         HZ88200(0x01, 88200),
         HZ64000(0x02, 64000),
@@ -46,7 +51,9 @@ internal data class AudioSpecificConfig(
         HZ7350(0x0C, 7350),
     }
 
-    enum class ChannelConfiguration(val rawValue: Byte) {
+    enum class ChannelConfiguration(
+        val rawValue: Byte,
+    ) {
         DEFINE_IN_AOT_SPECIFIC_CONFIG(0x00),
         FRONT_OF_CENTER(0x01),
         FRONT_LEFT_AND_FRONT_RIGHT(0x02),
@@ -99,10 +106,12 @@ internal data class AudioSpecificConfig(
             return AudioSpecificConfig(
                 type = AudioObjectType.values().first { n -> n.rawValue.toInt() == first shr 3 },
                 frequency =
-                    SamplingFrequency.values()
+                    SamplingFrequency
+                        .values()
                         .first { n -> n.rawValue.toInt() == (first and 7 shl 1 or (second and 0xFF shr 7)) },
                 channel =
-                    ChannelConfiguration.values()
+                    ChannelConfiguration
+                        .values()
                         .first { n -> n.rawValue.toInt() == second and 120 shr 3 },
             )
         }

@@ -3,7 +3,11 @@ package com.haishinkit.event
 /**
  * The Event interface is used to provide information.
  */
-open class Event(type: String, bubbles: Boolean, data: Any?) {
+open class Event(
+    type: String,
+    bubbles: Boolean,
+    data: Any?,
+) {
     /**
      * The type represents the event name.
      */

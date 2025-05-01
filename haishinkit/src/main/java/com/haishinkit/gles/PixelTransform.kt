@@ -19,8 +19,9 @@ import com.haishinkit.screen.Screen
 import com.haishinkit.screen.VideoScreenObject
 import java.util.concurrent.atomic.AtomicBoolean
 
-internal class PixelTransform(override val applicationContext: Context) :
-    PixelTransform,
+internal class PixelTransform(
+    override val applicationContext: Context,
+) : PixelTransform,
     Running,
     Choreographer.FrameCallback {
     override val isRunning: AtomicBoolean = AtomicBoolean(false)

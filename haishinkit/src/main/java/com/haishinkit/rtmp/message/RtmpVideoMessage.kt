@@ -13,8 +13,9 @@ import com.haishinkit.rtmp.RtmpConnection
 import com.haishinkit.rtmp.RtmpMuxer
 import java.nio.ByteBuffer
 
-internal class RtmpVideoMessage(pool: Pools.Pool<RtmpMessage>? = null) :
-    RtmpMessage(TYPE_VIDEO, pool) {
+internal class RtmpVideoMessage(
+    pool: Pools.Pool<RtmpMessage>? = null,
+) : RtmpMessage(TYPE_VIDEO, pool) {
     var isExHeader = false
     var frame: Byte = 0x00
     var codec: Byte = 0x00
@@ -26,7 +27,10 @@ internal class RtmpVideoMessage(pool: Pools.Pool<RtmpMessage>? = null) :
     private val headerSize: Int
         get() =
             5 +
-                if (isExHeader && fourCC == RtmpMuxer.FLV_VIDEO_FOUR_CC_HVC1 && packetType == RtmpMuxer.FLV_VIDEO_PACKET_TYPE_CODED_FRAMES) {
+                if (isExHeader &&
+                    fourCC == RtmpMuxer.FLV_VIDEO_FOUR_CC_HVC1 &&
+                    packetType == RtmpMuxer.FLV_VIDEO_PACKET_TYPE_CODED_FRAMES
+                ) {
                     3
                 } else {
                     0
@@ -54,11 +58,15 @@ internal class RtmpVideoMessage(pool: Pools.Pool<RtmpMessage>? = null) :
             when (fourCC) {
                 RtmpMuxer.FLV_VIDEO_FOUR_CC_HVC1 -> {
                     if (packetType == RtmpMuxer.FLV_VIDEO_PACKET_TYPE_CODED_FRAMES) {
-                        buffer.put((compositeTime shr 16).toByte())
-                            .put((compositeTime shr 8).toByte()).put(compositeTime.toByte())
+                        buffer
+                            .put((compositeTime shr 16).toByte())
+                            .put((compositeTime shr 8).toByte())
+                            .put(compositeTime.toByte())
                     }
                     data?.let {
-                        if (packetType == RtmpMuxer.FLV_VIDEO_PACKET_TYPE_CODED_FRAMES || packetType == RtmpMuxer.FLV_VIDEO_PACKET_TYPE_CODED_FRAMES_X) {
+                        if (packetType == RtmpMuxer.FLV_VIDEO_PACKET_TYPE_CODED_FRAMES ||
+                            packetType == RtmpMuxer.FLV_VIDEO_PACKET_TYPE_CODED_FRAMES_X
+                        ) {
                             IsoTypeBufferUtils.toNALFile(it, buffer)
                         } else {
                             buffer.put(it)
@@ -75,7 +83,9 @@ internal class RtmpVideoMessage(pool: Pools.Pool<RtmpMessage>? = null) :
         } else {
             buffer.put((frame.toInt() shl 4 or codec.toInt()).toByte())
             buffer.put(packetType)
-            buffer.put((compositeTime shr 16).toByte()).put((compositeTime shr 8).toByte())
+            buffer
+                .put((compositeTime shr 16).toByte())
+                .put((compositeTime shr 8).toByte())
                 .put(compositeTime.toByte())
             data?.let {
                 when (packetType) {

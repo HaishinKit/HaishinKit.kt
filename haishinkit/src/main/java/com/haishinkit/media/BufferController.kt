@@ -5,7 +5,9 @@ import android.util.Log
 import java.util.concurrent.LinkedBlockingDeque
 import java.util.concurrent.atomic.AtomicInteger
 
-internal class BufferController<T>(suffix: String) : Object() {
+internal class BufferController<T>(
+    suffix: String,
+) : Object() {
     interface Listener {
         fun <T> onBufferFull(controller: BufferController<T>)
 
@@ -31,9 +33,7 @@ internal class BufferController<T>(suffix: String) : Object() {
         tracker.doFrame(timestamp, SystemClock.uptimeMillis())
     }
 
-    fun take(): T {
-        return messages.take()
-    }
+    fun take(): T = messages.take()
 
     @Synchronized
     fun stop(condition: Boolean = true) {
@@ -66,7 +66,9 @@ internal class BufferController<T>(suffix: String) : Object() {
         }
     }
 
-    private class Tracker(private val suffix: String) {
+    private class Tracker(
+        private val suffix: String,
+    ) {
         private var rotated = DEFAULT_TIMESTAMP
         private var timestamps = ArrayList<Int>()
 

@@ -21,9 +21,7 @@ internal class RtmpAbortMessage : RtmpMessage(TYPE_ABORT) {
         return this
     }
 
-    override fun execute(connection: RtmpConnection): RtmpMessage {
-        return this
-    }
+    override fun execute(connection: RtmpConnection): RtmpMessage = this
 
     companion object {
         private const val CAPACITY = 4

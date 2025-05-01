@@ -18,8 +18,8 @@ class PlaybackTabFragment : Fragment() {
         inflater: LayoutInflater,
         container: ViewGroup?,
         savedInstanceState: Bundle?,
-    ): View {
-        return ComposeView(requireContext()).apply {
+    ): View =
+        ComposeView(requireContext()).apply {
             setContent {
                 setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
                 Log.i(TAG, "setContent:${this@PlaybackTabFragment}")
@@ -34,12 +34,9 @@ class PlaybackTabFragment : Fragment() {
                 }
             }
         }
-    }
 
     companion object {
-        fun newInstance(): PlaybackTabFragment {
-            return PlaybackTabFragment()
-        }
+        fun newInstance(): PlaybackTabFragment = PlaybackTabFragment()
 
         private const val TAG = "PlaybackTabFragment"
     }

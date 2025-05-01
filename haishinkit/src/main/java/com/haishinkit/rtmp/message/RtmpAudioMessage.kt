@@ -10,8 +10,9 @@ import com.haishinkit.rtmp.RtmpMuxer
 import com.haishinkit.util.toPositiveInt
 import java.nio.ByteBuffer
 
-internal class RtmpAudioMessage(pool: Pools.Pool<RtmpMessage>? = null) :
-    RtmpMessage(TYPE_AUDIO, pool) {
+internal class RtmpAudioMessage(
+    pool: Pools.Pool<RtmpMessage>? = null,
+) : RtmpMessage(TYPE_AUDIO, pool) {
     var codec: Byte = 0
     var soundRate: Byte = 0
     var soundSize: Byte = 0
@@ -90,8 +91,8 @@ internal class RtmpAudioMessage(pool: Pools.Pool<RtmpMessage>? = null) :
         return super.release()
     }
 
-    fun toFlags(): Int {
-        return when (data?.get(0)) {
+    fun toFlags(): Int =
+        when (data?.get(0)) {
             RtmpMuxer.FLV_AAC_PACKET_TYPE_SEQ -> {
                 MediaCodec.BUFFER_FLAG_CODEC_CONFIG
             }
@@ -100,7 +101,6 @@ internal class RtmpAudioMessage(pool: Pools.Pool<RtmpMessage>? = null) :
                 0
             }
         }
-    }
 
     companion object {
         private const val VERBOSE = false

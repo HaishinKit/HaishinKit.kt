@@ -19,12 +19,11 @@ internal interface DecoderConfigurationRecord {
         return true
     }
 
-    fun toByteBuffer(): ByteBuffer {
-        return ByteBuffer.allocate(capacity).apply {
+    fun toByteBuffer(): ByteBuffer =
+        ByteBuffer.allocate(capacity).apply {
             encode(this)
             flip()
         }
-    }
 
     fun toCodecSpecificData(options: List<CodecOption>): List<CodecOption>
 

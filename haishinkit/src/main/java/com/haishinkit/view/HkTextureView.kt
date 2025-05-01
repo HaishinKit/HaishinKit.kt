@@ -22,8 +22,7 @@ class HkTextureView
         attrs: AttributeSet? = null,
         defStyleAttr: Int = 0,
         defStyleRes: Int = 0,
-    ) :
-    TextureView(context, attrs, defStyleAttr, defStyleRes),
+    ) : TextureView(context, attrs, defStyleAttr, defStyleRes),
         StreamView,
         TextureView.SurfaceTextureListener {
         override var videoGravity: VideoGravity

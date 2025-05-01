@@ -10,7 +10,9 @@ import com.haishinkit.stream.Stream
  * Mixing audio and video for streaming.
  */
 @Suppress("UNUSED")
-class MediaMixer(applicationContext: Context) {
+class MediaMixer(
+    applicationContext: Context,
+) {
     /**
      * The offscreen renderer for video output.
      */

@@ -5,17 +5,20 @@ package com.haishinkit.amf
  *
  * 2.10 ECMA Array Type.
  */
-class AmfEcmaArray(list: List<Any?>? = null) : Iterable<String> {
+class AmfEcmaArray(
+    list: List<Any?>? = null,
+) : Iterable<String> {
     val size: Int
         get() {
-            return properties.keys.filter {
-                try {
-                    it.toInt()
-                    true
-                } catch (e: NumberFormatException) {
-                    false
-                }
-            }.size
+            return properties.keys
+                .filter {
+                    try {
+                        it.toInt()
+                        true
+                    } catch (e: NumberFormatException) {
+                        false
+                    }
+                }.size
         }
 
     private val properties = mutableMapOf<String, Any?>()
@@ -26,9 +29,7 @@ class AmfEcmaArray(list: List<Any?>? = null) : Iterable<String> {
         }
     }
 
-    operator fun get(k: String): Any? {
-        return properties[k]
-    }
+    operator fun get(k: String): Any? = properties[k]
 
     operator fun set(
         k: String,
@@ -37,11 +38,7 @@ class AmfEcmaArray(list: List<Any?>? = null) : Iterable<String> {
         properties[k] = v
     }
 
-    override fun iterator(): Iterator<String> {
-        return properties.keys.iterator()
-    }
+    override fun iterator(): Iterator<String> = properties.keys.iterator()
 
-    override fun toString(): String {
-        return "Amf0EcmaArray{$properties}"
-    }
+    override fun toString(): String = "Amf0EcmaArray{$properties}"
 }

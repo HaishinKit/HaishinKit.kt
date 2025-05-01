@@ -57,9 +57,7 @@ class ConnectionState(
         isConnected = false
     }
 
-    fun createStream(context: Context): RtmpStream {
-        return RtmpStream(context, connection)
-    }
+    fun createStream(context: Context): RtmpStream = RtmpStream(context, connection)
 
     fun dispose() {
         connection.removeEventListener(Event.RTMP_STATUS, listener)

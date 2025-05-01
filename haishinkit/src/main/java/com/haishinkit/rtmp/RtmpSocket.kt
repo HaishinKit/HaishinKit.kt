@@ -7,7 +7,9 @@ import com.haishinkit.net.NetSocketImpl
 import java.nio.BufferUnderflowException
 import java.nio.ByteBuffer
 
-internal class RtmpSocket(val connection: RtmpConnection) : NetSocket.Listener {
+internal class RtmpSocket(
+    val connection: RtmpConnection,
+) : NetSocket.Listener {
     enum class ReadyState {
         Uninitialized,
         VersionSent,
@@ -57,9 +59,7 @@ internal class RtmpSocket(val connection: RtmpConnection) : NetSocket.Listener {
         socket?.doOutput(buffer)
     }
 
-    fun createByteBuffer(capacity: Int): ByteBuffer {
-        return socket?.createByteBuffer(capacity) ?: ByteBuffer.allocate(capacity)
-    }
+    fun createByteBuffer(capacity: Int): ByteBuffer = socket?.createByteBuffer(capacity) ?: ByteBuffer.allocate(capacity)
 
     fun close(disconnected: Boolean) {
         if (!isConnected) return

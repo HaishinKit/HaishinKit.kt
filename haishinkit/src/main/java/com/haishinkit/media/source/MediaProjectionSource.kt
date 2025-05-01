@@ -29,8 +29,11 @@ import java.util.concurrent.atomic.AtomicBoolean
 class MediaProjectionSource(
     private val context: Context,
     private var mediaProjection: MediaProjection,
-) : VideoSource, VideoScreenObject.OnSurfaceChangedListener {
-    private class Callback(val source: MediaProjectionSource) : MediaProjection.Callback() {
+) : VideoSource,
+    VideoScreenObject.OnSurfaceChangedListener {
+    private class Callback(
+        val source: MediaProjectionSource,
+    ) : MediaProjection.Callback() {
         override fun onCapturedContentVisibilityChanged(isVisible: Boolean) {
             super.onCapturedContentVisibilityChanged(isVisible)
             if (BuildConfig.DEBUG) {
@@ -161,8 +164,8 @@ class MediaProjectionSource(
         private const val VIRTUAL_DISPLAY_FLAG_ROTATES_WITH_CONTENT = 128
         private val TAG = MediaProjectionSource::class.java.simpleName
 
-        private fun getDisplaySize(context: Context): Size {
-            return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+        private fun getDisplaySize(context: Context): Size =
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                 val windowManager =
                     context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
                 Size(
@@ -172,10 +175,11 @@ class MediaProjectionSource(
             } else {
                 val point = Point()
                 @Suppress("DEPRECATION")
-                context.getSystemService<DisplayManager>()?.getDisplay(Display.DEFAULT_DISPLAY)
+                context
+                    .getSystemService<DisplayManager>()
+                    ?.getDisplay(Display.DEFAULT_DISPLAY)
                     ?.getRealSize(point)
                 Size(point.x, point.y)
             }
-        }
     }
 }

@@ -3,13 +3,15 @@ package com.haishinkit.rtmp.message
 import androidx.core.util.Pools
 import com.haishinkit.rtmp.RtmpObjectEncoding
 
-internal class RtmpMessageFactory(maxPoolSize: Int) {
+internal class RtmpMessageFactory(
+    maxPoolSize: Int,
+) {
     private val user = Pools.SimplePool<RtmpMessage>(maxPoolSize)
     private val audio = Pools.SynchronizedPool<RtmpMessage>(maxPoolSize)
     private val video = Pools.SynchronizedPool<RtmpMessage>(maxPoolSize)
 
-    fun create(value: Byte): RtmpMessage {
-        return when (value) {
+    fun create(value: Byte): RtmpMessage =
+        when (value) {
             RtmpMessage.TYPE_CHUNK_SIZE -> RtmpSetChunkSizeMessage()
             RtmpMessage.TYPE_ABORT -> RtmpAbortMessage()
             RtmpMessage.TYPE_ACK -> RtmpAcknowledgementMessage()
@@ -22,25 +24,14 @@ internal class RtmpMessageFactory(maxPoolSize: Int) {
             RtmpMessage.TYPE_AMF0_COMMAND -> RtmpCommandMessage(RtmpObjectEncoding.AMF0)
             else -> throw IllegalArgumentException("type=$value")
         }
-    }
 
-    fun createRtmpSetChunkSizeMessage(): RtmpSetChunkSizeMessage {
-        return RtmpSetChunkSizeMessage()
-    }
+    fun createRtmpSetChunkSizeMessage(): RtmpSetChunkSizeMessage = RtmpSetChunkSizeMessage()
 
-    fun createRtmpUserControlMessage(): RtmpUserControlMessage {
-        return (user.acquire() as? RtmpUserControlMessage) ?: RtmpUserControlMessage()
-    }
+    fun createRtmpUserControlMessage(): RtmpUserControlMessage = (user.acquire() as? RtmpUserControlMessage) ?: RtmpUserControlMessage()
 
-    fun createRtmpWindowAcknowledgementSizeMessage(): RtmpWindowAcknowledgementSizeMessage {
-        return RtmpWindowAcknowledgementSizeMessage()
-    }
+    fun createRtmpWindowAcknowledgementSizeMessage(): RtmpWindowAcknowledgementSizeMessage = RtmpWindowAcknowledgementSizeMessage()
 
-    fun createRtmpVideoMessage(): RtmpVideoMessage {
-        return (video.acquire() as? RtmpVideoMessage) ?: RtmpVideoMessage()
-    }
+    fun createRtmpVideoMessage(): RtmpVideoMessage = (video.acquire() as? RtmpVideoMessage) ?: RtmpVideoMessage()
 
-    fun createRtmpAudioMessage(): RtmpAudioMessage {
-        return (audio.acquire() as? RtmpAudioMessage) ?: RtmpAudioMessage()
-    }
+    fun createRtmpAudioMessage(): RtmpAudioMessage = (audio.acquire() as? RtmpAudioMessage) ?: RtmpAudioMessage()
 }

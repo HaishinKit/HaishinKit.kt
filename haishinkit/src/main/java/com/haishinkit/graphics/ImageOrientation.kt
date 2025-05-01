@@ -1,6 +1,8 @@
 package com.haishinkit.graphics
 
-enum class ImageOrientation(val rawValue: Int) {
+enum class ImageOrientation(
+    val rawValue: Int,
+) {
     UP(1),
     DOWN(2),
     LEFT(3),

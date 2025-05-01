@@ -8,8 +8,8 @@ object CodecCapabilities {
     fun isCodecSupportedByType(
         mode: Int,
         type: String,
-    ): Boolean {
-        return when (mode) {
+    ): Boolean =
+        when (mode) {
             Codec.MODE_ENCODE -> {
                 mediaCodecList.codecInfos.any {
                     it.isEncoder && it.supportedTypes.contains(type)
@@ -24,5 +24,4 @@ object CodecCapabilities {
 
             else -> false
         }
-    }
 }

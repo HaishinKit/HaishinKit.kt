@@ -16,8 +16,9 @@ import com.haishinkit.util.swap
  * An object that manages offscreen rendering a video source.
  */
 @Suppress("MemberVisibilityCanBePrivate")
-class VideoScreenObject(target: Int = GLES11Ext.GL_TEXTURE_EXTERNAL_OES) :
-    ScreenObject(target),
+class VideoScreenObject(
+    target: Int = GLES11Ext.GL_TEXTURE_EXTERNAL_OES,
+) : ScreenObject(target),
     SurfaceTexture.OnFrameAvailableListener {
     /**
      * Specifies the surface that is an input source.

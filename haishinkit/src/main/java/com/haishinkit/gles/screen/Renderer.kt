@@ -13,8 +13,9 @@ import com.haishinkit.screen.ScreenObject
 import com.haishinkit.screen.VideoScreenObject
 import javax.microedition.khronos.opengles.GL10
 
-internal class Renderer(applicationContext: Context) :
-    Renderer {
+internal class Renderer(
+    applicationContext: Context,
+) : Renderer {
     private var textureIds = intArrayOf(0)
     private var surfaceTextures = mutableMapOf<Int, SurfaceTexture>()
     private val shaderLoader by lazy {

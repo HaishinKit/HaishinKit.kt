@@ -1,6 +1,9 @@
 package com.haishinkit.app
 
-data class Preference(var rtmpURL: String, var streamName: String) {
+data class Preference(
+    var rtmpURL: String,
+    var streamName: String,
+) {
     companion object {
         var shared =
             Preference(

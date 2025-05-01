@@ -94,14 +94,20 @@ fun CameraScreen(
         Configuration.ORIENTATION_PORTRAIT -> {
             mixer.screen.frame =
                 Rect(
-                    0, 0, Screen.DEFAULT_HEIGHT, Screen.DEFAULT_WIDTH,
+                    0,
+                    0,
+                    Screen.DEFAULT_HEIGHT,
+                    Screen.DEFAULT_WIDTH,
                 )
         }
 
         Configuration.ORIENTATION_LANDSCAPE -> {
             mixer.screen.frame =
                 Rect(
-                    0, 0, Screen.DEFAULT_WIDTH, Screen.DEFAULT_HEIGHT,
+                    0,
+                    0,
+                    Screen.DEFAULT_WIDTH,
+                    Screen.DEFAULT_HEIGHT,
                 )
         }
 
@@ -228,8 +234,7 @@ fun CameraScreen(
                             .background(
                                 color = Color.Black,
                                 shape = RoundedCornerShape(20.dp),
-                            )
-                            .padding(8.dp, 0.dp),
+                            ).padding(8.dp, 0.dp),
                 )
             }
         }

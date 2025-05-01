@@ -23,7 +23,8 @@ internal class Camera2Output(
     val context: Context,
     val source: VideoSource,
     private val cameraId: String,
-) : CameraDevice.StateCallback(), VideoScreenObject.OnSurfaceChangedListener {
+) : CameraDevice.StateCallback(),
+    VideoScreenObject.OnSurfaceChangedListener {
     val facing: Int?
         get() = characteristics?.get(CameraCharacteristics.LENS_FACING)
 
@@ -111,17 +112,21 @@ internal class Camera2Output(
         if (width == null || height == null) {
             return sizes?.get(0)
         }
-        return sizes?.filter { size ->
-            (width <= size.width) && (height <= size.height)
-        }?.sortedBy { size -> size.width * size.height }?.get(0) ?: sizes?.get(0)
+        return sizes
+            ?.filter { size ->
+                (width <= size.width) && (height <= size.height)
+            }?.sortedBy { size -> size.width * size.height }
+            ?.get(0) ?: sizes?.get(0)
     }
 
     private fun createCaptureSession(surface: Surface) {
         val device = device ?: return
         val request =
-            device.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW).apply {
-                addTarget(surface)
-            }.build()
+            device
+                .createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW)
+                .apply {
+                    addTarget(surface)
+                }.build()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             val outputList =
                 buildList {

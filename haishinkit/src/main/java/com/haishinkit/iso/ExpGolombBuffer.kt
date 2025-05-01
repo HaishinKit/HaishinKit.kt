@@ -10,7 +10,9 @@ import kotlin.math.pow
  * @see
  *  https://en.wikipedia.org/wiki/Exponential-Golomb_coding
  */
-internal class ExpGolombBuffer(private val bitSet: BitSet) {
+internal class ExpGolombBuffer(
+    private val bitSet: BitSet,
+) {
     companion object {
         fun wrap(buffer: ByteBuffer): ExpGolombBuffer {
             val bitSet = BitSet(buffer.remaining() * 8)
@@ -65,7 +67,5 @@ internal class ExpGolombBuffer(private val bitSet: BitSet) {
             return --byte
         }
 
-    override fun toString(): String {
-        return bitSet.toString()
-    }
+    override fun toString(): String = bitSet.toString()
 }

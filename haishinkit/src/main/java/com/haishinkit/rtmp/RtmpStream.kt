@@ -20,14 +20,18 @@ import java.util.concurrent.atomic.AtomicInteger
  * An object that provides the interface to control a one-way channel over a [RtmpConnection].
  */
 @Suppress("UNUSED", "MemberVisibilityCanBePrivate")
-class RtmpStream(context: Context, internal var connection: RtmpConnection) :
-    Stream(context),
+class RtmpStream(
+    context: Context,
+    internal var connection: RtmpConnection,
+) : Stream(context),
     IEventDispatcher {
     data class Info(
         var resourceName: String? = null,
     )
 
-    enum class HowToPublish(val rawValue: String) {
+    enum class HowToPublish(
+        val rawValue: String,
+    ) {
         RECORD("record"),
         APPEND("append"),
         APPEND_WITH_GAP("appendWithGap"),
@@ -35,7 +39,10 @@ class RtmpStream(context: Context, internal var connection: RtmpConnection) :
     }
 
     @Suppress("UNUSED")
-    enum class Code(val rawValue: String, private val level: String) {
+    enum class Code(
+        val rawValue: String,
+        private val level: String,
+    ) {
         BUFFER_EMPTY("NetStream.Buffer.Empty", "status"),
         BUFFER_FLUSH("NetStream.Buffer.Flush", "status"),
         BUFFER_FULL("NetStream.Buffer.Full", "status"),
@@ -95,7 +102,9 @@ class RtmpStream(context: Context, internal var connection: RtmpConnection) :
         )
     }
 
-    internal inner class EventListener(private val stream: RtmpStream) : IEventListener {
+    internal inner class EventListener(
+        private val stream: RtmpStream,
+    ) : IEventListener {
         override fun handleEvent(event: Event) {
             val data = EventUtils.toMap(event)
             when (data["code"].toString()) {
@@ -121,7 +130,9 @@ class RtmpStream(context: Context, internal var connection: RtmpConnection) :
         }
     }
 
-    internal enum class ReadyState(val rawValue: Byte) {
+    internal enum class ReadyState(
+        val rawValue: Byte,
+    ) {
         INITIALIZED(0x00),
         OPEN(0x01),
         PLAY(0x02),

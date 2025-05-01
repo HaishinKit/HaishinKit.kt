@@ -28,7 +28,9 @@ import com.haishinkit.graphics.effect.LanczosVideoEffect
 import com.haishinkit.rtmp.RtmpConnection
 import com.haishinkit.rtmp.RtmpStream
 
-class MediaProjectionTabFragment : Fragment(), ServiceConnection {
+class MediaProjectionTabFragment :
+    Fragment(),
+    ServiceConnection {
     private var messenger: Messenger? = null
     private val startMediaProjection =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
@@ -152,9 +154,7 @@ class MediaProjectionTabFragment : Fragment(), ServiceConnection {
     }
 
     companion object {
-        fun newInstance(): MediaProjectionTabFragment {
-            return MediaProjectionTabFragment()
-        }
+        fun newInstance(): MediaProjectionTabFragment = MediaProjectionTabFragment()
 
         private val TAG = MediaProjectionTabFragment::class.java.simpleName
     }

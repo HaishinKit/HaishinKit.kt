@@ -8,11 +8,7 @@ internal object Md5Util {
     fun base64(
         str: String,
         flags: Int,
-    ): String {
-        return Base64.encodeToString(md5(str), flags)
-    }
+    ): String = Base64.encodeToString(md5(str), flags)
 
-    private fun md5(str: String): ByteArray {
-        return MessageDigest.getInstance("MD5").digest(str.toByteArray(UTF_8))
-    }
+    private fun md5(str: String): ByteArray = MessageDigest.getInstance("MD5").digest(str.toByteArray(UTF_8))
 }

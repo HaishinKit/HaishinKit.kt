@@ -16,9 +16,13 @@ import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.properties.Delegates
 
 @Suppress("UNUSED")
-abstract class Codec : MediaCodec.Callback(), Running {
+abstract class Codec :
+    MediaCodec.Callback(),
+    Running {
     @Suppress("UNUSED")
-    open class Setting(private var codec: Codec?) {
+    open class Setting(
+        private var codec: Codec?,
+    ) {
         /**
          * Specifies the [MediaCodec]'s [MediaFormat] options if necessary.
          *

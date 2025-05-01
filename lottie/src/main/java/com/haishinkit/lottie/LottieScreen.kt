@@ -27,7 +27,9 @@ import kotlin.math.min
  * An object that manages offscreen rendering a lottie source.
  */
 @Suppress("MemberVisibilityCanBePrivate", "UNUSED")
-class LottieScreen(val context: Context) : ImageScreenObject() {
+class LottieScreen(
+    val context: Context,
+) : ImageScreenObject() {
     /**
      * Wrapper for LottieDrawable#isAnimating.
      */
@@ -254,13 +256,14 @@ class LottieScreen(val context: Context) : ImageScreenObject() {
         val composition = composition ?: return
         if (bitmap?.width != bounds.width() || bitmap?.height != bounds.height()) {
             bitmap =
-                Bitmap.createBitmap(
-                    bounds.width(),
-                    bounds.height(),
-                    Bitmap.Config.ARGB_8888,
-                ).apply {
-                    canvas = Canvas(this)
-                }
+                Bitmap
+                    .createBitmap(
+                        bounds.width(),
+                        bounds.height(),
+                        Bitmap.Config.ARGB_8888,
+                    ).apply {
+                        canvas = Canvas(this)
+                    }
         }
         bitmap?.eraseColor(Color.TRANSPARENT)
         val minScale =
@@ -279,8 +282,8 @@ class LottieScreen(val context: Context) : ImageScreenObject() {
 
     private fun fromRawRes(
         @RawRes rawRes: Int,
-    ): LottieTask<LottieComposition>? {
-        return if (cacheComposition) {
+    ): LottieTask<LottieComposition>? =
+        if (cacheComposition) {
             LottieCompositionFactory.fromRawRes(
                 context,
                 rawRes,
@@ -292,10 +295,9 @@ class LottieScreen(val context: Context) : ImageScreenObject() {
                 null,
             )
         }
-    }
 
-    private fun fromAssets(assetName: String): LottieTask<LottieComposition>? {
-        return if (cacheComposition) {
+    private fun fromAssets(assetName: String): LottieTask<LottieComposition>? =
+        if (cacheComposition) {
             LottieCompositionFactory.fromAsset(
                 context,
                 assetName,
@@ -307,9 +309,10 @@ class LottieScreen(val context: Context) : ImageScreenObject() {
                 null,
             )
         }
-    }
 
-    private class WeakSuccessListener(target: LottieScreen) : LottieListener<LottieComposition?> {
+    private class WeakSuccessListener(
+        target: LottieScreen,
+    ) : LottieListener<LottieComposition?> {
         private val targetReference = WeakReference(target)
 
         override fun onResult(result: LottieComposition?) {
@@ -318,7 +321,9 @@ class LottieScreen(val context: Context) : ImageScreenObject() {
         }
     }
 
-    private class WeakFailureListener(target: LottieScreen) : LottieListener<Throwable> {
+    private class WeakFailureListener(
+        target: LottieScreen,
+    ) : LottieListener<Throwable> {
         private val targetReference = WeakReference(target)
 
         override fun onResult(result: Throwable) {

@@ -28,7 +28,10 @@ class RtmpConnection : EventDispatcher(null) {
      * NetStatusEvent#info.code for [RtmpConnection]
      */
     @Suppress("UNUSED")
-    enum class Code(val rawValue: String, val level: String) {
+    enum class Code(
+        val rawValue: String,
+        val level: String,
+    ) {
         CALL_BAD_VERSION("NetConnection.Call.BadVersion", "error"),
         CALL_FAILED("NetConnection.Call.Failed", "error"),
         CALL_PROHIBITED("NetConnection.Call.Prohibited", "error"),
@@ -53,7 +56,9 @@ class RtmpConnection : EventDispatcher(null) {
         }
     }
 
-    private inner class EventListener(private val connection: RtmpConnection) : IEventListener {
+    private inner class EventListener(
+        private val connection: RtmpConnection,
+    ) : IEventListener {
         override fun handleEvent(event: Event) {
             val data = EventUtils.toMap(event)
             if (VERBOSE) {
@@ -359,7 +364,11 @@ class RtmpConnection : EventDispatcher(null) {
     }
 
     internal fun createConnectionMessage(uri: URI): RtmpMessage {
-        val paths = uri.path.split("/".toRegex()).dropLastWhile { it.isEmpty() }.toTypedArray()
+        val paths =
+            uri.path
+                .split("/".toRegex())
+                .dropLastWhile { it.isEmpty() }
+                .toTypedArray()
         val message = RtmpCommandMessage(RtmpObjectEncoding.AMF0)
         val commandObject = mutableMapOf<String, Any?>()
         var app = paths[1]
