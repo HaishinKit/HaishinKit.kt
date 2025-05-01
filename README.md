@@ -58,7 +58,7 @@ Issues/Discussions with priority response.
 - [x] Video Codecs
     - [x] H264, HEVC
 
-### Recording
+### ⏺️ Recording
 
 Now support local recording. Additionally, you can specify separate videoSettings and audioSettings
 from the live stream.
@@ -78,7 +78,7 @@ recorder.startRecording(
 
 ### Filter
 
-- [Table Of Filters](https://shogo4405.github.io/HaishinKit.kt/haishinkit/com.haishinkit.graphics.effect/index.html)
+- [Table Of Filters](https://docs.haishinkit.com/kt/latest/haishinkit/com.haishinkit.graphics.effect/index.html)
 
 ### Sources
 
@@ -242,7 +242,7 @@ class Monochrome2VideoEffect(
 ```
 
 ```kt
-mixer.videoEffect = Monochrome2VideoEffect()
+mixer.screen.videoEffect = Monochrome2VideoEffect()
 ```
 
 ### Related Project
