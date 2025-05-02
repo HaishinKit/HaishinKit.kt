@@ -5,6 +5,7 @@ import android.media.MediaFormat
 import android.os.Build
 import android.os.SystemClock
 import android.util.Log
+import android.view.Surface
 import com.haishinkit.BuildConfig
 import com.haishinkit.codec.Codec
 import com.haishinkit.event.Event
@@ -16,6 +17,7 @@ import com.haishinkit.media.MediaLink
 import com.haishinkit.metrics.FrameTracker
 import com.haishinkit.rtmp.message.RtmpAudioMessage
 import com.haishinkit.rtmp.message.RtmpVideoMessage
+import com.haishinkit.screen.VideoScreenObject
 import com.haishinkit.util.MediaFormatUtil
 import java.nio.ByteBuffer
 import java.util.concurrent.atomic.AtomicBoolean
@@ -24,7 +26,8 @@ internal class RtmpMuxer(
     private val stream: RtmpStream,
 ) : Running,
     BufferController.Listener,
-    Codec.Listener {
+    Codec.Listener,
+    VideoScreenObject.OnSurfaceChangedListener {
     override var isRunning = AtomicBoolean(false)
 
     var mode = Codec.MODE_DECODE
@@ -45,6 +48,12 @@ internal class RtmpMuxer(
         set(value) {
             mediaLink.hasVideo = value
         }
+
+    val video: VideoScreenObject by lazy {
+        VideoScreenObject().apply {
+            isRotatesWithContent = false
+        }
+    }
 
     private var bufferTime = BufferController.DEFAULT_BUFFER_TIME
         set(value) {
@@ -108,6 +117,8 @@ internal class RtmpMuxer(
             }
 
             Codec.MODE_DECODE -> {
+                video.listener = this
+                stream.screen.addChild(video)
                 keyframes.clear()
                 mediaLink.startRunning()
             }
@@ -137,6 +148,8 @@ internal class RtmpMuxer(
     }
 
     fun clear() {
+        video.listener = null
+        stream.screen.removeChild(video)
         audioTimestamp = 0L
         videoTimestamp = 0L
         frameTracker?.clear()
@@ -434,6 +447,10 @@ internal class RtmpMuxer(
         stream.dispatchEventWith(Event.RTMP_STATUS, false, RtmpStream.Code.BUFFER_EMPTY.data(""))
     }
 
+    override fun onSurfaceChanged(surface: Surface?) {
+        stream.videoCodec.surface = surface
+    }
+
     @Suppress("UNUSED")
     companion object {
         const val CSD0 = "csd-0"
@@ -504,22 +521,15 @@ internal class RtmpMuxer(
 
         fun isSupportedVideoFourCC(fourCC: Int): Boolean =
             when (fourCC) {
-                FLV_VIDEO_FOUR_CC_HVC1 -> {
-                    true
-                }
-
-                FLV_VIDEO_FOUR_CC_VP09 -> {
-                    false
-                }
-
-                FLV_VIDEO_FOUR_CC_AV01 -> {
-                    false
-                }
-
+                FLV_VIDEO_FOUR_CC_HVC1 -> true
+                FLV_VIDEO_FOUR_CC_VP09 -> false
+                FLV_VIDEO_FOUR_CC_AV01 -> false
                 else -> false
             }
 
         private const val VERBOSE = false
+
+        @Suppress("ktlint:standard:property-naming")
         private var TAG = RtmpMuxer::class.java.simpleName
     }
 }

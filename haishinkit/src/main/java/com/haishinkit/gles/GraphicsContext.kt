@@ -177,18 +177,25 @@ internal class GraphicsContext {
         private val SURFACE_ATTRIBUTES = intArrayOf(EGL14.EGL_NONE)
         private val CONFIG_ATTRIBUTES_WITH_CONTEXT =
             intArrayOf(
+                // R
                 EGL14.EGL_RED_SIZE,
-                8, // R
+                8,
+                // G
                 EGL14.EGL_GREEN_SIZE,
-                8, // G
+                8,
+                // B
                 EGL14.EGL_BLUE_SIZE,
-                8, // B
+                8,
+                // A
                 EGL14.EGL_ALPHA_SIZE,
-                8, // A
+                8,
+                // TYPE
                 EGL14.EGL_RENDERABLE_TYPE,
-                EGL14.EGL_OPENGL_ES2_BIT, // TYPE
+                EGL14.EGL_OPENGL_ES2_BIT,
+                // RECORDABLE
                 EGL_RECORDABLE_ANDROID,
-                1, // RECORDABLE
+                1,
+                // EOA
                 EGL14.EGL_NONE,
             )
     }

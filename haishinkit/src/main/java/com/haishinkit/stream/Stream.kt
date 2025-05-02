@@ -13,13 +13,6 @@ import com.haishinkit.view.StreamView
 abstract class Stream(
     applicationContext: Context,
 ) {
-    var mixer: MediaMixer? = null
-        set(value) {
-            videoCodec.pixelTransform.screen = value?.screen
-            view?.screen = value?.screen
-            field = value
-        }
-
     /**
      * Specifies the video codec settings.
      */
@@ -34,22 +27,37 @@ abstract class Stream(
         AudioCodec.Setting(audioCodec)
     }
 
-    /**
-     * Specifies the StreamView object.
-     */
+    var mixer: MediaMixer? = null
+        private set(value) {
+            videoCodec.pixelTransform.screen = value?.screen
+            view?.screen = value?.screen
+            field = value
+        }
+
     var view: StreamView? = null
+        private set
 
     internal val audioCodec by lazy { AudioCodec() }
     internal val videoCodec by lazy { VideoCodec(applicationContext) }
 
     /**
-     * Closes the stream from the server.
+     * Attaches a view.
      */
-    abstract fun close()
-
     fun attachView(view: StreamView?) {
         this.view = view
     }
+
+    /**
+     * Attaches the media mixer.
+     */
+    fun attachMediaMixer(mixer: MediaMixer?) {
+        this.mixer = mixer
+    }
+
+    /**
+     * Closes the stream from the server.
+     */
+    abstract fun close()
 
     /**
      * Disposes the stream of memory management.

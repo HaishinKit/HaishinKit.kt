@@ -18,6 +18,7 @@ import com.google.accompanist.permissions.PermissionState
 import com.google.accompanist.permissions.PermissionStatus
 import com.google.accompanist.permissions.rememberPermissionState
 
+@Suppress("ktlint:standard:function-naming")
 @OptIn(ExperimentalPermissionsApi::class)
 @Composable
 fun CameraDeviceControllerView(
@@ -110,6 +111,7 @@ fun CameraDeviceControllerView(
     }
 }
 
+@Suppress("ktlint:standard:function-naming")
 @OptIn(ExperimentalPermissionsApi::class)
 @Preview
 @Composable

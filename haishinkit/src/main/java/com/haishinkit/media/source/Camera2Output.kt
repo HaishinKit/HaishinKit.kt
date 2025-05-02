@@ -20,7 +20,7 @@ import com.haishinkit.screen.VideoScreenObject
 import java.util.concurrent.Executors
 
 internal class Camera2Output(
-    val context: Context,
+    val applicationContext: Context,
     val source: VideoSource,
     private val cameraId: String,
 ) : CameraDevice.StateCallback(),
@@ -36,7 +36,7 @@ internal class Camera2Output(
     }
 
     private var device: CameraDevice? = null
-    private val manager = context.getSystemService(Context.CAMERA_SERVICE) as CameraManager
+    private val manager = applicationContext.getSystemService(Context.CAMERA_SERVICE) as CameraManager
     private val executor = Executors.newSingleThreadExecutor()
     private var characteristics: CameraCharacteristics? = null
     private val imageOrientation: ImageOrientation

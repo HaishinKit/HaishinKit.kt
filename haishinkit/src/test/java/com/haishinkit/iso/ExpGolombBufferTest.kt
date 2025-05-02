@@ -13,14 +13,14 @@ class ExpGolombBufferTest : TestCase() {
         assertEquals(0, expGolombBuffer.int)
     }
 
-    fun test0_0() {
+    fun test00() {
         val bitSet = BitSet()
         bitSet.set(0, true)
         val expGolombBuffer = ExpGolombBuffer(bitSet)
         assertEquals(0, expGolombBuffer.int)
     }
 
-    fun test0_0_0() {
+    fun test000() {
         val bitSet = BitSet()
         bitSet.set(0, true)
         bitSet.set(0, true)
@@ -31,7 +31,7 @@ class ExpGolombBufferTest : TestCase() {
         assertEquals(0, expGolombBuffer.int)
     }
 
-    fun test0_1() {
+    fun test01() {
         val bitSet = BitSet()
         bitSet.set(0, true)
         bitSet.set(1, false)
@@ -75,7 +75,7 @@ class ExpGolombBufferTest : TestCase() {
         assertEquals(8, expGolombBuffer.int)
     }
 
-    fun test8_1() {
+    fun test81() {
         val bitSet = BitSet()
         bitSet.set(0, false)
         bitSet.set(1, false)
@@ -93,8 +93,7 @@ class ExpGolombBufferTest : TestCase() {
     }
 
     fun testData() {
-        val byteBuffer =
-            ByteBuffer.wrap("f841a2".decodeHex())
+        val byteBuffer = ByteBuffer.wrap("f841a2".decodeHex())
 
         val expGolombBuffer = ExpGolombBuffer.wrap(byteBuffer)
         assertEquals(0, expGolombBuffer.int) // seq_parameter_set_id

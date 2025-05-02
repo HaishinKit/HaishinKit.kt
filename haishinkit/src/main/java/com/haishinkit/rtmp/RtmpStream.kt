@@ -13,6 +13,7 @@ import com.haishinkit.rtmp.message.RtmpCommandMessage
 import com.haishinkit.rtmp.message.RtmpDataMessage
 import com.haishinkit.rtmp.message.RtmpMessage
 import com.haishinkit.rtmp.message.RtmpMessageFactory
+import com.haishinkit.screen.Screen
 import com.haishinkit.stream.Stream
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -21,9 +22,9 @@ import java.util.concurrent.atomic.AtomicInteger
  */
 @Suppress("UNUSED", "MemberVisibilityCanBePrivate")
 class RtmpStream(
-    context: Context,
+    internal var applicationContext: Context,
     internal var connection: RtmpConnection,
-) : Stream(context),
+) : Stream(applicationContext),
     IEventDispatcher {
     data class Info(
         var resourceName: String? = null,
@@ -195,6 +196,7 @@ class RtmpStream(
                     videoTimestamp = DEFAULT_TIMESTAMP
                     audioTimestamp = DEFAULT_TIMESTAMP
                     muxer.clear()
+                    view?.screen = null
                 }
 
                 ReadyState.PUBLISHING -> {
@@ -224,6 +226,7 @@ class RtmpStream(
                 }
 
                 ReadyState.PLAY -> {
+                    view?.screen = screen
                     muxer.mode = Codec.MODE_DECODE
                     muxer.startRunning()
                 }
@@ -243,6 +246,7 @@ class RtmpStream(
             }
         }
     internal var muxer = RtmpMuxer(this)
+    internal val screen: Screen by lazy { Screen.create(applicationContext) }
     internal val messages = ArrayList<RtmpMessage>()
     internal var frameCount = AtomicInteger(0)
     internal var messageFactory = RtmpMessageFactory(4)

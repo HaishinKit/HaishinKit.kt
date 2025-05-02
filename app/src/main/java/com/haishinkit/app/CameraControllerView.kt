@@ -11,6 +11,7 @@ import androidx.compose.ui.tooling.preview.Preview
 
 private const val TAG = "CameraControllerView"
 
+@Suppress("ktlint:standard:function-naming")
 @Composable
 fun CameraControllerView(
     isRecording: Boolean,
@@ -50,6 +51,7 @@ fun CameraControllerView(
     }
 }
 
+@Suppress("ktlint:standard:function-naming")
 @Preview
 @Composable
 private fun PreviewCameraControllerView() {

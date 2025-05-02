@@ -60,6 +60,7 @@ import java.io.File
 
 private const val TAG = "CameraScreen"
 
+@Suppress("ktlint:standard:function-naming")
 @OptIn(ExperimentalPermissionsApi::class)
 @Composable
 fun CameraScreen(
@@ -128,7 +129,7 @@ fun CameraScreen(
     }
 
     LaunchedEffect(Unit) {
-        mixer.registerStream(stream)
+        stream.attachMediaMixer(mixer)
     }
 
     HaishinKitView(

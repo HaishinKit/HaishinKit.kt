@@ -26,6 +26,7 @@ import com.haishinkit.rtmp.RtmpConnection
 
 private const val TAG = "PlaybackScreen"
 
+@Suppress("ktlint:standard:function-naming")
 @Composable
 fun PlaybackScreen(
     command: String,
@@ -101,6 +102,7 @@ fun PlaybackScreen(
     }
 }
 
+@Suppress("ktlint:standard:function-naming")
 @Preview
 @Composable
 private fun PreviewPlaybackScreen() {

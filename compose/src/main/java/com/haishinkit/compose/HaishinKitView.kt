@@ -9,14 +9,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
 import com.haishinkit.graphics.VideoGravity
-import com.haishinkit.media.MediaMixer
 import com.haishinkit.stream.Stream
 import com.haishinkit.view.HkSurfaceView
 import com.haishinkit.view.HkTextureView
 
 /**
- * The main view renders a [MediaMixer] object.
+ * The main view renders a [Stream] object.
  */
+@Suppress("ktlint:standard:function-naming")
 @Composable
 fun HaishinKitView(
     stream: Stream,
