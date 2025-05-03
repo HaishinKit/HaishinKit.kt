@@ -1,16 +1,12 @@
 name: 'Lock Threads'
-
 on:
   schedule:
     - cron: '0 1 * * 1,4'
   workflow_dispatch:
-
 permissions:
   issues: write
-
 concurrency:
   group: lock
-
 jobs:
   action:
     runs-on: ubuntu-latest

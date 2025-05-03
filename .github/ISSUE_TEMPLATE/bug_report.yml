@@ -4,7 +4,7 @@ description: |
 body:
   - type: markdown
     attributes:
-      value: | 
+      value: |
         There are [standards for bug reports](https://github.com/shogo4405/HaishinKit.swift/wiki/BugReport-Standard) expected by the community. If you are posting for the first time, please read them carefully. Reports that do not meet these standards will be closed.
   - type: textarea
     id: observed-behavior
@@ -36,7 +36,7 @@ body:
     id: version
     attributes:
       label: Version
-      description: What version of our software are you running? 
+      description: What version of our software are you running?
     validations:
       required: true
   - type: textarea
@@ -45,17 +45,17 @@ body:
       label: Smartphone info.
       description: please complete the following information
       placeholder: |
-       - Device: [e.g. iPhone 15 Pro]
-       - OS: [e.g. iOS 18.1]
+        - Device: [e.g. iPhone 15 Pro]
+        - OS: [e.g. iOS 18.1]
   - type: textarea
     id: addditional-context
     attributes:
       label: Additional context
       description: Add any other context about the problem here. If you encounter issues while using HaishinKit for streaming or viewing, please provide the server name as well as the name of the software you are using for streaming or viewing.
       placeholder: |
-       - Server: [e.g. nginx + rtmp module, YouTube]
-       - Ingest software: [e.g. OBS RTMP H264(main) AAC]
-       - Playback software: [e.g. iOS AVAudioPlayer(via HLS)]
+        - Server: [e.g. nginx + rtmp module, YouTube]
+        - Ingest software: [e.g. OBS RTMP H264(main) AAC]
+        - Playback software: [e.g. iOS AVAudioPlayer(via HLS)]
   - type: textarea
     id: screenshot
     attributes:
