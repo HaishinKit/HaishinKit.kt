@@ -13,7 +13,6 @@ import com.haishinkit.rtmp.message.RtmpCommandMessage
 import com.haishinkit.rtmp.message.RtmpDataMessage
 import com.haishinkit.rtmp.message.RtmpMessage
 import com.haishinkit.rtmp.message.RtmpMessageFactory
-import com.haishinkit.screen.Screen
 import com.haishinkit.stream.Stream
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -246,7 +245,6 @@ class RtmpStream(
             }
         }
     internal var muxer = RtmpMuxer(this)
-    internal val screen: Screen by lazy { Screen.create(applicationContext) }
     internal val messages = ArrayList<RtmpMessage>()
     internal var frameCount = AtomicInteger(0)
     internal var messageFactory = RtmpMessageFactory(4)

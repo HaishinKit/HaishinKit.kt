@@ -118,7 +118,7 @@ internal class RtmpMuxer(
 
             Codec.MODE_DECODE -> {
                 video.listener = this
-                stream.screen.addChild(video)
+                stream.screen?.addChild(video)
                 keyframes.clear()
                 mediaLink.startRunning()
             }
@@ -149,7 +149,7 @@ internal class RtmpMuxer(
 
     fun clear() {
         video.listener = null
-        stream.screen.removeChild(video)
+        stream.screen?.removeChild(video)
         audioTimestamp = 0L
         videoTimestamp = 0L
         frameTracker?.clear()

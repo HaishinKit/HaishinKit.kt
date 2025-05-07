@@ -23,7 +23,7 @@ class MediaMixer(
      * The current audio source object.
      */
     var audioSource: AudioSource? = null
-        internal set(value) {
+        private set(value) {
             field?.stopRunning()
             field?.mixer = null
             field = value
@@ -35,7 +35,7 @@ class MediaMixer(
      * The current video source object.
      */
     var videoSource: VideoSource? = null
-        internal set(value) {
+        private set(value) {
             field?.stopRunning()
             screen.removeChild(field?.screen)
             field?.mixer = null

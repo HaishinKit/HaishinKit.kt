@@ -162,7 +162,7 @@ internal class RtmpVideoMessage(
                     val record = DecoderConfigurationRecord.decode(mime, payload) ?: return this
                     record.videoSize?.let {
                         Log.i(TAG, it.toString())
-                        stream.screen.frame = Rect(0, 0, it.width, it.height)
+                        stream.screen?.frame = Rect(0, 0, it.width, it.height)
                         stream.muxer.video.videoSize = it
                     }
                     if (record.configure(stream.videoCodec)) {
@@ -196,7 +196,7 @@ internal class RtmpVideoMessage(
                     val record = AvcDecoderConfigurationRecord.decode(payload)
                     record.videoSize?.let {
                         Log.i(TAG, it.toString())
-                        stream.screen.frame = Rect(0, 0, it.width, it.height)
+                        stream.screen?.frame = Rect(0, 0, it.width, it.height)
                         stream.muxer.video.videoSize = it
                     }
                     if (record.configure(stream.videoCodec)) {

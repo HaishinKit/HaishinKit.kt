@@ -1,4 +1,4 @@
-package com.haishinkit.media
+package com.haishinkit.stream
 
 import android.content.Context
 import android.media.MediaMuxer
@@ -17,13 +17,14 @@ import java.io.FileDescriptor
  * ```xml
  * <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>
  * ```
+ *
  * ### Code
  * ```kotlin
- * var recorder = MediaMixerRecorder(context)
+ * var recorder = [StreamRecorder](context)
  * if (recorder.isRecording) {
  *   recorder.stopRecording()
  * } else {
- *   recorder.attachMediaMixer(mixer)
+ *   recorder.attachStream(stream)
  *   recorder.startRecording(
  *     File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "output.mp4").toString(),
  *     MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4
@@ -32,7 +33,7 @@ import java.io.FileDescriptor
  * ```
  */
 @Suppress("UNUSED", "MemberVisibilityCanBePrivate")
-class MediaRecorder(
+class StreamRecorder(
     applicationContext: Context,
 ) {
     /**
@@ -55,17 +56,17 @@ class MediaRecorder(
         AudioCodec.Setting(audioCodec)
     }
 
-    private var muxer: MediaRecorderMuxer? = null
-    private var mixer: MediaMixer? = null
+    private var muxer: StreamRecorderMuxer? = null
+    private var stream: Stream? = null
     private val audioCodec by lazy { AudioCodec() }
     private val videoCodec by lazy { VideoCodec(applicationContext) }
 
     /**
-     * Attaches the media mixer.
+     * Attaches the stream.
      */
-    fun attachMediaMixer(mixer: MediaMixer?) {
-        this.mixer = mixer
-        videoCodec.pixelTransform.screen = mixer?.screen
+    fun attachStream(stream: Stream?) {
+        this.stream = stream
+        videoCodec.pixelTransform.screen = stream?.screen
     }
 
     /**
@@ -75,11 +76,11 @@ class MediaRecorder(
         path: String,
         format: Int,
     ) {
-        if (muxer != null || mixer == null) {
+        if (muxer != null || stream == null) {
             throw IllegalStateException()
         }
         Log.i(TAG, "Start recordings to $path.")
-        muxer = MediaRecorderMuxer(mixer, MediaMuxer(path, format))
+        muxer = StreamRecorderMuxer(stream, MediaMuxer(path, format))
         startRunning()
     }
 
@@ -91,10 +92,10 @@ class MediaRecorder(
         fd: FileDescriptor,
         format: Int,
     ) {
-        if (muxer != null || mixer == null) {
+        if (muxer != null || stream == null) {
             throw IllegalStateException()
         }
-        muxer = MediaRecorderMuxer(mixer, MediaMuxer(fd, format))
+        muxer = StreamRecorderMuxer(stream, MediaMuxer(fd, format))
         startRunning()
     }
 
@@ -116,11 +117,11 @@ class MediaRecorder(
         audioCodec.startRunning()
         videoCodec.listener = muxer
         videoCodec.startRunning()
-        mixer?.audioSource?.registerAudioCodec(audioCodec)
+        stream?.mixer?.audioSource?.registerAudioCodec(audioCodec)
     }
 
     private fun stopRunning() {
-        mixer?.audioSource?.unregisterAudioCodec(audioCodec)
+        stream?.mixer?.audioSource?.unregisterAudioCodec(audioCodec)
         audioCodec.stopRunning()
         audioCodec.listener = null
         videoCodec.stopRunning()
@@ -129,6 +130,6 @@ class MediaRecorder(
     }
 
     private companion object {
-        private val TAG = MediaRecorder::class.java.simpleName
+        private val TAG = StreamRecorder::class.java.simpleName
     }
 }

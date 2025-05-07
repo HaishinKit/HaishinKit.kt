@@ -249,7 +249,7 @@ fun CameraScreen(
                     .padding(32.dp),
         )
 
-        val recorderState = rememberRecorderState(context, mixer)
+        val recorderState = rememberRecorderState(context, stream)
 
         CameraControllerView(
             isRecording = recorderState.isRecording,

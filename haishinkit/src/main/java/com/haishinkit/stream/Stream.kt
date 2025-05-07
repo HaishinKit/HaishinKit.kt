@@ -4,6 +4,7 @@ import android.content.Context
 import com.haishinkit.codec.AudioCodec
 import com.haishinkit.codec.VideoCodec
 import com.haishinkit.media.MediaMixer
+import com.haishinkit.screen.Screen
 import com.haishinkit.view.StreamView
 
 /**
@@ -11,7 +12,7 @@ import com.haishinkit.view.StreamView
  */
 @Suppress("UNUSED")
 abstract class Stream(
-    applicationContext: Context,
+    private var applicationContext: Context,
 ) {
     /**
      * Specifies the video codec settings.
@@ -32,6 +33,17 @@ abstract class Stream(
             videoCodec.pixelTransform.screen = value?.screen
             view?.screen = value?.screen
             field = value
+        }
+
+    var screen: Screen? = null
+        get() {
+            if (mixer != null) {
+                return mixer?.screen
+            }
+            if (field == null) {
+                field = Screen.create(applicationContext)
+            }
+            return field
         }
 
     var view: StreamView? = null
