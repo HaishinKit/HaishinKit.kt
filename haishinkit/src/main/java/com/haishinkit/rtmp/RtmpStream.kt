@@ -226,18 +226,18 @@ class RtmpStream(
 
                 ReadyState.PLAY -> {
                     view?.screen = screen
-                    muxer.mode = Codec.MODE_DECODE
-                    muxer.startRunning()
+                    mode = Codec.MODE_DECODE
+                    startRunning()
                 }
 
                 ReadyState.PUBLISHING -> {
-                    muxer.mode = Codec.MODE_ENCODE
-                    muxer.startRunning()
+                    mode = Codec.MODE_ENCODE
+                    startRunning()
                     send("@setDataFrame", "onMetaData", toMetaData())
                 }
 
                 ReadyState.CLOSED -> {
-                    muxer.stopRunning()
+                    stopRunning()
                 }
 
                 else -> {
@@ -383,7 +383,7 @@ class RtmpStream(
 
     override fun dispose() {
         connection.removeEventListener(Event.RTMP_STATUS, eventListener)
-        muxer.stopRunning()
+        stopRunning()
         super.dispose()
     }
 
@@ -413,6 +413,13 @@ class RtmpStream(
         useCapture: Boolean,
     ) {
         dispatcher.removeEventListener(type, listener, useCapture)
+    }
+
+    override fun startRunning() {
+        if (isRunning.get()) return
+        audioCodec.listener = muxer
+        videoCodec.listener = muxer
+        super.startRunning()
     }
 
     internal fun doOutput(
