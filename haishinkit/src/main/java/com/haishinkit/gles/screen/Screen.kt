@@ -6,6 +6,7 @@ import android.graphics.Color
 import android.graphics.Rect
 import android.opengl.GLES20
 import android.view.Choreographer
+import androidx.core.graphics.createBitmap
 import com.haishinkit.gles.Framebuffer
 import com.haishinkit.gles.GraphicsContext
 import com.haishinkit.gles.Utils
@@ -54,7 +55,7 @@ internal class Screen(
 
     override fun readPixels(lambda: (bitmap: Bitmap?) -> Unit) {
         val bitmap =
-            Bitmap.createBitmap(frame.width(), frame.height(), Bitmap.Config.ARGB_8888)
+            createBitmap(frame.width(), frame.height())
         val byteBuffer =
             ByteBuffer.allocateDirect(frame.width() * frame.height() * 4).apply {
                 order(ByteOrder.LITTLE_ENDIAN)

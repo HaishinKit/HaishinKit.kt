@@ -56,7 +56,7 @@ class MediaMixer(
      * Attaches a video source.
      */
     fun attachVideo(video: VideoSource?) {
-        this.videoSource = video
+        videoSource = video
     }
 
     /**

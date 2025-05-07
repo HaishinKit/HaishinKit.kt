@@ -36,7 +36,8 @@ internal class Camera2Output(
     }
 
     private var device: CameraDevice? = null
-    private val manager = applicationContext.getSystemService(Context.CAMERA_SERVICE) as CameraManager
+    private val manager =
+        applicationContext.getSystemService(Context.CAMERA_SERVICE) as CameraManager
     private val executor = Executors.newSingleThreadExecutor()
     private var characteristics: CameraCharacteristics? = null
     private val imageOrientation: ImageOrientation

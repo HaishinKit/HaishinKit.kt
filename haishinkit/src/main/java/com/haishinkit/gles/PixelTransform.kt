@@ -6,6 +6,7 @@ import android.util.Log
 import android.util.Size
 import android.view.Choreographer
 import android.view.Surface
+import com.haishinkit.BuildConfig
 import com.haishinkit.graphics.FpsController
 import com.haishinkit.graphics.PixelTransform
 import com.haishinkit.graphics.ScheduledFpsController
@@ -27,6 +28,7 @@ internal class PixelTransform(
     override val isRunning: AtomicBoolean = AtomicBoolean(false)
     override var screen: Screen? = null
         set(value) {
+            if (value == field) return
             field = value
             if (value == null) {
                 stopRunning()
@@ -36,6 +38,7 @@ internal class PixelTransform(
         }
     override var surface: Surface? = null
         set(value) {
+            if (value == field) return
             field = value
             if (value == null) {
                 stopRunning()
@@ -87,6 +90,10 @@ internal class PixelTransform(
             field?.postFrameCallback(this)
         }
     private var program: Program? = null
+        set(value) {
+            field?.dispose()
+            field = value
+        }
     private val shaderLoader by lazy {
         ShaderLoader(applicationContext)
     }
@@ -97,9 +104,11 @@ internal class PixelTransform(
     override fun startRunning() {
         if (isRunning.get()) return
         if (screen == null || surface == null) return
+        if (BuildConfig.DEBUG) {
+            Log.d(TAG, "startRunning()")
+        }
         isRunning.set(true)
-        video.videoGravity = VideoGravity.RESIZE_ASPECT
-        fpsController.clear()
+        video.videoGravity = videoGravity
         graphicsContext.apply {
             open((screen as? com.haishinkit.gles.screen.ThreadScreen)?.graphicsContext)
             makeCurrent(createWindowSurface(surface))
@@ -108,13 +117,22 @@ internal class PixelTransform(
         screen?.let {
             video.videoSize = Size(it.bounds.width(), it.bounds.height())
         }
+        fpsController.clear()
         choreographer = Choreographer.getInstance()
     }
 
     override fun stopRunning() {
         if (!isRunning.get()) return
+        if (BuildConfig.DEBUG) {
+            Log.d(TAG, "stopRunning()")
+        }
+        GLES20.glClearColor(0f, 0f, 0f, 0f)
+        GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT)
+        graphicsContext.swapBuffers()
         program = null
         choreographer = null
+        shaderLoader.release()
+        graphicsContext.close()
         isRunning.set(false)
     }
 

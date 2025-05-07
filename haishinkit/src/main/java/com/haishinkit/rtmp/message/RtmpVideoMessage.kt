@@ -1,6 +1,5 @@
 package com.haishinkit.rtmp.message
 
-import android.graphics.Rect
 import android.media.MediaCodec
 import android.util.Log
 import androidx.core.util.Pools
@@ -160,14 +159,8 @@ internal class RtmpVideoMessage(
             when (packetType) {
                 RtmpMuxer.FLV_VIDEO_PACKET_TYPE_SEQUENCE_START -> {
                     val record = DecoderConfigurationRecord.decode(mime, payload) ?: return this
-                    record.videoSize?.let {
-                        Log.i(TAG, it.toString())
-                        stream.screen?.frame = Rect(0, 0, it.width, it.height)
-                        stream.muxer.video.videoSize = it
-                    }
-                    if (record.configure(stream.videoCodec)) {
+                    if (stream.configure(record)) {
                         timestamp = 0
-                        stream.muxer.hasVideo = true
                         stream.muxer.enqueueVideo(this)
                     }
                 }
@@ -194,15 +187,9 @@ internal class RtmpVideoMessage(
             when (packetType) {
                 RtmpMuxer.FLV_AVC_PACKET_TYPE_SEQ -> {
                     val record = AvcDecoderConfigurationRecord.decode(payload)
-                    record.videoSize?.let {
-                        Log.i(TAG, it.toString())
-                        stream.screen?.frame = Rect(0, 0, it.width, it.height)
-                        stream.muxer.video.videoSize = it
-                    }
-                    if (record.configure(stream.videoCodec)) {
+                    if (stream.configure(record)) {
                         data = record.toByteBuffer()
                         timestamp = 0
-                        stream.muxer.hasVideo = true
                         stream.muxer.enqueueVideo(this)
                     }
                 }

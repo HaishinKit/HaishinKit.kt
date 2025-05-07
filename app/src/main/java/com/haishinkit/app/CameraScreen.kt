@@ -126,7 +126,7 @@ fun CameraScreen(
     LaunchedEffect(pagerState, 0) {
         snapshotFlow { pagerState.currentPage }.collect { page ->
             val item = controller.videoEffectItems[page]
-            mixer.screen.videoEffect = item.videoEffect ?: DefaultVideoEffect.shared
+            mixer.videoSource?.setVideoEffect(0, item.videoEffect ?: DefaultVideoEffect.shared)
         }
     }
 

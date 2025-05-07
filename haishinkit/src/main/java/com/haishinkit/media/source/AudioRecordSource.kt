@@ -73,7 +73,7 @@ class AudioRecordSource(
     override fun startRunning() {
         if (isRunning.get()) return
         if (BuildConfig.DEBUG) {
-            Log.d(TAG, "startRunning()")
+            Log.d(TAG, this::startRunning.name)
         }
         doAudio()
         isRunning.set(true)
@@ -82,7 +82,7 @@ class AudioRecordSource(
     override fun stopRunning() {
         if (!isRunning.get()) return
         if (BuildConfig.DEBUG) {
-            Log.d(TAG, "stopRunning()")
+            Log.d(TAG, this::stopRunning.name)
         }
         keepAlive = false
         isRunning.set(false)
@@ -166,7 +166,7 @@ class AudioRecordSource(
                                 .build(),
                         ).setBufferSizeInBytes(minBufferSize)
                         .build()
-                } catch (e: Exception) {
+                } catch (_: Exception) {
                     AudioRecord(
                         audioSource,
                         sampleRate,

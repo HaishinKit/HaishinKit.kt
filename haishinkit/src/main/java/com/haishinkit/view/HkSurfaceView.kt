@@ -74,6 +74,6 @@ class HkSurfaceView
         }
 
         private companion object {
-            private var TAG = HkSurfaceView::class.java.simpleName
+            private val TAG = HkSurfaceView::class.java.simpleName
         }
     }
