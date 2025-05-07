@@ -9,6 +9,7 @@ import android.util.Log
 import android.view.OrientationEventListener
 import android.view.WindowManager
 import com.haishinkit.BuildConfig
+import com.haishinkit.graphics.effect.VideoEffect
 import com.haishinkit.media.MediaMixer
 import com.haishinkit.screen.ScreenObjectContainer
 import com.haishinkit.screen.VideoScreenObject
@@ -17,7 +18,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 /**
  * A video source that captures a camera by the Camera2 API.
  */
-@Suppress("MemberVisibilityCanBePrivate")
+@Suppress("UNUSED")
 class Camera2Source(
     private val context: Context,
 ) : VideoSource {
@@ -85,6 +86,13 @@ class Camera2Source(
         open(expect)
     }
 
+    override fun setVideoEffect(
+        index: Int,
+        videoEffect: VideoEffect,
+    ) {
+        output?.video?.videoEffect = videoEffect
+    }
+
     override fun startRunning() {
         if (isRunning.get()) return
         orientationEventListener?.enable()
@@ -96,10 +104,10 @@ class Camera2Source(
 
     override fun stopRunning() {
         if (!isRunning.get()) return
-        orientationEventListener?.disable()
         isRunning.set(false)
+        orientationEventListener?.disable()
         if (BuildConfig.DEBUG) {
-            Log.d(TAG, this::startRunning.name)
+            Log.d(TAG, this::stopRunning.name)
         }
     }
 

@@ -1,5 +1,6 @@
 package com.haishinkit.media.source
 
+import com.haishinkit.graphics.effect.VideoEffect
 import com.haishinkit.screen.ScreenObjectContainer
 
 /**
@@ -10,4 +11,12 @@ interface VideoSource : Source {
      * The video screen container object.
      */
     val screen: ScreenObjectContainer
+
+    /**
+     * Sets a video effect.
+     */
+    fun setVideoEffect(
+        index: Int,
+        videoEffect: VideoEffect,
+    )
 }

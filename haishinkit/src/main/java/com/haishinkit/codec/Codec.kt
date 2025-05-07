@@ -9,9 +9,7 @@ import android.util.Log
 import android.view.Surface
 import com.haishinkit.BuildConfig
 import com.haishinkit.lang.Running
-import com.haishinkit.media.MediaLink
 import java.nio.ByteBuffer
-import java.util.Deque
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.properties.Delegates
 
@@ -79,8 +77,8 @@ abstract class Codec :
             return field
         }
         set(value) {
+            if (value == field) return
             field?.stop()
-            field?.setCallback(null)
             field?.release()
             field = value
         }
@@ -185,13 +183,13 @@ abstract class Codec :
             Log.d(TAG, "stopRunning($inputMimeType)")
         }
         try {
+            isRunning.set(false)
             dispose()
         } catch (e: MediaCodec.CodecException) {
             Log.w(TAG, "", e)
         } catch (e: IllegalStateException) {
             Log.w(TAG, "", e)
         }
-        isRunning.set(false)
     }
 
     open fun dispose() {
@@ -236,6 +234,7 @@ abstract class Codec :
         codec: MediaCodec,
         index: Int,
     ) {
+        if (!isRunning.get()) return
         try {
             listener?.onInputBufferAvailable(outputMimeType, codec, index)
         } catch (e: IllegalStateException) {
@@ -250,6 +249,7 @@ abstract class Codec :
         index: Int,
         info: MediaCodec.BufferInfo,
     ) {
+        if (!isRunning.get()) return
         try {
             val buffer = codec.getOutputBuffer(index) ?: return
             if (listener?.onSampleOutput(outputMimeType, index, info, buffer) == true) {
@@ -257,7 +257,7 @@ abstract class Codec :
             }
         } catch (e: IllegalStateException) {
             if (BuildConfig.DEBUG) {
-                Log.w(TAG, e)
+                Log.w(TAG, "$index/${info.flags}", e)
             }
         }
     }
@@ -276,15 +276,6 @@ abstract class Codec :
         format: MediaFormat,
     ) {
         outputFormat = format
-    }
-
-    internal fun release(buffers: Deque<MediaLink.Buffer>) {
-        val it = buffers.iterator()
-        while (it.hasNext()) {
-            val buffer = it.next()
-            codec?.releaseOutputBuffer(buffer.index, false)
-            it.remove()
-        }
     }
 
     protected abstract fun createMediaFormat(mime: String): MediaFormat

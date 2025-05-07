@@ -6,9 +6,12 @@ import android.hardware.SensorManager
 import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraManager
 import android.os.Build
+import android.util.Log
 import android.view.OrientationEventListener
 import android.view.WindowManager
 import androidx.annotation.RequiresApi
+import com.haishinkit.BuildConfig
+import com.haishinkit.graphics.effect.VideoEffect
 import com.haishinkit.media.MediaMixer
 import com.haishinkit.screen.ScreenObjectContainer
 import com.haishinkit.screen.VideoScreenObject
@@ -33,14 +36,11 @@ class MultiCamera2Source(
             override fun onOrientationChanged(orientation: Int) {
                 val windowManager =
                     context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
-                windowManager
-                    .defaultDisplay
-                    ?.orientation
-                    ?.let {
-                        outputs.values.forEach { output ->
-                            output.video.deviceOrientation = it
-                        }
+                windowManager.defaultDisplay?.orientation?.let {
+                    outputs.values.forEach { output ->
+                        output.video.deviceOrientation = it
                     }
+                }
             }
         }
     }
@@ -73,6 +73,13 @@ class MultiCamera2Source(
         outputs.clear()
     }
 
+    override fun setVideoEffect(
+        index: Int,
+        videoEffect: VideoEffect,
+    ) {
+        outputs[index]?.video?.videoEffect = videoEffect
+    }
+
     /**
      * Gets the video screen object by channel.
      */
@@ -80,16 +87,23 @@ class MultiCamera2Source(
 
     override fun startRunning() {
         if (isRunning.get()) return
+        if (BuildConfig.DEBUG) {
+            Log.d(TAG, this::startRunning.name)
+        }
+        isRunning.set(true)
         val windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
         outputs.values.forEach {
             it.video.deviceOrientation = windowManager.defaultDisplay.rotation
         }
         orientationEventListener?.enable()
-        isRunning.set(true)
     }
 
     override fun stopRunning() {
         if (!isRunning.get()) return
+        if (BuildConfig.DEBUG) {
+            Log.d(TAG, this::stopRunning.name)
+        }
+        close()
         orientationEventListener?.disable()
         isRunning.set(false)
     }

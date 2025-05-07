@@ -73,7 +73,7 @@ class CameraTabFragment :
                 )
             val imageUri = Uri.parse(path)
             val share = Intent(Intent.ACTION_SEND)
-            share.setType("image/jpeg")
+            share.type = "image/jpeg"
             share.putExtra(Intent.EXTRA_STREAM, imageUri)
             startActivity(Intent.createChooser(share, "Select"))
         }

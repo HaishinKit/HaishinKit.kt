@@ -18,15 +18,16 @@ internal class StreamRecorderMuxer(
     private var stream = WeakReference(stream)
     private val isReady: Boolean
         get() {
-            val audioSource = stream.get()?.mixer?.audioSource
-            val videoSource = stream.get()?.mixer?.videoSource
-            if (audioSource != null && videoSource != null) {
+            val hasAudio = stream.get()?.hasAudio == true
+            val hasVideo = stream.get()?.hasVideo == true
+            if (hasAudio && hasVideo) {
                 return DEFAULT_TRACK_INDEX < audioTrackIndex && DEFAULT_TRACK_INDEX < videoTrackIndex
             }
-            if (audioSource == null) {
-                return videoSource != null && DEFAULT_TRACK_INDEX < videoTrackIndex
+            return if (hasAudio) {
+                DEFAULT_TRACK_INDEX < audioTrackIndex
+            } else {
+                hasVideo && DEFAULT_TRACK_INDEX < videoTrackIndex
             }
-            return DEFAULT_TRACK_INDEX < audioTrackIndex
         }
     private var audioTrackIndex = DEFAULT_TRACK_INDEX
     private var videoTrackIndex = DEFAULT_TRACK_INDEX

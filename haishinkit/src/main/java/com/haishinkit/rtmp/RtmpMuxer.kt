@@ -5,63 +5,30 @@ import android.media.MediaFormat
 import android.os.Build
 import android.os.SystemClock
 import android.util.Log
-import android.view.Surface
 import com.haishinkit.BuildConfig
 import com.haishinkit.codec.Codec
 import com.haishinkit.event.Event
 import com.haishinkit.iso.AvcDecoderConfigurationRecord
 import com.haishinkit.iso.DecoderConfigurationRecord
-import com.haishinkit.lang.Running
 import com.haishinkit.media.BufferController
-import com.haishinkit.media.MediaLink
+import com.haishinkit.media.MediaType
 import com.haishinkit.metrics.FrameTracker
 import com.haishinkit.rtmp.message.RtmpAudioMessage
 import com.haishinkit.rtmp.message.RtmpVideoMessage
-import com.haishinkit.screen.VideoScreenObject
 import com.haishinkit.util.MediaFormatUtil
 import java.nio.ByteBuffer
-import java.util.concurrent.atomic.AtomicBoolean
 
 internal class RtmpMuxer(
     private val stream: RtmpStream,
-) : Running,
-    BufferController.Listener,
-    Codec.Listener,
-    VideoScreenObject.OnSurfaceChangedListener {
-    override var isRunning = AtomicBoolean(false)
-
-    var mode = Codec.MODE_DECODE
-        set(value) {
-            stream.audioCodec.mode = value
-            stream.videoCodec.mode = value
-            field = value
-        }
-
-    var hasAudio: Boolean
-        get() = mediaLink.hasAudio
-        set(value) {
-            mediaLink.hasAudio = value
-        }
-
-    var hasVideo: Boolean
-        get() = mediaLink.hasVideo
-        set(value) {
-            mediaLink.hasVideo = value
-        }
-
-    val video: VideoScreenObject by lazy {
-        VideoScreenObject().apply {
-            isRotatesWithContent = false
-        }
-    }
-
+) : BufferController.Listener,
+    Codec.Listener {
     private var bufferTime = BufferController.DEFAULT_BUFFER_TIME
         set(value) {
+            if (value == field) return
             audioBufferController.bufferTime = bufferTime
             videoBufferController.bufferTime = bufferTime
             field = value
         }
-
     private var audioTimestamp = 0L
     private var videoTimestamp = 0L
     private var frameTracker: FrameTracker? = null
@@ -72,16 +39,12 @@ internal class RtmpMuxer(
             return field
         }
     private val keyframes = mutableMapOf<Long, Boolean>()
-    private val mediaLink: MediaLink by lazy {
-        MediaLink(stream.audioCodec, stream.videoCodec)
-    }
     private val audioBufferController: BufferController<RtmpAudioMessage> by lazy {
         val controller = BufferController<RtmpAudioMessage>("audio")
         controller.bufferTime = bufferTime
         controller.listener = this
         controller
     }
-
     private val videoBufferController: BufferController<RtmpVideoMessage> by lazy {
         val controller = BufferController<RtmpVideoMessage>("video")
         controller.bufferTime = bufferTime
@@ -97,65 +60,12 @@ internal class RtmpMuxer(
         videoBufferController.enqueue(message, message.timestamp)
     }
 
-    @Synchronized
-    override fun startRunning() {
-        if (isRunning.get()) return
-        if (BuildConfig.DEBUG) {
-            Log.d(TAG, "startRunning()")
-        }
-        when (mode) {
-            Codec.MODE_ENCODE -> {
-                stream.mixer?.audioSource?.let {
-                    stream.audioCodec.listener = this
-                    stream.audioCodec.startRunning()
-                    it.registerAudioCodec(stream.audioCodec)
-                }
-                stream.mixer?.videoSource?.let {
-                    stream.videoCodec.listener = this
-                    stream.videoCodec.startRunning()
-                }
-            }
-
-            Codec.MODE_DECODE -> {
-                video.listener = this
-                stream.screen?.addChild(video)
-                keyframes.clear()
-                mediaLink.startRunning()
-            }
-        }
-        isRunning.set(true)
-    }
-
-    @Synchronized
-    override fun stopRunning() {
-        if (!isRunning.get()) return
-        if (BuildConfig.DEBUG) {
-            Log.d(TAG, "stopRunning()")
-        }
-        when (mode) {
-            Codec.MODE_ENCODE -> {
-                stream.audioCodec.stopRunning()
-                stream.videoCodec.stopRunning()
-                stream.mixer?.audioSource?.unregisterAudioCodec(stream.audioCodec)
-            }
-
-            Codec.MODE_DECODE -> {
-                clear()
-                mediaLink.stopRunning()
-            }
-        }
-        isRunning.set(false)
-    }
-
     fun clear() {
-        video.listener = null
-        stream.screen?.removeChild(video)
         audioTimestamp = 0L
         videoTimestamp = 0L
         frameTracker?.clear()
         audioBufferController.clear()
         videoBufferController.clear()
-        mediaLink.clear()
     }
 
     override fun onInputBufferAvailable(
@@ -280,7 +190,7 @@ internal class RtmpMuxer(
             }
 
             MediaFormat.MIMETYPE_AUDIO_RAW -> {
-                mediaLink.audioTrack = MediaFormatUtil.createAudioTrack(mediaFormat)
+                stream.mediaLink.audioTrack = MediaFormatUtil.createAudioTrack(mediaFormat)
             }
 
             MediaFormat.MIMETYPE_AUDIO_AAC -> {
@@ -312,9 +222,10 @@ internal class RtmpMuxer(
                 if (isKeyframe) {
                     keyframes.remove(info.presentationTimeUs)
                 }
-                mediaLink.queueVideo(
+                stream.queueOutputBuffer(
+                    MediaType.VIDEO,
                     index,
-                    null,
+                    buffer,
                     info.presentationTimeUs,
                     isKeyframe,
                 )
@@ -391,7 +302,13 @@ internal class RtmpMuxer(
             }
 
             MediaFormat.MIMETYPE_AUDIO_RAW -> {
-                mediaLink.queueAudio(index, buffer, info.presentationTimeUs, true)
+                stream.queueOutputBuffer(
+                    MediaType.AUDIO,
+                    index,
+                    buffer,
+                    info.presentationTimeUs,
+                    true,
+                )
                 return false
             }
 
@@ -426,7 +343,7 @@ internal class RtmpMuxer(
     override fun <T> onBufferFull(controller: BufferController<T>) {
         if (controller == videoBufferController) {
             if (stream.receiveVideo) {
-                mediaLink.paused = false
+                stream.mediaLink.paused = false
             } else {
                 return
             }
@@ -437,16 +354,12 @@ internal class RtmpMuxer(
     override fun <T> onBufferEmpty(controller: BufferController<T>) {
         if (controller == videoBufferController) {
             if (stream.receiveVideo) {
-                mediaLink.paused = true
+                stream.mediaLink.paused = true
             } else {
                 return
             }
         }
         stream.dispatchEventWith(Event.RTMP_STATUS, false, RtmpStream.Code.BUFFER_EMPTY.data(""))
-    }
-
-    override fun onSurfaceChanged(surface: Surface?) {
-        stream.videoCodec.surface = surface
     }
 
     @Suppress("UNUSED")

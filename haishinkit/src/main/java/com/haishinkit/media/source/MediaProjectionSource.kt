@@ -17,6 +17,7 @@ import android.view.WindowManager
 import androidx.core.content.getSystemService
 import com.haishinkit.BuildConfig
 import com.haishinkit.graphics.ImageOrientation
+import com.haishinkit.graphics.effect.VideoEffect
 import com.haishinkit.media.MediaMixer
 import com.haishinkit.screen.ScreenObjectContainer
 import com.haishinkit.screen.VideoScreenObject
@@ -116,6 +117,13 @@ class MediaProjectionSource(
      */
     fun unregisterCallback(callback: MediaProjection.Callback) {
         mediaProjection.unregisterCallback(callback)
+    }
+
+    override fun setVideoEffect(
+        index: Int,
+        videoEffect: VideoEffect,
+    ) {
+        video.videoEffect = videoEffect
     }
 
     override fun startRunning() {

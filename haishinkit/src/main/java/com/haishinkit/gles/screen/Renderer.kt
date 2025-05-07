@@ -118,10 +118,11 @@ internal class Renderer(
         textureIds[0] = screenObject.id
         when (screenObject) {
             is VideoScreenObject -> {
-                screenObject.surface = null
-                surfaceTextures[screenObject.id]?.setOnFrameAvailableListener(null)
-                surfaceTextures[screenObject.id]?.release()
-                surfaceTextures.remove(screenObject.id)
+                surfaceTextures.remove(screenObject.id)?.let {
+                    screenObject.surface = null
+                    it.setOnFrameAvailableListener(null)
+                    it.release()
+                }
             }
         }
         GLES20.glDeleteTextures(1, textureIds, 0)
