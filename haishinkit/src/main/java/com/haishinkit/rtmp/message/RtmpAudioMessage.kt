@@ -105,6 +105,6 @@ internal class RtmpAudioMessage(
     companion object {
         private const val VERBOSE = false
         private const val AAC = (0x0A shl 4 or (0x03 shl 2) or (0x01 shl 1) or 0x01).toByte()
-        private var TAG = RtmpAudioMessage::class.java.simpleName
+        private val TAG = RtmpAudioMessage::class.java.simpleName
     }
 }

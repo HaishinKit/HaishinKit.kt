@@ -36,7 +36,7 @@ internal open class RtmpMessage(
         TODO("$TAG#execute")
     }
 
-    open fun release(): Boolean = pool?.release(this) ?: false
+    open fun release(): Boolean = pool?.release(this) == true
 
     companion object {
         const val TYPE_CHUNK_SIZE: Byte = 0x01
