@@ -86,6 +86,8 @@ fun CameraScreen(
 
     DisposableEffect(Unit) {
         onDispose {
+            mixer.dispose()
+            stream.dispose()
             connectionState.dispose()
         }
     }
