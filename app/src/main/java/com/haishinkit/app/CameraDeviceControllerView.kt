@@ -66,7 +66,7 @@ fun CameraDeviceControllerView(
                     Icon(
                         painter = painterResource(id = R.drawable.videocam_24dp),
                         tint = Color.White,
-                        contentDescription = "",
+                        contentDescription = null,
                     )
                 }
 
@@ -74,7 +74,7 @@ fun CameraDeviceControllerView(
                     Icon(
                         painter = painterResource(id = R.drawable.videocam_off24dp),
                         tint = Color.White,
-                        contentDescription = "",
+                        contentDescription = null,
                     )
                 }
             }
@@ -95,7 +95,7 @@ fun CameraDeviceControllerView(
                     Icon(
                         painter = painterResource(id = R.drawable.mic_24dp),
                         tint = Color.White,
-                        contentDescription = "",
+                        contentDescription = null,
                     )
                 }
 
@@ -103,7 +103,7 @@ fun CameraDeviceControllerView(
                     Icon(
                         painter = painterResource(id = R.drawable.mic_off24dp),
                         tint = Color.White,
-                        contentDescription = "",
+                        contentDescription = null,
                     )
                 }
             }

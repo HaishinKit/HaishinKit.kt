@@ -193,7 +193,6 @@ internal class RtmpMuxer(
                             message.toFlags(),
                         )
                     }
-                    message.release()
                 } catch (e: InterruptedException) {
                     Log.w(TAG, "", e)
                 }
@@ -217,7 +216,6 @@ internal class RtmpMuxer(
                         audioTimestamp,
                         message.toFlags(),
                     )
-                    message.release()
                 } catch (e: InterruptedException) {
                     Log.w(TAG, "", e)
                 }
