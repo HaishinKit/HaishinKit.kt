@@ -528,8 +528,6 @@ internal class RtmpMuxer(
             }
 
         private const val VERBOSE = false
-
-        @Suppress("ktlint:standard:property-naming")
-        private var TAG = RtmpMuxer::class.java.simpleName
+        private val TAG = RtmpMuxer::class.java.simpleName
     }
 }

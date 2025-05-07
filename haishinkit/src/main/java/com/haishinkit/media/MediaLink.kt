@@ -269,7 +269,9 @@ internal class MediaLink(
                         }
                         video.codec?.releaseOutputBuffer(buffer.index, buffer.timestamp * 1000)
                     } else {
-                        video.codec?.releaseOutputBuffer(buffer.index, false)
+                        if (keepAlive) {
+                            video.codec?.releaseOutputBuffer(buffer.index, false)
+                        }
                     }
                     frameCount++
                     it.remove()
@@ -290,8 +292,8 @@ internal class MediaLink(
     private fun doAudio() {
         while (keepAlive) {
             try {
-                val audio = audioBuffers.take()
-                val payload = audio.payload ?: continue
+                val buffer = audioBuffers.take()
+                val payload = buffer.payload ?: continue
                 if (VERBOSE) {
                     frameTracker?.track(FrameTracker.TYPE_AUDIO, SystemClock.uptimeMillis())
                 }
@@ -306,7 +308,9 @@ internal class MediaLink(
                         break
                     }
                 }
-                this.audio.codec?.releaseOutputBuffer(audio.index, false)
+                if (keepAlive) {
+                    audio.codec?.releaseOutputBuffer(buffer.index, false)
+                }
             } catch (e: InterruptedException) {
                 if (BuildConfig.DEBUG) {
                     Log.w(TAG, "", e)
