@@ -12,35 +12,35 @@ end
 
 desc 'Update the API documentation.'
 lane :document do |options|
-  if options[:version] == ""
-    UI.error("Version is a required argument!")
+  if options[:version] == ''
+    UI.error('Version is a required argument!')
     next
   end
 
   version = options[:version]
-  gradle(task: 'dokkaHtmlMultiModule')
+  gradle(task: 'dokkaGenerate')
 
-  Dir.chdir("..") do
-    sh "git clone git@github.com:HaishinKit/docs.haishinkit.com.git"
+  Dir.chdir('..') do
+    sh 'git clone git@github.com:HaishinKit/docs.haishinkit.com.git'
 
     if Helper.is_ci?
       sh "git config --global user.email 'action@github.com'"
       sh "git config --global user.name 'GitHub Action'"
     end
 
-    sh "rm -rf ./docs.haishinkit.com/kt/latest"
-    sh "cp -R ./docs ./docs.haishinkit.com/kt/latest"
- 
+    sh 'rm -rf ./docs.haishinkit.com/kt/latest'
+    sh 'cp -R ./docs ./docs.haishinkit.com/kt/latest'
+
     sh "rm -rf ./docs.haishinkit.com/kt/#{version}"
     sh "cp -R ./docs ./docs.haishinkit.com/kt/#{version}"
   end
 
-  Dir.chdir("../docs.haishinkit.com") do
-    sh "git add ."
+  Dir.chdir('../docs.haishinkit.com') do
+    sh 'git add .'
     sh "git commit -m 'Add HaishinKit.kt #{version}'"
-    sh "git push origin main"
+    sh 'git push origin main'
   end
 
-  sh "rm -rf ../docs"
-  sh "rm -rf ../docs.haishinkit.com"
+  sh 'rm -rf ../docs'
+  sh 'rm -rf ../docs.haishinkit.com'
 end

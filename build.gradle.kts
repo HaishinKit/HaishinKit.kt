@@ -1,5 +1,3 @@
-import org.jetbrains.dokka.gradle.DokkaTaskPartial
-
 // Top-level build file where you can add configuration options common to all sub-projects/modules.
 plugins {
     alias(libs.plugins.androidApplication) apply false
@@ -16,18 +14,23 @@ rootProject.ext["PUBLISH_VERSION"] = "0.14.2"
 
 subprojects {
     apply(plugin = "org.jlleitschuh.gradle.ktlint")
+}
 
-    tasks.withType<DokkaTaskPartial>().configureEach {
-        dokkaSourceSets.configureEach {
-            val moduleDocsFile = "module-docs.md"
-            if (file(moduleDocsFile).exists()) {
-                includes.from(moduleDocsFile)
-            }
+dokka {
+    dokkaSourceSets.configureEach {
+        val moduleDocsFile = "module-docs.md"
+        if (file(moduleDocsFile).exists()) {
+            includes.from(moduleDocsFile)
         }
+    }
+    dokkaPublications.html {
+        outputDirectory.set(rootDir.resolve("docs"))
+        includes.from(project.layout.projectDirectory.file("README.md"))
     }
 }
 
-tasks.dokkaHtmlMultiModule.configure {
-    outputDirectory.set(File("docs"))
-    includes.from("README.md")
+dependencies {
+    dokka(project(":haishinkit:"))
+    dokka(project(":compose:"))
+    dokka(project(":lottie:"))
 }
