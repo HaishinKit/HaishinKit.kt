@@ -19,6 +19,7 @@ abstract class Screen(
      * Specifies the screen's background color.
      */
     open var backgroundColor: Int = Color.BLACK
+
     protected var callbacks = mutableListOf<Callback>()
 
     /**

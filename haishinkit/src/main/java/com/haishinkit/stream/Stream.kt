@@ -28,22 +28,19 @@ abstract class Stream(
         AudioCodec.Setting(audioCodec)
     }
 
+    /**
+     * The offscreen renderer for video output.
+     */
+    var screen: Screen? = Screen.create(applicationContext)
+        get() {
+            return mixer?.screen ?: field
+        }
+
     var mixer: MediaMixer? = null
         private set(value) {
             videoCodec.pixelTransform.screen = value?.screen
             view?.screen = value?.screen
             field = value
-        }
-
-    var screen: Screen? = null
-        get() {
-            if (mixer != null) {
-                return mixer?.screen
-            }
-            if (field == null) {
-                field = Screen.create(applicationContext)
-            }
-            return field
         }
 
     var view: StreamView? = null
