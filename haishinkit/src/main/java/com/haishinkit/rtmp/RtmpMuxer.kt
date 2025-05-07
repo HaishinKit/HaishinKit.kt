@@ -178,7 +178,7 @@ internal class RtmpMuxer(
                                 Log.w(TAG, "BufferOverrun will drop a RTMPVideoMessage")
                                 false
                             }
-                        } ?: false
+                        } == true
                     videoTimestamp += message.timestamp * 1000
                     if (success) {
                         // There are some devices where info.flags always become 0, so this is a workaround.

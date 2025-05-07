@@ -5,45 +5,45 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:layout_weight="1"
-    tools:context=".MediaProjectionTabFragment"
-    >
+    tools:context=".MediaProjectionTabFragment">
 
     <TextView
-        android:text="0FPS"
         android:id="@+id/fps"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_margin="16px"
+        android:layout_alignParentTop="true"
         android:layout_alignParentRight="true"
-        android:layout_alignParentTop="true" />
+        android:layout_margin="16dp"
+        android:text="0FPS" />
 
     <RelativeLayout
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        >
+        android:layout_height="match_parent">
+
         <Button
             android:id="@+id/button"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Publish"
-            android:layout_margin="16px"
-            android:layout_alignParentBottom="true"
             android:layout_alignParentRight="true"
-            />
+            android:layout_alignParentBottom="true"
+            android:layout_margin="16dp"
+            android:text="Publish" />
+
         <Button
             android:id="@+id/filter_button"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Normal"
-            android:layout_margin="16px"
             android:layout_alignParentTop="true"
-            android:layout_alignParentRight="true" />
+            android:layout_alignParentRight="true"
+            android:layout_margin="16dp"
+            android:text="Normal" />
     </RelativeLayout>
 
     <RelativeLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:gravity="center" >
+        android:gravity="center">
+
         <ProgressBar
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"

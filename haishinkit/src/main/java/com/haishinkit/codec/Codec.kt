@@ -133,7 +133,7 @@ abstract class Codec :
 
     override val isRunning = AtomicBoolean(false)
     private var outputFormat: MediaFormat? = null
-        private set(value) {
+        set(value) {
             if (field != value && value != null) {
                 Log.i(TAG, value.toString())
                 field = value

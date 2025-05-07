@@ -27,7 +27,7 @@ internal class RtmpAuthenticator(
                 }
             } else {
                 result += "&opaque=${Uri.encode(opaque)}"
-                response += "$opaque"
+                response += opaque
             }
             val clientChallenge = String.format("%08x", (0 until Int.MAX_VALUE).random())
             response = Md5Util.base64("$response$clientChallenge", Base64.NO_WRAP)

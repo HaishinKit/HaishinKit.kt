@@ -104,14 +104,12 @@ internal data class AudioSpecificConfig(
             val first = buffer.get().toPositiveInt()
             val second = buffer.get().toPositiveInt()
             return AudioSpecificConfig(
-                type = AudioObjectType.values().first { n -> n.rawValue.toInt() == first shr 3 },
+                type = AudioObjectType.entries.first { n -> n.rawValue.toInt() == first shr 3 },
                 frequency =
-                    SamplingFrequency
-                        .values()
+                    SamplingFrequency.entries
                         .first { n -> n.rawValue.toInt() == (first and 7 shl 1 or (second and 0xFF shr 7)) },
                 channel =
-                    ChannelConfiguration
-                        .values()
+                    ChannelConfiguration.entries
                         .first { n -> n.rawValue.toInt() == second and 120 shr 3 },
             )
         }
