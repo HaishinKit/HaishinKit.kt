@@ -172,6 +172,7 @@ internal class MediaLink(
 
         // audio setup
         audioTrack = null
+        audioBuffers.clear()
         audioTimestampZero = 0
         audioPlaybackJob =
             launch(coroutineContext) {
@@ -181,6 +182,7 @@ internal class MediaLink(
         // video setup
         hasKeyframe = false
         videoTimestampZero = -1
+        videoBuffers.clear()
         videoTimestamp.clear()
 
         isRunning.set(true)
@@ -234,9 +236,7 @@ internal class MediaLink(
                         }
                         stream.releaseOutputBuffer(buffer, true)
                     } else {
-                        if (keepAlive) {
-                            stream.releaseOutputBuffer(buffer, false)
-                        }
+                        stream.releaseOutputBuffer(buffer, false)
                     }
                     frameCount++
                     it.remove()
@@ -273,9 +273,7 @@ internal class MediaLink(
                         break
                     }
                 }
-                if (keepAlive) {
-                    stream.releaseOutputBuffer(buffer, false)
-                }
+                stream.releaseOutputBuffer(buffer, false)
             } catch (e: InterruptedException) {
                 if (BuildConfig.DEBUG) {
                     Log.w(TAG, "", e)
