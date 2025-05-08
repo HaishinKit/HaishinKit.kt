@@ -1,9 +1,7 @@
 package com.haishinkit.stream
 
 import android.content.Context
-import android.graphics.Rect
 import android.util.Log
-import android.util.Size
 import android.view.Surface
 import com.haishinkit.BuildConfig
 import com.haishinkit.codec.AudioCodec
@@ -11,6 +9,7 @@ import com.haishinkit.codec.Codec
 import com.haishinkit.codec.VideoCodec
 import com.haishinkit.media.MediaLink
 import com.haishinkit.media.MediaMixer
+import com.haishinkit.media.MediaType
 import com.haishinkit.rtmp.RtmpStream
 import com.haishinkit.screen.Screen
 import com.haishinkit.screen.VideoScreenObject
@@ -24,11 +23,23 @@ import java.util.concurrent.atomic.AtomicBoolean
 abstract class Stream(
     private var applicationContext: Context,
 ) : VideoScreenObject.OnSurfaceChangedListener {
-    val hasAudio: Boolean
-        get() = mixer?.audioSource != null
+    var hasAudio: Boolean = false
+        get() {
+            if (mixer == null) {
+                return field
+            }
+            return mixer?.audioSource != null
+        }
+        protected set
 
-    val hasVideo: Boolean
-        get() = mixer?.videoSource != null
+    var hasVideo: Boolean = false
+        get() {
+            if (mixer == null) {
+                return mixer?.videoSource != null
+            }
+            return mixer?.videoSource != null
+        }
+        protected set
 
     /**
      * The offscreen renderer for video output.
@@ -55,19 +66,13 @@ abstract class Stream(
     internal var view: StreamView? = null
         private set
 
-    internal var videoSize: Size
-        get() = video.videoSize
-        set(value) {
-            screen?.frame = Rect(0, 0, value.width, value.height)
-            video.videoSize = value
-        }
-
     internal val mediaLink: MediaLink by lazy {
-        MediaLink(audioCodec, videoCodec)
+        MediaLink(this)
     }
 
-    internal val audioCodec by lazy { AudioCodec() }
-    internal val videoCodec by lazy { VideoCodec(applicationContext) }
+    protected val audioCodec by lazy { AudioCodec() }
+
+    protected val videoCodec by lazy { VideoCodec(applicationContext) }
 
     protected var mixer: MediaMixer? = null
         private set(value) {
@@ -86,7 +91,7 @@ abstract class Stream(
 
     protected var isRunning = AtomicBoolean(false)
 
-    private val video: VideoScreenObject by lazy {
+    protected val video: VideoScreenObject by lazy {
         VideoScreenObject().apply {
             listener = this@Stream
             isRotatesWithContent = false
@@ -140,6 +145,25 @@ abstract class Stream(
         videoCodec.surface = surface
     }
 
+    internal fun releaseOutputBuffer(
+        buffer: MediaLink.Buffer,
+        render: Boolean,
+    ) {
+        when (buffer.type) {
+            MediaType.AUDIO -> {
+                audioCodec.codec?.releaseOutputBuffer(buffer.index, false)
+            }
+
+            MediaType.VIDEO -> {
+                if (render) {
+                    videoCodec.codec?.releaseOutputBuffer(buffer.index, buffer.timestamp * 1000)
+                } else {
+                    videoCodec.codec?.releaseOutputBuffer(buffer.index, false)
+                }
+            }
+        }
+    }
+
     @Synchronized
     protected open fun startRunning() {
         if (isRunning.get()) return
@@ -177,6 +201,10 @@ abstract class Stream(
             }
 
             Codec.MODE_DECODE -> {
+                mediaLink.stopRunning()
+                screen?.removeChild(video)
+                hasAudio = false
+                hasVideo = false
             }
         }
         audioCodec.stopRunning()

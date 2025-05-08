@@ -63,8 +63,7 @@ internal class RtmpAudioMessage(
             when (val byte = it.get()) {
                 RtmpMuxer.FLV_AAC_PACKET_TYPE_SEQ -> {
                     timestamp = 0
-                    stream.audioCodec.inputMimeType = MediaFormat.MIMETYPE_AUDIO_AAC
-                    stream.muxer.hasAudio = true
+                    stream.configure(MediaFormat.MIMETYPE_AUDIO_AAC)
                     stream.muxer.enqueueAudio(this)
                 }
 

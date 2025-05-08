@@ -21,25 +21,13 @@ internal class RtmpMuxer(
     private val stream: RtmpStream,
 ) : BufferController.Listener,
     Codec.Listener {
-    var hasAudio: Boolean
-        get() = stream.mediaLink.hasAudio
-        set(value) {
-            stream.mediaLink.hasAudio = value
-        }
-
-    var hasVideo: Boolean
-        get() = stream.mediaLink.hasVideo
-        set(value) {
-            stream.mediaLink.hasVideo = value
-        }
-
     private var bufferTime = BufferController.DEFAULT_BUFFER_TIME
         set(value) {
+            if (value == field) return
             audioBufferController.bufferTime = bufferTime
             videoBufferController.bufferTime = bufferTime
             field = value
         }
-
     private var audioTimestamp = 0L
     private var videoTimestamp = 0L
     private var frameTracker: FrameTracker? = null
@@ -56,7 +44,6 @@ internal class RtmpMuxer(
         controller.listener = this
         controller
     }
-
     private val videoBufferController: BufferController<RtmpVideoMessage> by lazy {
         val controller = BufferController<RtmpVideoMessage>("video")
         controller.bufferTime = bufferTime
@@ -78,7 +65,6 @@ internal class RtmpMuxer(
         frameTracker?.clear()
         audioBufferController.clear()
         videoBufferController.clear()
-        stream.mediaLink.clear()
     }
 
     override fun onInputBufferAvailable(

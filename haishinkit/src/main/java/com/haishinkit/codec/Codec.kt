@@ -236,6 +236,7 @@ abstract class Codec :
         codec: MediaCodec,
         index: Int,
     ) {
+        if (!isRunning.get()) return
         try {
             listener?.onInputBufferAvailable(outputMimeType, codec, index)
         } catch (e: IllegalStateException) {
@@ -250,6 +251,7 @@ abstract class Codec :
         index: Int,
         info: MediaCodec.BufferInfo,
     ) {
+        if (!isRunning.get()) return
         try {
             val buffer = codec.getOutputBuffer(index) ?: return
             if (listener?.onSampleOutput(outputMimeType, index, info, buffer) == true) {

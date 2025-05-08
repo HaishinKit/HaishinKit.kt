@@ -1,6 +1,7 @@
 package com.haishinkit.rtmp
 
 import android.content.Context
+import android.graphics.Rect
 import android.media.MediaFormat
 import android.util.Log
 import com.haishinkit.codec.Codec
@@ -9,6 +10,7 @@ import com.haishinkit.event.EventDispatcher
 import com.haishinkit.event.EventUtils
 import com.haishinkit.event.IEventDispatcher
 import com.haishinkit.event.IEventListener
+import com.haishinkit.iso.DecoderConfigurationRecord
 import com.haishinkit.rtmp.message.RtmpCommandMessage
 import com.haishinkit.rtmp.message.RtmpDataMessage
 import com.haishinkit.rtmp.message.RtmpMessage
@@ -417,9 +419,29 @@ class RtmpStream(
 
     override fun startRunning() {
         if (isRunning.get()) return
+        muxer.clear()
         audioCodec.listener = muxer
         videoCodec.listener = muxer
         super.startRunning()
+    }
+
+    internal fun configure(inputMimeType: String) {
+        audioCodec.inputMimeType = MediaFormat.MIMETYPE_AUDIO_AAC
+        audioCodec.startRunning()
+        hasAudio = true
+    }
+
+    internal fun configure(decoderConfigurationRecord: DecoderConfigurationRecord): Boolean {
+        if (decoderConfigurationRecord.configure(videoCodec)) {
+            decoderConfigurationRecord.videoSize?.let {
+                screen?.frame = Rect(0, 0, it.width, it.height)
+                video.videoSize = it
+            }
+            videoCodec.startRunning()
+            hasVideo = true
+            return true
+        }
+        return false
     }
 
     internal fun doOutput(
@@ -437,7 +459,7 @@ class RtmpStream(
 
     private fun toMetaData(): Map<String, Any> {
         val metadata = mutableMapOf<String, Any>()
-        mixer?.videoSource?.let {
+        if (hasVideo) {
             metadata["width"] = videoCodec.width
             metadata["height"] = videoCodec.height
             metadata["framerate"] = videoCodec.frameRate
@@ -455,7 +477,7 @@ class RtmpStream(
             }
             metadata["videodatarate"] = videoCodec.bitRate / 1000
         }
-        mixer?.audioSource?.let {
+        if (hasAudio) {
             metadata["audiocodecid"] = RtmpMuxer.FLV_AUDIO_CODEC_AAC.toInt()
             metadata["audiodatarate"] = audioCodec.bitRate / 1000
         }
