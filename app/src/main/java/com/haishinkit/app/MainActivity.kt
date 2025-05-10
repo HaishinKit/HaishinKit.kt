@@ -1,56 +1,63 @@
 package com.haishinkit.app
 
+import android.content.ComponentName
+import android.content.Context
+import android.content.Intent
+import android.content.ServiceConnection
+import android.os.Build
 import android.os.Bundle
-import android.view.MenuItem
+import android.os.IBinder
+import android.os.Messenger
+import android.util.Log
+import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.view.ViewCompat
-import androidx.core.view.WindowInsetsCompat
-import androidx.fragment.app.Fragment
-import com.google.android.material.bottomnavigation.BottomNavigationView
+import androidx.compose.material3.MaterialTheme
 
 class MainActivity :
     AppCompatActivity(),
-    BottomNavigationView.OnNavigationItemSelectedListener {
-    private var fragment: Fragment? = null
+    ServiceConnection {
+    private val startMediaProjection =
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            if (result.resultCode == RESULT_OK) {
+                MediaProjectionService.data = result.data
+                Intent(this, MediaProjectionService::class.java).also { intent ->
+                    if (Build.VERSION_CODES.O <= Build.VERSION.SDK_INT) {
+                        startForegroundService(intent)
+                    } else {
+                        startService(intent)
+                    }
+                    bindService(
+                        intent,
+                        this,
+                        Context.BIND_AUTO_CREATE,
+                    )
+                }
+                Log.i(toString(), "mediaProjectionManager success")
+            }
+        }
+
+    private var messenger: Messenger? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
         enableEdgeToEdge()
-        setContentView(R.layout.activity_main)
-        ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main)) { v, insets ->
-            val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
-            v.setPadding(0, 0, 0, systemBars.bottom)
-            WindowInsetsCompat.CONSUMED
+        setContent {
+            MaterialTheme {
+                MainScreen()
+            }
         }
-        val navigation = findViewById<BottomNavigationView>(R.id.navigation)
-        navigation.setOnNavigationItemSelectedListener(this)
-
-        fragment = CameraTabFragment.newInstance()
-        val transaction = supportFragmentManager.beginTransaction()
-        transaction.replace(R.id.content, fragment as Fragment).commit()
     }
 
-    override fun onNavigationItemSelected(item: MenuItem): Boolean {
-        when (item.itemId) {
-            R.id.navigation_home -> {
-                fragment = CameraTabFragment.newInstance()
-            }
+    override fun onServiceConnected(
+        name: ComponentName?,
+        binder: IBinder?,
+    ) {
+        messenger = Messenger(binder)
+    }
 
-            R.id.navigation_mediaprojection -> {
-                fragment = MediaProjectionTabFragment.newInstance()
-            }
-
-            R.id.navigation_playback -> {
-                fragment = PlaybackTabFragment.newInstance()
-            }
-
-            else -> {
-            }
-        }
-        val transaction = supportFragmentManager.beginTransaction()
-        transaction.replace(R.id.content, fragment as Fragment).commit()
-        return true
+    override fun onServiceDisconnected(name: ComponentName?) {
+        messenger = null
     }
 }

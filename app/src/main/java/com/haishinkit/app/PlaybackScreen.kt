@@ -3,9 +3,8 @@ package com.haishinkit.app
 import android.util.Log
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.safeContentPadding
 import androidx.compose.material3.Button
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -28,11 +27,7 @@ private const val TAG = "PlaybackScreen"
 
 @Suppress("ktlint:standard:function-naming")
 @Composable
-fun PlaybackScreen(
-    command: String,
-    streamName: String,
-    modifier: Modifier,
-) {
+fun PlaybackScreen(modifier: Modifier = Modifier) {
     val context = LocalContext.current
 
     val connectionState =
@@ -51,25 +46,46 @@ fun PlaybackScreen(
         }
     }
 
-    Box(
-        modifier = modifier,
-        contentAlignment = Alignment.BottomEnd,
-    ) {
-        HaishinKitView(
-            stream = stream,
-            modifier = Modifier.fillMaxSize(),
+    LaunchedEffect(Unit) {
+        connectionState.addEventListener(
+            Event.RTMP_STATUS,
+            object : IEventListener {
+                override fun handleEvent(event: Event) {
+                    val data = EventUtils.toMap(event)
+                    Log.i(TAG, data.toString())
+                    when (data["code"]) {
+                        RtmpConnection.Code.CONNECT_SUCCESS.rawValue -> {
+                            stream.play(Preference.shared.streamName)
+                        }
+
+                        else -> {
+                        }
+                    }
+                }
+            },
         )
+    }
+
+    HaishinKitView(
+        stream = stream,
+        modifier = Modifier.fillMaxSize(),
+    )
+
+    Box(
+        modifier =
+            modifier
+                .fillMaxSize()
+                .safeContentPadding()
+                .padding(8.dp),
+    ) {
         Button(
             modifier =
-                Modifier
-                    .padding(16.dp)
-                    .width(100.dp)
-                    .height(50.dp),
+                Modifier.align(Alignment.BottomEnd),
             onClick = {
                 if (connectionState.isConnected) {
                     connectionState.close()
                 } else {
-                    connectionState.connect(command)
+                    connectionState.connect(Preference.shared.rtmpURL)
                 }
             },
         ) {
@@ -80,31 +96,11 @@ fun PlaybackScreen(
             }
         }
     }
-
-    LaunchedEffect(Unit) {
-        connectionState.addEventListener(
-            Event.RTMP_STATUS,
-            object : IEventListener {
-                override fun handleEvent(event: Event) {
-                    val data = EventUtils.toMap(event)
-                    Log.i(TAG, data.toString())
-                    when (data["code"]) {
-                        RtmpConnection.Code.CONNECT_SUCCESS.rawValue -> {
-                            stream.play(streamName)
-                        }
-
-                        else -> {
-                        }
-                    }
-                }
-            },
-        )
-    }
 }
 
 @Suppress("ktlint:standard:function-naming")
 @Preview
 @Composable
 private fun PreviewPlaybackScreen() {
-    PlaybackScreen(command = "", streamName = "", modifier = Modifier.fillMaxSize())
+    PlaybackScreen(modifier = Modifier.fillMaxSize())
 }

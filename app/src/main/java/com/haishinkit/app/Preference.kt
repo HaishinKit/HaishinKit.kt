@@ -10,7 +10,5 @@ data class Preference(
                 "rtmp://192.168.1.14/live",
                 "live",
             )
-
-        var useSurfaceView: Boolean = true
     }
 }
