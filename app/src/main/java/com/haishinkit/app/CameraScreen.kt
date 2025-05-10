@@ -1,12 +1,16 @@
 package com.haishinkit.app
 
+import android.content.Intent
 import android.content.res.Configuration
+import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Rect
 import android.hardware.camera2.CameraCharacteristics
 import android.media.MediaMuxer
+import android.net.Uri
 import android.os.Build
 import android.os.Environment
+import android.provider.MediaStore
 import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -17,7 +21,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.layout.safeContentPadding
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -46,6 +50,9 @@ import com.haishinkit.event.EventUtils
 import com.haishinkit.event.IEventListener
 import com.haishinkit.graphics.VideoGravity
 import com.haishinkit.graphics.effect.DefaultVideoEffect
+import com.haishinkit.graphics.effect.MonochromeVideoEffect
+import com.haishinkit.graphics.effect.MosaicVideoEffect
+import com.haishinkit.graphics.effect.SepiaVideoEffect
 import com.haishinkit.lottie.LottieScreen
 import com.haishinkit.media.MediaMixer
 import com.haishinkit.media.source.AudioRecordSource
@@ -56,6 +63,7 @@ import com.haishinkit.screen.ImageScreenObject
 import com.haishinkit.screen.Screen
 import com.haishinkit.screen.ScreenObject
 import com.haishinkit.screen.TextScreenObject
+import java.io.ByteArrayOutputStream
 import java.io.File
 
 private const val TAG = "CameraScreen"
@@ -63,12 +71,13 @@ private const val TAG = "CameraScreen"
 @Suppress("ktlint:standard:function-naming")
 @OptIn(ExperimentalPermissionsApi::class)
 @Composable
-fun CameraScreen(
-    command: String,
-    streamName: String,
-    controller: CameraController,
-) {
+fun CameraScreen(modifier: Modifier = Modifier) {
     val context = LocalContext.current
+    val videoEffectItems = mutableListOf<VideoEffectItem>()
+    videoEffectItems.add(VideoEffectItem("Normal", null))
+    videoEffectItems.add(VideoEffectItem("Monochrome", MonochromeVideoEffect()))
+    videoEffectItems.add(VideoEffectItem("Mosaic", MosaicVideoEffect()))
+    videoEffectItems.add(VideoEffectItem("Sephia", SepiaVideoEffect()))
 
     // HaishinKit
     val connectionState =
@@ -120,12 +129,12 @@ fun CameraScreen(
 
     val pagerState =
         rememberPagerState(pageCount = {
-            controller.videoEffectItems.size
+            videoEffectItems.size
         })
 
     LaunchedEffect(pagerState, 0) {
         snapshotFlow { pagerState.currentPage }.collect { page ->
-            val item = controller.videoEffectItems[page]
+            val item = videoEffectItems[page]
             mixer.videoSource?.setVideoEffect(0, item.videoEffect ?: DefaultVideoEffect.shared)
         }
     }
@@ -134,152 +143,175 @@ fun CameraScreen(
         stream.attachMediaMixer(mixer)
     }
 
-    HaishinKitView(
-        stream = stream,
-        videoGravity = VideoGravity.RESIZE_ASPECT_FILL,
-        modifier = Modifier.fillMaxSize(),
-    )
+    Box(modifier = modifier) {
+        HaishinKitView(
+            stream = stream,
+            videoGravity = VideoGravity.RESIZE_ASPECT_FILL,
+            modifier = Modifier.fillMaxSize(),
+        )
 
-    Column(
-        modifier =
-            Modifier
-                .safeDrawingPadding()
-                .fillMaxSize()
-                .alpha(0.8F),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        CameraDeviceControllerView(onAudioPermissionStatus = { state ->
-            when (state.status) {
-                PermissionStatus.Granted -> {
-                    mixer.attachAudio(AudioRecordSource(context))
-                }
-
-                is PermissionStatus.Denied -> {
-                    mixer.attachAudio(null)
-                }
-            }
-        }, onVideoPermissionStatus = { state ->
-            when (state.status) {
-                PermissionStatus.Granted -> {
-                    try {
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                            mixer.attachVideo(MultiCamera2Source(context))
-                            (mixer.videoSource as? MultiCamera2Source)?.apply {
-                                try {
-                                    open(0, CameraCharacteristics.LENS_FACING_BACK)
-                                    open(1, CameraCharacteristics.LENS_FACING_FRONT)
-                                    getVideoByChannel(1)?.apply {
-                                        frame = Rect(20, 20, 90 + 20, 160 + 20)
-                                    }
-                                } catch (e: Exception) {
-                                    Log.e(
-                                        TAG,
-                                        "Error while setting up multi-camera: ${e.message}",
-                                        e,
-                                    )
-                                    // If multi-camera setup fails, revert to single camera
-                                    mixer.attachVideo(null)
-                                    mixer.attachVideo(
-                                        Camera2Source(context).apply {
-                                            try {
-                                                open(CameraCharacteristics.LENS_FACING_BACK)
-                                            } catch (e: Exception) {
-                                                Log.e(
-                                                    TAG,
-                                                    "Error while opening main camera: ${e.message}",
-                                                    e,
-                                                )
-                                            }
-                                        },
-                                    )
-                                }
-                            }
-                        } else {
-                            mixer.attachVideo(
-                                Camera2Source(context).apply {
-                                    try {
-                                        open(CameraCharacteristics.LENS_FACING_BACK)
-                                    } catch (e: Exception) {
-                                        Log.e(TAG, "Error while opening camera: ${e.message}", e)
-                                    }
-                                },
-                            )
-                        }
-                    } catch (e: Exception) {
-                        Log.e(TAG, "General error while setting up camera: ${e.message}", e)
-                    }
-                }
-
-                is PermissionStatus.Denied -> {
-                    mixer.attachVideo(null)
-                }
-            }
-        })
-        Spacer(modifier = Modifier.weight(1f))
-
-        HorizontalPager(
-            state = pagerState,
-            contentPadding = PaddingValues(end = 0.dp),
-            modifier = Modifier.fillMaxWidth(),
-        ) { page ->
-            val item = controller.videoEffectItems[page]
-            Box(
-                modifier = Modifier.fillMaxWidth(),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    text = item.name,
-                    color = Color.White,
-                    textAlign = TextAlign.Center,
-                    modifier =
-                        Modifier
-                            .align(alignment = Alignment.Center)
-                            .background(
-                                color = Color.Black,
-                                shape = RoundedCornerShape(20.dp),
-                            ).padding(8.dp, 0.dp),
-                )
-            }
-        }
-
-        HorizontalPagerIndicator(
-            pagerState = pagerState,
-            pageCount = controller.videoEffectItems.size,
+        Column(
             modifier =
                 Modifier
-                    .align(Alignment.CenterHorizontally)
-                    .padding(32.dp),
-        )
+                    .fillMaxSize()
+                    .safeContentPadding()
+                    .padding(8.dp)
+                    .alpha(0.8F),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            CameraDeviceControllerView(onAudioPermissionStatus = { state ->
+                when (state.status) {
+                    PermissionStatus.Granted -> {
+                        mixer.attachAudio(AudioRecordSource(context))
+                    }
 
-        val recorderState = rememberRecorderState(context, stream)
-
-        CameraControllerView(
-            isRecording = recorderState.isRecording,
-            isConnected = connectionState.isConnected,
-            onClickScreenShot = {
-                controller.onScreenShot(mixer.screen)
-            },
-            onClickConnect = {
-                if (connectionState.isConnected) {
-                    connectionState.close()
-                } else {
-                    connectionState.connect(command)
+                    is PermissionStatus.Denied -> {
+                        mixer.attachAudio(null)
+                    }
                 }
-            },
-            onClickRecording = {
-                if (recorderState.isRecording) {
-                    recorderState.stopRecording()
-                } else {
-                    recorderState.startRecording(
-                        File(
-                            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
-                            "output.mp4",
-                        ).toString(),
-                        MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4,
+            }, onVideoPermissionStatus = { state ->
+                when (state.status) {
+                    PermissionStatus.Granted -> {
+                        try {
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                                mixer.attachVideo(MultiCamera2Source(context))
+                                (mixer.videoSource as? MultiCamera2Source)?.apply {
+                                    try {
+                                        open(0, CameraCharacteristics.LENS_FACING_BACK)
+                                        open(1, CameraCharacteristics.LENS_FACING_FRONT)
+                                        getVideoByChannel(1)?.apply {
+                                            frame = Rect(20, 20, 90 + 20, 160 + 20)
+                                        }
+                                    } catch (e: Exception) {
+                                        Log.e(
+                                            TAG,
+                                            "Error while setting up multi-camera: ${e.message}",
+                                            e,
+                                        )
+                                        // If multi-camera setup fails, revert to single camera
+                                        mixer.attachVideo(null)
+                                        mixer.attachVideo(
+                                            Camera2Source(context).apply {
+                                                try {
+                                                    open(CameraCharacteristics.LENS_FACING_BACK)
+                                                } catch (e: Exception) {
+                                                    Log.e(
+                                                        TAG,
+                                                        "Error while opening main camera: ${e.message}",
+                                                        e,
+                                                    )
+                                                }
+                                            },
+                                        )
+                                    }
+                                }
+                            } else {
+                                mixer.attachVideo(
+                                    Camera2Source(context).apply {
+                                        try {
+                                            open(CameraCharacteristics.LENS_FACING_BACK)
+                                        } catch (e: Exception) {
+                                            Log.e(
+                                                TAG,
+                                                "Error while opening camera: ${e.message}",
+                                                e,
+                                            )
+                                        }
+                                    },
+                                )
+                            }
+                        } catch (e: Exception) {
+                            Log.e(TAG, "General error while setting up camera: ${e.message}", e)
+                        }
+                    }
+
+                    is PermissionStatus.Denied -> {
+                        mixer.attachVideo(null)
+                    }
+                }
+            })
+            Spacer(modifier = Modifier.weight(1f))
+
+            HorizontalPager(
+                state = pagerState,
+                contentPadding = PaddingValues(end = 0.dp),
+                modifier = Modifier.fillMaxWidth(),
+            ) { page ->
+                val item = videoEffectItems[page]
+                Box(
+                    modifier = Modifier.fillMaxWidth(),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = item.name,
+                        color = Color.White,
+                        textAlign = TextAlign.Center,
+                        modifier =
+                            Modifier
+                                .align(alignment = Alignment.Center)
+                                .background(
+                                    color = Color.Black,
+                                    shape = RoundedCornerShape(20.dp),
+                                ).padding(8.dp, 0.dp),
                     )
                 }
-            },
-        )
+            }
+
+            HorizontalPagerIndicator(
+                pagerState = pagerState,
+                pageCount = videoEffectItems.size,
+                modifier =
+                    Modifier
+                        .align(Alignment.CenterHorizontally)
+                        .padding(32.dp),
+            )
+
+            val recorderState = rememberRecorderState(context, stream)
+
+            CameraControllerView(
+                isRecording = recorderState.isRecording,
+                isConnected = connectionState.isConnected,
+                onClickScreenShot = {
+                    mixer.screen.readPixels {
+                        val bitmap = it ?: return@readPixels
+                        val bytes = ByteArrayOutputStream()
+                        bitmap.compress(Bitmap.CompressFormat.JPEG, 100, bytes)
+                        val path =
+                            MediaStore.Images.Media.insertImage(
+                                context.contentResolver,
+                                bitmap,
+                                "Title",
+                                null,
+                            )
+                        val imageUri = Uri.parse(path)
+                        val share = Intent(Intent.ACTION_SEND)
+                        share.type = "image/jpeg"
+                        share.putExtra(Intent.EXTRA_STREAM, imageUri)
+                        context.startActivity(Intent.createChooser(share, "Select"))
+                    }
+                },
+                onClickConnect = {
+                    if (connectionState.isConnected) {
+                        connectionState.close()
+                    } else {
+                        connectionState.connect(Preference.shared.rtmpURL)
+                    }
+                },
+                onClickRecording = {
+                    if (recorderState.isRecording) {
+                        recorderState.stopRecording()
+                    } else {
+                        recorderState.startRecording(
+                            File(
+                                Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
+                                "output.mp4",
+                            ).toString(),
+                            MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4,
+                        )
+                    }
+                },
+            )
+        }
     }
 
     LaunchedEffect(Unit) {
@@ -291,10 +323,11 @@ fun CameraScreen(
                     Log.i(TAG, data.toString())
                     when (data["code"]) {
                         RtmpConnection.Code.CONNECT_SUCCESS.rawValue -> {
-                            stream.publish(streamName)
+                            stream.publish(Preference.shared.streamName)
                         }
 
                         else -> {
+                            Log.i(TAG, data["code"].toString())
                         }
                     }
                 }

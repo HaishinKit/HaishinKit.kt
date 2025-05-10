@@ -4,7 +4,10 @@ import android.app.Activity
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.Service
+import android.content.BroadcastReceiver
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.ServiceInfo
 import android.media.projection.MediaProjectionManager
 import android.os.Build
@@ -16,6 +19,7 @@ import android.os.Messenger
 import android.util.Log
 import androidx.annotation.RequiresApi
 import androidx.core.app.NotificationCompat
+import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import com.haishinkit.event.Event
 import com.haishinkit.event.EventUtils
 import com.haishinkit.event.IEventListener
@@ -34,7 +38,17 @@ class MediaProjectionService :
     private lateinit var stream: RtmpStream
     private lateinit var connection: RtmpConnection
     private lateinit var videoSource: MediaProjectionSource
-
+    private val localBroadcastManager: LocalBroadcastManager by lazy {
+        LocalBroadcastManager.getInstance(this)
+    }
+    private val isRunningReceiver =
+        object : BroadcastReceiver() {
+            override fun onReceive(
+                context: Context?,
+                intent: Intent?,
+            ) {
+            }
+        }
     private var messenger: Messenger? = null
     private var handler =
         object : Handler(Looper.getMainLooper()) {
@@ -45,7 +59,9 @@ class MediaProjectionService :
                     }
 
                     MSG_CLOSE -> {
+                        Log.i(TAG, "MSG_CLOSE")
                         connection.close()
+                        stopSelf()
                     }
 
                     MSG_SET_VIDEO_EFFECT -> {
@@ -101,6 +117,8 @@ class MediaProjectionService :
             getSystemService(MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
 
         mixer.attachAudio(AudioRecordSource(this))
+        stream.attachMediaMixer(mixer)
+
         stream.listener = listener
         data?.let {
             val source =
@@ -126,11 +144,17 @@ class MediaProjectionService :
         connection = RtmpConnection()
         connection.addEventListener(Event.RTMP_STATUS, this)
         stream = RtmpStream(applicationContext, connection)
+        localBroadcastManager.registerReceiver(
+            isRunningReceiver,
+            IntentFilter(ACTION_SERVICE_RUNNING),
+        )
     }
 
     override fun onDestroy() {
         super.onDestroy()
+        mixer.dispose()
         connection.dispose()
+        localBroadcastManager.unregisterReceiver(isRunningReceiver)
     }
 
     override fun handleEvent(event: Event) {
@@ -140,9 +164,12 @@ class MediaProjectionService :
         if (code == RtmpConnection.Code.CONNECT_SUCCESS.rawValue) {
             stream.publish(Preference.shared.streamName)
         }
+        Log.i(TAG, code)
     }
 
     companion object {
+        private const val ACTION_SERVICE_RUNNING: String = "ACTION_SERVICE_RUNNING"
+
         const val ID = 1
         const val CHANNEL_ID = "MediaProjectionID"
         const val CHANNEL_NAME = "MediaProjectionService"
@@ -157,5 +184,7 @@ class MediaProjectionService :
         const val MSG_SET_VIDEO_EFFECT = 2
 
         private val TAG = MediaProjectionSource::class.java.simpleName
+
+        fun isRunning(context: Context): Boolean = LocalBroadcastManager.getInstance(context).sendBroadcast(Intent(ACTION_SERVICE_RUNNING))
     }
 }
