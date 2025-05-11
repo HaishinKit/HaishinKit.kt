@@ -73,11 +73,13 @@ private const val TAG = "CameraScreen"
 @Composable
 fun CameraScreen(modifier: Modifier = Modifier) {
     val context = LocalContext.current
+
     val videoEffectItems = mutableListOf<VideoEffectItem>()
     videoEffectItems.add(VideoEffectItem("Normal", null))
     videoEffectItems.add(VideoEffectItem("Monochrome", MonochromeVideoEffect()))
     videoEffectItems.add(VideoEffectItem("Mosaic", MosaicVideoEffect()))
-    videoEffectItems.add(VideoEffectItem("Sephia", SepiaVideoEffect()))
+    videoEffectItems.add(VideoEffectItem("Sepia", SepiaVideoEffect()))
+    // videoEffectItems.add(VideoEffectItem("Monochrome2", Monochrome2VideoEffect()))
 
     // HaishinKit
     val connectionState =
