@@ -22,6 +22,12 @@ open class ScreenObjectContainer : ScreenObject() {
             }
         }
 
+    override var shouldInvalidateLayout: Boolean
+        get() = super.shouldInvalidateLayout or (parent?.shouldInvalidateLayout == true)
+        set(value) {
+            super.shouldInvalidateLayout = value
+        }
+
     private val children = mutableListOf<ScreenObject>()
 
     /**

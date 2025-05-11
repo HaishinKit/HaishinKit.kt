@@ -16,7 +16,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeContentPadding
+import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -90,7 +90,7 @@ fun MediaProjectionScreen(modifier: Modifier = Modifier) {
     Box(
         modifier =
             modifier
-                .safeContentPadding()
+                .safeDrawingPadding()
                 .fillMaxSize()
                 .padding(8.dp),
     ) {

@@ -195,11 +195,13 @@ class VideoScreenObject(
                 )
             }
         }
-    }
 
-    override fun invalidateLayout() {
-        super.invalidateLayout()
-        parent?.invalidateLayout()
+        if (BuildConfig.DEBUG) {
+            Log.d(
+                TAG,
+                "$this => matrix: ${matrix.joinToString()}, imageOrientation=$imageOrientation, deviceOrientation=$deviceOrientation, videoSize=$videoSize",
+            )
+        }
     }
 
     override fun onFrameAvailable(surfaceTexture: SurfaceTexture?) {
