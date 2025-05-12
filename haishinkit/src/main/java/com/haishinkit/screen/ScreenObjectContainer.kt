@@ -23,7 +23,7 @@ open class ScreenObjectContainer : ScreenObject() {
         }
 
     override var shouldInvalidateLayout: Boolean
-        get() = super.shouldInvalidateLayout or (parent?.shouldInvalidateLayout == true)
+        get() = super.shouldInvalidateLayout or children.any { it.shouldInvalidateLayout }
         set(value) {
             super.shouldInvalidateLayout = value
         }
@@ -96,6 +96,13 @@ open class ScreenObjectContainer : ScreenObject() {
             if (it.isVisible) {
                 it.draw(renderer)
             }
+        }
+    }
+
+    override fun invalidateLayout() {
+        super.invalidateLayout()
+        children.forEach {
+            it.invalidateLayout()
         }
     }
 

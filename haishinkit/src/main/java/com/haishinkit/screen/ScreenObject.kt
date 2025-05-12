@@ -94,7 +94,6 @@ abstract class ScreenObject(
      */
     open fun invalidateLayout() {
         shouldInvalidateLayout = true
-        parent?.invalidateLayout()
     }
 
     /**
