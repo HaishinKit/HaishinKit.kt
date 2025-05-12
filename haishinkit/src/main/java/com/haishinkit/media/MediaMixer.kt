@@ -1,6 +1,8 @@
 package com.haishinkit.media
 
 import android.content.Context
+import androidx.lifecycle.DefaultLifecycleObserver
+import androidx.lifecycle.LifecycleOwner
 import com.haishinkit.media.source.AudioSource
 import com.haishinkit.media.source.VideoSource
 import com.haishinkit.screen.Screen
@@ -11,7 +13,7 @@ import com.haishinkit.screen.Screen
 @Suppress("UNUSED")
 class MediaMixer(
     applicationContext: Context,
-) {
+) : DefaultLifecycleObserver {
     /**
      * The offscreen renderer for video output.
      */
@@ -66,6 +68,11 @@ class MediaMixer(
         audioSource = null
         videoSource = null
         screen.dispose()
+    }
+
+    override fun onResume(owner: LifecycleOwner) {
+        super.onResume(owner)
+        videoSource?.onResume()
     }
 
     private companion object {

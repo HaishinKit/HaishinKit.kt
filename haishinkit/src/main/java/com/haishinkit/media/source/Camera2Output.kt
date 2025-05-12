@@ -15,6 +15,7 @@ import android.os.HandlerThread
 import android.util.Log
 import android.util.Size
 import android.view.Surface
+import com.haishinkit.BuildConfig
 import com.haishinkit.graphics.ImageOrientation
 import com.haishinkit.screen.VideoScreenObject
 import java.util.concurrent.Executors
@@ -35,7 +36,21 @@ internal class Camera2Output(
         }
     }
 
+    var isDisconnected: Boolean = false
+        private set
+
     private var device: CameraDevice? = null
+        set(value) {
+            if (field == value) return
+            field?.close()
+            field = value
+        }
+    private var session: CameraCaptureSession? = null
+        set(value) {
+            if (field == value) return
+            field?.close()
+            field = value
+        }
     private val manager =
         applicationContext.getSystemService(Context.CAMERA_SERVICE) as CameraManager
     private val executor = Executors.newSingleThreadExecutor()
@@ -69,7 +84,8 @@ internal class Camera2Output(
 
     fun close() {
         source.screen.removeChild(video)
-        device?.close()
+        device = null
+        session = null
     }
 
     override fun onSurfaceChanged(surface: Surface?) {
@@ -79,6 +95,7 @@ internal class Camera2Output(
     }
 
     override fun onOpened(camera: CameraDevice) {
+        isDisconnected = false
         device = camera
         source.mixer?.screen?.frame?.let {
             if (it.height() <= it.width()) {
@@ -96,12 +113,21 @@ internal class Camera2Output(
     }
 
     override fun onDisconnected(camera: CameraDevice) {
+        if (BuildConfig.DEBUG) {
+            Log.d(TAG, "onDisconnected($camera)")
+        }
+        close()
+        isDisconnected = true
     }
 
     override fun onError(
         camera: CameraDevice,
         error: Int,
     ) {
+        if (BuildConfig.DEBUG) {
+            Log.d(TAG, "onError($camera, $error)")
+        }
+        close()
     }
 
     private fun getCameraSize(
@@ -142,12 +168,14 @@ internal class Camera2Output(
                         override fun onConfigured(session: CameraCaptureSession) {
                             try {
                                 session.setRepeatingRequest(request, null, null)
+                                this@Camera2Output.session = session
                             } catch (e: RuntimeException) {
                                 Log.e(TAG, "", e)
                             }
                         }
 
                         override fun onConfigureFailed(captureSession: CameraCaptureSession) {
+                            this@Camera2Output.session = null
                         }
                     },
                 ),
@@ -164,12 +192,14 @@ internal class Camera2Output(
                     override fun onConfigured(session: CameraCaptureSession) {
                         try {
                             session.setRepeatingRequest(request, null, null)
+                            this@Camera2Output.session = session
                         } catch (e: RuntimeException) {
                             Log.e(TAG, "", e)
                         }
                     }
 
                     override fun onConfigureFailed(session: CameraCaptureSession) {
+                        this@Camera2Output.session = null
                     }
                 },
                 handler,

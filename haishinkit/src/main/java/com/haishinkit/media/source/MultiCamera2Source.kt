@@ -108,6 +108,15 @@ class MultiCamera2Source(
         isRunning.set(false)
     }
 
+    override fun onResume() {
+        if (!isRunning.get()) return
+        outputs.forEach {
+            if (it.value.isDisconnected) {
+                it.value.open()
+            }
+        }
+    }
+
     private fun getCameraId(facing: Int): String? {
         for (id in manager.cameraIdList) {
             val chars = manager.getCameraCharacteristics(id)

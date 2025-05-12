@@ -39,6 +39,7 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.google.accompanist.pager.HorizontalPagerIndicator
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.PermissionStatus
@@ -95,8 +96,12 @@ fun CameraScreen(modifier: Modifier = Modifier) {
     val mixer =
         remember { MediaMixer(context) }
 
+    val lifecycleOwner = LocalLifecycleOwner.current
+
     DisposableEffect(Unit) {
+        lifecycleOwner.lifecycle.addObserver(mixer)
         onDispose {
+            lifecycleOwner.lifecycle.removeObserver(mixer)
             mixer.dispose()
             stream.dispose()
             connectionState.dispose()

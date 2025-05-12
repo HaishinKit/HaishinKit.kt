@@ -111,6 +111,13 @@ class Camera2Source(
         }
     }
 
+    override fun onResume() {
+        if (!isRunning.get()) return
+        if (output?.isDisconnected == true) {
+            output?.open()
+        }
+    }
+
     private fun getCameraId(facing: Int): String? {
         for (id in manager.cameraIdList) {
             val chars = manager.getCameraCharacteristics(id)

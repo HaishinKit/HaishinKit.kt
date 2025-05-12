@@ -126,6 +126,9 @@ class MediaProjectionSource(
         video.videoEffect = videoEffect
     }
 
+    override fun onResume() {
+    }
+
     override fun startRunning() {
         if (isRunning.get()) return
         if (BuildConfig.DEBUG) {

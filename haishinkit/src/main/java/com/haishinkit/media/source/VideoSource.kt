@@ -5,6 +5,9 @@ import com.haishinkit.screen.ScreenObjectContainer
 
 /**
  * An interface that captures a video source.
+ *
+ * Use this for creating video sources that depend on the device, such as Camera or MediaProjection.
+ * For static images and similar sources, please use the Screen object.
  */
 interface VideoSource : Source {
     /**
@@ -19,4 +22,6 @@ interface VideoSource : Source {
         index: Int,
         videoEffect: VideoEffect,
     )
+
+    fun onResume()
 }
