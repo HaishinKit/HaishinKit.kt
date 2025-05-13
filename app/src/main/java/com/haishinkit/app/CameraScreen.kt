@@ -11,6 +11,7 @@ import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
 import android.util.Log
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -298,7 +299,11 @@ fun CameraScreen(modifier: Modifier = Modifier) {
                         if (session.isConnected) {
                             session.close()
                         } else {
-                            session.connect(StreamSession.Method.INGEST)
+                            session.connect(StreamSession.Method.INGEST).onFailure {
+                                Toast
+                                    .makeText(context, it.message, Toast.LENGTH_SHORT)
+                                    .show()
+                            }
                         }
                     }
                 },

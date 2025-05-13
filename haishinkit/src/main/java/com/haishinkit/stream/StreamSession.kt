@@ -40,10 +40,10 @@ interface StreamSession {
     /**
      * Creates a connection to an application on server.
      */
-    suspend fun connect(method: Method)
+    suspend fun connect(method: Method): Result<Unit>
 
     /**
      * Closes the connection from the server.
      */
-    suspend fun close()
+    suspend fun close(): Result<Unit>
 }

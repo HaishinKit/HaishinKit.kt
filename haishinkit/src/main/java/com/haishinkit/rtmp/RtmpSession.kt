@@ -14,58 +14,68 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume
 
 internal class RtmpSession(
-    private val applicationContext: Context,
+    applicationContext: Context,
     uri: Uri,
-) : StreamSession {
+) : StreamSession,
+    IEventListener {
     override val stream: Stream
         get() = rtmpStream
 
     override val isConnected: Boolean
         get() = connection.isConnected
 
-    private val rtmpStream: RtmpStream
-    private val listener =
-        object : IEventListener {
-            override fun handleEvent(event: Event) {
-                val data = EventUtils.toMap(event)
-                if (BuildConfig.DEBUG) {
-                    Log.d(TAG, "$data['code']")
-                }
-                when (data["code"]) {
-                    RtmpConnection.Code.CONNECT_SUCCESS.rawValue -> {
-                        when (method) {
-                            StreamSession.Method.INGEST -> rtmpStream.publish(this@RtmpSession.uri.streamName)
-                            StreamSession.Method.PLAYBACK -> rtmpStream.play(this@RtmpSession.uri.streamName)
-                        }
-                        continuation?.resume(Unit)
-                    }
-
-                    else -> {
-                        continuation?.resume(Unit)
-                    }
-                }
-            }
-        }
-
     private val uri = RtmpUri(uri)
     private var method: StreamSession.Method = StreamSession.Method.INGEST
+    private val rtmpStream: RtmpStream
     private val connection: RtmpConnection = RtmpConnection()
-    private var continuation: CancellableContinuation<Unit>? = null
+    private var continuation: CancellableContinuation<Result<Unit>>? = null
 
     init {
-        connection.addEventListener(Event.RTMP_STATUS, listener)
-        rtmpStream = RtmpStream(applicationContext = applicationContext, connection = connection)
+        connection.addEventListener(Event.RTMP_STATUS, this)
+        rtmpStream =
+            RtmpStream(applicationContext, connection).apply {
+                addEventListener(Event.RTMP_STATUS, this@RtmpSession)
+            }
     }
 
-    override suspend fun connect(method: StreamSession.Method): Unit =
+    override suspend fun connect(method: StreamSession.Method): Result<Unit> =
         suspendCancellableCoroutine { continuation ->
             this.method = method
             this.continuation = continuation
             connection.connect(uri.tcUrl)
         }
 
-    override suspend fun close() {
+    override suspend fun close(): Result<Unit> {
         connection.close()
+        return Result.success(Unit)
+    }
+
+    override fun handleEvent(event: Event) {
+        val data = EventUtils.toMap(event)
+        if (BuildConfig.DEBUG) {
+            Log.d(TAG, "$data['code']")
+        }
+        when (data["code"]) {
+            RtmpConnection.Code.CONNECT_SUCCESS.rawValue -> {
+                when (method) {
+                    StreamSession.Method.INGEST -> rtmpStream.publish(this@RtmpSession.uri.streamName)
+                    StreamSession.Method.PLAYBACK -> rtmpStream.play(this@RtmpSession.uri.streamName)
+                }
+            }
+
+            RtmpStream.Code.PLAY_START.rawValue, RtmpStream.Code.PUBLISH_START.rawValue -> {
+                continuation?.resume(Result.success(Unit))
+                continuation = null
+            }
+
+            else -> {
+                if (connection.isConnected) {
+                    connection.close()
+                }
+                continuation?.resume(Result.failure(RtmpStatusException("${data["code"]}")))
+                continuation = null
+            }
+        }
     }
 
     companion object {

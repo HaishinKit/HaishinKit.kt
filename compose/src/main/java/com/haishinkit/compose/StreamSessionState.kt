@@ -29,13 +29,14 @@ class StreamSessionState(
 
     override val stream: Stream = session.stream
 
-    override suspend fun connect(method: StreamSession.Method) {
-        session.connect(method)
-        isConnected = session.isConnected
-    }
+    override suspend fun connect(method: StreamSession.Method): Result<Unit> =
+        session.connect(method).onSuccess {
+            isConnected = session.isConnected
+        }
 
-    override suspend fun close() {
-        session.close()
+    override suspend fun close(): Result<Unit> {
+        val result = session.close()
         isConnected = session.isConnected
+        return result
     }
 }
