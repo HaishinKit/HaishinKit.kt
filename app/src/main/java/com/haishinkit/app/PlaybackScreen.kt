@@ -1,6 +1,5 @@
 package com.haishinkit.app
 
-import android.util.Log
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -9,19 +8,17 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.core.net.toUri
 import com.haishinkit.compose.HaishinKitView
-import com.haishinkit.compose.rememberConnectionState
-import com.haishinkit.event.Event
-import com.haishinkit.event.EventUtils
-import com.haishinkit.event.IEventListener
-import com.haishinkit.rtmp.RtmpConnection
+import com.haishinkit.compose.rememberStreamSessionState
+import com.haishinkit.stream.StreamSession
+import kotlinx.coroutines.launch
 
 private const val TAG = "PlaybackScreen"
 
@@ -29,45 +26,25 @@ private const val TAG = "PlaybackScreen"
 @Composable
 fun PlaybackScreen(modifier: Modifier = Modifier) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
 
-    val connectionState =
-        rememberConnectionState {
-            RtmpConnection()
-        }
-
-    val stream =
-        remember(connectionState) {
-            connectionState.createStream(context)
-        }
+    val session =
+        rememberStreamSessionState(
+            StreamSession
+                .Builder(
+                    context,
+                    Preference.shared.rtmpURL.toUri(),
+                ).build(),
+        )
 
     DisposableEffect(Unit) {
         onDispose {
-            connectionState.dispose()
+            // session.dispose()
         }
     }
 
-    LaunchedEffect(Unit) {
-        connectionState.addEventListener(
-            Event.RTMP_STATUS,
-            object : IEventListener {
-                override fun handleEvent(event: Event) {
-                    val data = EventUtils.toMap(event)
-                    Log.i(TAG, data.toString())
-                    when (data["code"]) {
-                        RtmpConnection.Code.CONNECT_SUCCESS.rawValue -> {
-                            stream.play(Preference.shared.streamName)
-                        }
-
-                        else -> {
-                        }
-                    }
-                }
-            },
-        )
-    }
-
     HaishinKitView(
-        stream = stream,
+        stream = session.stream,
         modifier = Modifier.fillMaxSize(),
     )
 
@@ -82,14 +59,16 @@ fun PlaybackScreen(modifier: Modifier = Modifier) {
             modifier =
                 Modifier.align(Alignment.BottomEnd),
             onClick = {
-                if (connectionState.isConnected) {
-                    connectionState.close()
-                } else {
-                    connectionState.connect(Preference.shared.rtmpURL)
+                scope.launch {
+                    if (session.isConnected) {
+                        session.close()
+                    } else {
+                        session.connect(StreamSession.Method.PLAYBACK)
+                    }
                 }
             },
         ) {
-            if (connectionState.isConnected) {
+            if (session.isConnected) {
                 Text("STOP")
             } else {
                 Text("PLAY")

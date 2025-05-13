@@ -7,7 +7,6 @@ import android.graphics.BitmapFactory
 import android.graphics.Rect
 import android.hardware.camera2.CameraCharacteristics
 import android.media.MediaMuxer
-import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
@@ -30,6 +29,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -39,16 +39,14 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.core.net.toUri
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.google.accompanist.pager.HorizontalPagerIndicator
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.PermissionStatus
 import com.haishinkit.compose.HaishinKitView
-import com.haishinkit.compose.rememberConnectionState
 import com.haishinkit.compose.rememberRecorderState
-import com.haishinkit.event.Event
-import com.haishinkit.event.EventUtils
-import com.haishinkit.event.IEventListener
+import com.haishinkit.compose.rememberStreamSessionState
 import com.haishinkit.graphics.VideoGravity
 import com.haishinkit.graphics.effect.DefaultVideoEffect
 import com.haishinkit.graphics.effect.MonochromeVideoEffect
@@ -59,11 +57,12 @@ import com.haishinkit.media.MediaMixer
 import com.haishinkit.media.source.AudioRecordSource
 import com.haishinkit.media.source.Camera2Source
 import com.haishinkit.media.source.MultiCamera2Source
-import com.haishinkit.rtmp.RtmpConnection
 import com.haishinkit.screen.ImageScreenObject
 import com.haishinkit.screen.Screen
 import com.haishinkit.screen.ScreenObject
 import com.haishinkit.screen.TextScreenObject
+import com.haishinkit.stream.StreamSession
+import kotlinx.coroutines.launch
 import java.io.ByteArrayOutputStream
 import java.io.File
 
@@ -74,6 +73,7 @@ private const val TAG = "CameraScreen"
 @Composable
 fun CameraScreen(modifier: Modifier = Modifier) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
 
     val videoEffectItems = mutableListOf<VideoEffectItem>()
     videoEffectItems.add(VideoEffectItem("Normal", null))
@@ -83,18 +83,15 @@ fun CameraScreen(modifier: Modifier = Modifier) {
     // videoEffectItems.add(VideoEffectItem("Monochrome2", Monochrome2VideoEffect()))
 
     // HaishinKit
-    val connectionState =
-        rememberConnectionState {
-            RtmpConnection()
-        }
-
-    val stream =
-        remember(connectionState) {
-            connectionState.createStream(context)
-        }
-
     val mixer =
         remember { MediaMixer(context) }
+
+    val session =
+        rememberStreamSessionState(
+            StreamSession
+                .Builder(context, Preference.shared.rtmpURL.toUri())
+                .build(),
+        )
 
     val lifecycleOwner = LocalLifecycleOwner.current
 
@@ -103,8 +100,7 @@ fun CameraScreen(modifier: Modifier = Modifier) {
         onDispose {
             lifecycleOwner.lifecycle.removeObserver(mixer)
             mixer.dispose()
-            stream.dispose()
-            connectionState.dispose()
+            // session.dispose()
         }
     }
 
@@ -147,12 +143,12 @@ fun CameraScreen(modifier: Modifier = Modifier) {
     }
 
     LaunchedEffect(Unit) {
-        stream.attachMediaMixer(mixer)
+        session.stream.attachMediaMixer(mixer)
     }
 
     Box(modifier = modifier) {
         HaishinKitView(
-            stream = stream,
+            stream = session.stream,
             videoGravity = VideoGravity.RESIZE_ASPECT_FILL,
             modifier = Modifier.fillMaxSize(),
         )
@@ -273,11 +269,11 @@ fun CameraScreen(modifier: Modifier = Modifier) {
                         .padding(32.dp),
             )
 
-            val recorderState = rememberRecorderState(context, stream)
+            val recorderState = rememberRecorderState(context, session.stream)
 
             CameraControllerView(
                 isRecording = recorderState.isRecording,
-                isConnected = connectionState.isConnected,
+                isConnected = session.isConnected,
                 onClickScreenShot = {
                     mixer.screen.readPixels {
                         val bitmap = it ?: return@readPixels
@@ -290,7 +286,7 @@ fun CameraScreen(modifier: Modifier = Modifier) {
                                 "Title",
                                 null,
                             )
-                        val imageUri = Uri.parse(path)
+                        val imageUri = path.toUri()
                         val share = Intent(Intent.ACTION_SEND)
                         share.type = "image/jpeg"
                         share.putExtra(Intent.EXTRA_STREAM, imageUri)
@@ -298,10 +294,12 @@ fun CameraScreen(modifier: Modifier = Modifier) {
                     }
                 },
                 onClickConnect = {
-                    if (connectionState.isConnected) {
-                        connectionState.close()
-                    } else {
-                        connectionState.connect(Preference.shared.rtmpURL)
+                    scope.launch {
+                        if (session.isConnected) {
+                            session.close()
+                        } else {
+                            session.connect(StreamSession.Method.INGEST)
+                        }
                     }
                 },
                 onClickRecording = {
@@ -322,25 +320,6 @@ fun CameraScreen(modifier: Modifier = Modifier) {
     }
 
     LaunchedEffect(Unit) {
-        connectionState.addEventListener(
-            Event.RTMP_STATUS,
-            object : IEventListener {
-                override fun handleEvent(event: Event) {
-                    val data = EventUtils.toMap(event)
-                    Log.i(TAG, data.toString())
-                    when (data["code"]) {
-                        RtmpConnection.Code.CONNECT_SUCCESS.rawValue -> {
-                            stream.publish(Preference.shared.streamName)
-                        }
-
-                        else -> {
-                            Log.i(TAG, data["code"].toString())
-                        }
-                    }
-                }
-            },
-        )
-
         val text = TextScreenObject()
         text.size = 60f
         text.value = "Hello World!!"
