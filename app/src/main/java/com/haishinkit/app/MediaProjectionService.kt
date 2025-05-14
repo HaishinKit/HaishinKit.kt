@@ -26,7 +26,6 @@ import com.haishinkit.event.IEventListener
 import com.haishinkit.graphics.effect.LanczosVideoEffect
 import com.haishinkit.graphics.effect.VideoEffect
 import com.haishinkit.media.MediaMixer
-import com.haishinkit.media.source.AudioRecordSource
 import com.haishinkit.media.source.MediaProjectionSource
 import com.haishinkit.rtmp.RtmpConnection
 import com.haishinkit.rtmp.RtmpStream
@@ -116,7 +115,7 @@ class MediaProjectionService :
         val mediaProjectionManager =
             getSystemService(MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
 
-        mixer.attachAudio(AudioRecordSource(this))
+        // mixer.attachAudio(AudioRecordSource(this))
         stream.attachMediaMixer(mixer)
 
         stream.listener = listener
@@ -126,7 +125,7 @@ class MediaProjectionService :
                     this,
                     mediaProjectionManager.getMediaProjection(Activity.RESULT_OK, it),
                 )
-            mixer.attachVideo(source)
+            // mixer.attachVideo(0, source)
             stream.videoSetting.width = source.video.videoSize.width shr 2
             stream.videoSetting.height = source.video.videoSize.height shr 2
             videoSource = source

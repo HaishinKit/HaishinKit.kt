@@ -17,7 +17,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import java.nio.ByteBuffer
-import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.coroutines.CoroutineContext
 
 /**
@@ -32,8 +31,6 @@ class AudioRecordSource(
     var audioSource = DEFAULT_AUDIO_SOURCE
     var sampleRate = DEFAULT_SAMPLE_RATE
     override var isMuted = false
-    override var mixer: MediaMixer? = null
-    override val isRunning = AtomicBoolean(false)
     override val coroutineContext: CoroutineContext
         get() = Dispatchers.IO
 
@@ -70,22 +67,13 @@ class AudioRecordSource(
     @Volatile
     private var keepAlive = false
 
-    override fun startRunning() {
-        if (isRunning.get()) return
-        if (BuildConfig.DEBUG) {
-            Log.d(TAG, this::startRunning.name)
-        }
+    override suspend fun open(mixer: MediaMixer): Result<Unit> {
         doAudio()
-        isRunning.set(true)
+        return Result.success(Unit)
     }
 
-    override fun stopRunning() {
-        if (!isRunning.get()) return
-        if (BuildConfig.DEBUG) {
-            Log.d(TAG, this::stopRunning.name)
-        }
+    override suspend fun close() {
         keepAlive = false
-        isRunning.set(false)
     }
 
     override fun registerAudioCodec(codec: AudioCodec) {

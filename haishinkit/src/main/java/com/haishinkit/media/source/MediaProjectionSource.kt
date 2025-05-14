@@ -2,7 +2,6 @@ package com.haishinkit.media.source
 
 import android.content.Context
 import android.graphics.Point
-import android.graphics.Rect
 import android.hardware.display.DisplayManager
 import android.hardware.display.VirtualDisplay
 import android.media.projection.MediaProjection
@@ -17,11 +16,8 @@ import android.view.WindowManager
 import androidx.core.content.getSystemService
 import com.haishinkit.BuildConfig
 import com.haishinkit.graphics.ImageOrientation
-import com.haishinkit.graphics.effect.VideoEffect
 import com.haishinkit.media.MediaMixer
-import com.haishinkit.screen.ScreenObjectContainer
 import com.haishinkit.screen.VideoScreenObject
-import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * A video source that captures a display by the MediaProjection API.
@@ -68,16 +64,14 @@ class MediaProjectionSource(
         }
     }
 
-    override var mixer: MediaMixer? = null
-    override val isRunning = AtomicBoolean(false)
-    override val screen: ScreenObjectContainer by lazy {
-        ScreenObjectContainer().apply {
-            addChild(video)
+    var isRotatesWithContent = true
+
+    override val video: VideoScreenObject by lazy {
+        VideoScreenObject().apply {
+            listener = this@MediaProjectionSource
         }
     }
-    val video: VideoScreenObject by lazy {
-        VideoScreenObject()
-    }
+
     private var virtualDisplay: VirtualDisplay? = null
         set(value) {
             field?.release()
@@ -96,9 +90,6 @@ class MediaProjectionSource(
             field?.looper?.quitSafely()
             field = value
         }
-
-    var isRotatesWithContent = true
-
     private val callback: Callback by lazy { Callback(this) }
     private val displaySize: Size by lazy { getDisplaySize(context) }
 
@@ -119,39 +110,17 @@ class MediaProjectionSource(
         mediaProjection.unregisterCallback(callback)
     }
 
-    override fun setVideoEffect(
-        index: Int,
-        videoEffect: VideoEffect,
-    ) {
-        video.videoEffect = videoEffect
-    }
-
-    override fun onResume() {
-    }
-
-    override fun startRunning() {
-        if (isRunning.get()) return
-        if (BuildConfig.DEBUG) {
-            Log.d(TAG, "startRunning()")
-        }
-        video.listener = this
+    override suspend fun open(mixer: MediaMixer): Result<Unit> {
         // Android 14 must register an callback.
         mediaProjection.registerCallback(callback, null)
         video.videoSize = displaySize
-        mixer?.screen?.frame = Rect(0, 0, video.videoSize.width, video.videoSize.height)
-        isRunning.set(true)
+        return Result.success(Unit)
     }
 
-    override fun stopRunning() {
-        if (!isRunning.get()) return
-        if (BuildConfig.DEBUG) {
-            Log.d(TAG, "stopRunning()")
-        }
-        video.listener = null
+    override suspend fun close() {
         mediaProjection.unregisterCallback(callback)
         mediaProjection.stop()
         virtualDisplay = null
-        isRunning.set(false)
     }
 
     override fun onSurfaceChanged(surface: Surface?) {

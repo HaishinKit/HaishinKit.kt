@@ -5,12 +5,9 @@ import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Rect
-import android.hardware.camera2.CameraCharacteristics
 import android.media.MediaMuxer
-import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
-import android.util.Log
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -57,7 +54,6 @@ import com.haishinkit.lottie.LottieScreen
 import com.haishinkit.media.MediaMixer
 import com.haishinkit.media.source.AudioRecordSource
 import com.haishinkit.media.source.Camera2Source
-import com.haishinkit.media.source.MultiCamera2Source
 import com.haishinkit.screen.ImageScreenObject
 import com.haishinkit.screen.Screen
 import com.haishinkit.screen.ScreenObject
@@ -139,7 +135,7 @@ fun CameraScreen(modifier: Modifier = Modifier) {
     LaunchedEffect(pagerState, 0) {
         snapshotFlow { pagerState.currentPage }.collect { page ->
             val item = videoEffectItems[page]
-            mixer.videoSource?.setVideoEffect(0, item.videoEffect ?: DefaultVideoEffect.shared)
+            mixer.setVideoEffect(0, item.videoEffect ?: DefaultVideoEffect.shared)
         }
     }
 
@@ -166,71 +162,26 @@ fun CameraScreen(modifier: Modifier = Modifier) {
             CameraDeviceControllerView(onAudioPermissionStatus = { state ->
                 when (state.status) {
                     PermissionStatus.Granted -> {
-                        mixer.attachAudio(AudioRecordSource(context))
+                        scope.launch {
+                            mixer.attachAudio(0, AudioRecordSource(context))
+                        }
                     }
 
                     is PermissionStatus.Denied -> {
-                        mixer.attachAudio(null)
+                        scope.launch {
+                            mixer.attachAudio(0, null)
+                        }
                     }
                 }
             }, onVideoPermissionStatus = { state ->
                 when (state.status) {
                     PermissionStatus.Granted -> {
-                        try {
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                                mixer.attachVideo(MultiCamera2Source(context))
-                                (mixer.videoSource as? MultiCamera2Source)?.apply {
-                                    try {
-                                        open(0, CameraCharacteristics.LENS_FACING_BACK)
-                                        open(1, CameraCharacteristics.LENS_FACING_FRONT)
-                                        getVideoByChannel(1)?.apply {
-                                            frame = Rect(20, 20, 90 + 20, 160 + 20)
-                                        }
-                                    } catch (e: Exception) {
-                                        Log.e(
-                                            TAG,
-                                            "Error while setting up multi-camera: ${e.message}",
-                                            e,
-                                        )
-                                        // If multi-camera setup fails, revert to single camera
-                                        mixer.attachVideo(null)
-                                        mixer.attachVideo(
-                                            Camera2Source(context).apply {
-                                                try {
-                                                    open(CameraCharacteristics.LENS_FACING_BACK)
-                                                } catch (e: Exception) {
-                                                    Log.e(
-                                                        TAG,
-                                                        "Error while opening main camera: ${e.message}",
-                                                        e,
-                                                    )
-                                                }
-                                            },
-                                        )
-                                    }
-                                }
-                            } else {
-                                mixer.attachVideo(
-                                    Camera2Source(context).apply {
-                                        try {
-                                            open(CameraCharacteristics.LENS_FACING_BACK)
-                                        } catch (e: Exception) {
-                                            Log.e(
-                                                TAG,
-                                                "Error while opening camera: ${e.message}",
-                                                e,
-                                            )
-                                        }
-                                    },
-                                )
-                            }
-                        } catch (e: Exception) {
-                            Log.e(TAG, "General error while setting up camera: ${e.message}", e)
+                        scope.launch {
+                            mixer.attachVideo(0, Camera2Source(context))
                         }
                     }
 
                     is PermissionStatus.Denied -> {
-                        mixer.attachVideo(null)
                     }
                 }
             })

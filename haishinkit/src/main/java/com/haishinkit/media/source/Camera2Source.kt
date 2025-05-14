@@ -2,18 +2,9 @@ package com.haishinkit.media.source
 
 import android.annotation.SuppressLint
 import android.content.Context
-import android.hardware.SensorManager
-import android.hardware.camera2.CameraCharacteristics
-import android.hardware.camera2.CameraManager
-import android.util.Log
-import android.view.OrientationEventListener
-import android.view.WindowManager
-import com.haishinkit.BuildConfig
-import com.haishinkit.graphics.effect.VideoEffect
+import android.view.Surface
 import com.haishinkit.media.MediaMixer
-import com.haishinkit.screen.ScreenObjectContainer
 import com.haishinkit.screen.VideoScreenObject
-import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * A video source that captures a camera by the Camera2 API.
@@ -21,111 +12,47 @@ import java.util.concurrent.atomic.AtomicBoolean
 @Suppress("UNUSED")
 class Camera2Source(
     private val context: Context,
-) : VideoSource {
+    val cameraId: String = DEFAULT_CAMERA_ID,
+) : VideoSource,
+    VideoScreenObject.OnSurfaceChangedListener {
     /**
      * The video screen object.
      */
-    val video: VideoScreenObject?
-        get() = output?.video
-    override var mixer: MediaMixer? = null
-    override val isRunning = AtomicBoolean(false)
-    override val screen: ScreenObjectContainer by lazy {
-        ScreenObjectContainer()
-    }
-    private var output: Camera2Output? = null
-    private var manager = context.getSystemService(Context.CAMERA_SERVICE) as CameraManager
-
-    private val orientationEventListener: OrientationEventListener? by lazy {
-        object : OrientationEventListener(context, SensorManager.SENSOR_DELAY_NORMAL) {
-            override fun onOrientationChanged(orientation: Int) {
-                val windowManager =
-                    context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
-                windowManager
-                    .defaultDisplay
-                    ?.orientation
-                    ?.let { output?.video?.deviceOrientation = it }
-            }
+    override val video: VideoScreenObject by lazy {
+        VideoScreenObject().apply {
+            isRotatesWithContent = true
+            listener = this@Camera2Source
         }
     }
+
+    private var output: Camera2Output? = null
+        set(value) {
+            if (field == value) return
+            field?.close()
+            field = value
+        }
 
     /**
      * Opens the camera with camera2 api.
      */
     @SuppressLint("MissingPermission")
-    fun open(position: Int? = null) {
-        val cameraId =
-            if (position == null) {
-                DEFAULT_CAMERA_ID
-            } else {
-                getCameraId(position) ?: DEFAULT_CAMERA_ID
+    override suspend fun open(mixer: MediaMixer): Result<Unit> {
+        val output = Camera2Output(context, this, cameraId)
+        this.output = output
+        return output.open().onSuccess {
+            video.imageOrientation = output.imageOrientation
+            output.getCameraSize(mixer.screen.frame)?.let {
+                video.videoSize = it
             }
-        val windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
-        output = Camera2Output(context, this, cameraId)
-        output?.video?.deviceOrientation = windowManager.defaultDisplay.rotation
-        output?.open()
+        }
     }
 
-    /**
-     * Closes the camera.
-     */
-    fun close() {
+    override suspend fun close() {
         output?.close()
     }
 
-    /**
-     * Switches an using camera front or back.
-     */
-    fun switchCamera() {
-        val facing = output?.facing
-        val expect =
-            if (facing == CameraCharacteristics.LENS_FACING_FRONT) {
-                CameraCharacteristics.LENS_FACING_BACK
-            } else {
-                CameraCharacteristics.LENS_FACING_FRONT
-            }
-        open(expect)
-    }
-
-    override fun setVideoEffect(
-        index: Int,
-        videoEffect: VideoEffect,
-    ) {
-        output?.video?.videoEffect = videoEffect
-    }
-
-    override fun startRunning() {
-        if (isRunning.get()) return
-        orientationEventListener?.enable()
-        isRunning.set(true)
-        if (BuildConfig.DEBUG) {
-            Log.d(TAG, this::startRunning.name)
-        }
-    }
-
-    override fun stopRunning() {
-        if (!isRunning.get()) return
-        isRunning.set(false)
-        orientationEventListener?.disable()
-        if (BuildConfig.DEBUG) {
-            Log.d(TAG, this::stopRunning.name)
-        }
-    }
-
-    override fun onResume() {
-        if (!isRunning.get()) return
-        if (output?.isDisconnected == true) {
-            output?.open()
-        }
-    }
-
-    private fun getCameraId(facing: Int): String? {
-        for (id in manager.cameraIdList) {
-            val chars = manager.getCameraCharacteristics(id)
-            if (chars.get(CameraCharacteristics.LENS_FACING) == facing) {
-                return id
-            }
-        }
-        return null
+    override fun onSurfaceChanged(surface: Surface?) {
+        surface?.let { output?.createCaptureSession(it) }
     }
 
     private companion object {

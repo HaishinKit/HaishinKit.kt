@@ -2,6 +2,7 @@ package com.haishinkit.media.source
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.graphics.Rect
 import android.graphics.SurfaceTexture
 import android.hardware.camera2.CameraCaptureSession
 import android.hardware.camera2.CameraCharacteristics
@@ -18,7 +19,10 @@ import android.view.Surface
 import com.haishinkit.BuildConfig
 import com.haishinkit.graphics.ImageOrientation
 import com.haishinkit.screen.VideoScreenObject
+import kotlinx.coroutines.CancellableContinuation
+import kotlinx.coroutines.suspendCancellableCoroutine
 import java.util.concurrent.Executors
+import kotlin.coroutines.resume
 
 internal class Camera2Output(
     val applicationContext: Context,
@@ -26,19 +30,18 @@ internal class Camera2Output(
     private val cameraId: String,
 ) : CameraDevice.StateCallback(),
     VideoScreenObject.OnSurfaceChangedListener {
-    val facing: Int?
-        get() = characteristics?.get(CameraCharacteristics.LENS_FACING)
-
-    val video: VideoScreenObject by lazy {
-        VideoScreenObject().apply {
-            isRotatesWithContent = true
-            listener = this@Camera2Output
-        }
-    }
-
     var isDisconnected: Boolean = false
         private set
-
+    val imageOrientation: ImageOrientation
+        get() {
+            return when (characteristics?.get(CameraCharacteristics.SENSOR_ORIENTATION)) {
+                0 -> ImageOrientation.UP
+                90 -> ImageOrientation.LEFT
+                180 -> ImageOrientation.DOWN
+                270 -> ImageOrientation.RIGHT
+                else -> ImageOrientation.UP
+            }
+        }
     private var device: CameraDevice? = null
         set(value) {
             if (field == value) return
@@ -55,98 +58,32 @@ internal class Camera2Output(
         applicationContext.getSystemService(Context.CAMERA_SERVICE) as CameraManager
     private val executor = Executors.newSingleThreadExecutor()
     private var characteristics: CameraCharacteristics? = null
-    private val imageOrientation: ImageOrientation
-        get() {
-            return when (characteristics?.get(CameraCharacteristics.SENSOR_ORIENTATION)) {
-                0 -> ImageOrientation.UP
-                90 -> ImageOrientation.LEFT
-                180 -> ImageOrientation.DOWN
-                270 -> ImageOrientation.RIGHT
-                else -> ImageOrientation.UP
-            }
-        }
-
     private val handler: Handler by lazy {
         val thread = HandlerThread(TAG)
         thread.start()
         Handler(thread.looper)
     }
 
+    private var continuation: CancellableContinuation<Result<Unit>>? = null
+
     @SuppressLint("MissingPermission")
-    fun open() {
-        characteristics = manager.getCameraCharacteristics(cameraId)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            manager.openCamera(cameraId, executor, this)
-        } else {
-            manager.openCamera(cameraId, this, handler)
+    suspend fun open(): Result<Unit> =
+        suspendCancellableCoroutine { continuation ->
+            this.continuation = continuation
+            characteristics = manager.getCameraCharacteristics(cameraId)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                manager.openCamera(cameraId, executor, this)
+            } else {
+                manager.openCamera(cameraId, this, handler)
+            }
         }
-    }
 
     fun close() {
-        source.screen.removeChild(video)
         device = null
         session = null
     }
 
-    override fun onSurfaceChanged(surface: Surface?) {
-        surface?.let {
-            createCaptureSession(it)
-        }
-    }
-
-    override fun onOpened(camera: CameraDevice) {
-        isDisconnected = false
-        device = camera
-        source.mixer?.screen?.frame?.let {
-            if (it.height() <= it.width()) {
-                getCameraSize(it.width(), it.height())?.let { size ->
-                    video.videoSize = size
-                }
-            } else {
-                getCameraSize(it.height(), it.width())?.let { size ->
-                    video.videoSize = size
-                }
-            }
-        }
-        video.imageOrientation = imageOrientation
-        source.screen.addChild(video)
-    }
-
-    override fun onDisconnected(camera: CameraDevice) {
-        if (BuildConfig.DEBUG) {
-            Log.d(TAG, "onDisconnected($camera)")
-        }
-        close()
-        isDisconnected = true
-    }
-
-    override fun onError(
-        camera: CameraDevice,
-        error: Int,
-    ) {
-        if (BuildConfig.DEBUG) {
-            Log.d(TAG, "onError($camera, $error)")
-        }
-        close()
-    }
-
-    private fun getCameraSize(
-        width: Int?,
-        height: Int?,
-    ): Size? {
-        val scm = characteristics?.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)
-        val sizes = scm?.getOutputSizes(SurfaceTexture::class.java)
-        if (width == null || height == null) {
-            return sizes?.get(0)
-        }
-        return sizes
-            ?.filter { size ->
-                (width <= size.width) && (height <= size.height)
-            }?.sortedBy { size -> size.width * size.height }
-            ?.get(0) ?: sizes?.get(0)
-    }
-
-    private fun createCaptureSession(surface: Surface) {
+    fun createCaptureSession(surface: Surface) {
         val device = device ?: return
         val request =
             device
@@ -205,6 +142,47 @@ internal class Camera2Output(
                 handler,
             )
         }
+    }
+
+    override fun onSurfaceChanged(surface: Surface?) {
+        surface?.let {
+            createCaptureSession(it)
+        }
+    }
+
+    override fun onOpened(camera: CameraDevice) {
+        isDisconnected = false
+        device = camera
+        continuation?.resume(Result.success(Unit))
+        continuation = null
+    }
+
+    override fun onDisconnected(camera: CameraDevice) {
+        if (BuildConfig.DEBUG) {
+            Log.d(TAG, "onDisconnected($camera)")
+        }
+        close()
+        isDisconnected = true
+    }
+
+    override fun onError(
+        camera: CameraDevice,
+        error: Int,
+    ) {
+        if (BuildConfig.DEBUG) {
+            Log.d(TAG, "onError($camera, $error)")
+        }
+        close()
+    }
+
+    fun getCameraSize(rect: Rect): Size? {
+        val scm = characteristics?.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)
+        val sizes = scm?.getOutputSizes(SurfaceTexture::class.java)
+        return sizes
+            ?.filter { size ->
+                (rect.width() <= size.width) && (rect.height() <= size.height)
+            }?.sortedBy { size -> size.width * size.height }
+            ?.get(0) ?: sizes?.get(0)
     }
 
     companion object {

@@ -31,16 +31,16 @@ abstract class Stream(
             if (mixer == null) {
                 return field
             }
-            return mixer?.audioSource != null
+            return mixer?.hasAudio == true
         }
         protected set
 
     var hasVideo: Boolean = false
         get() {
             if (mixer == null) {
-                return mixer?.videoSource != null
+                return field
             }
-            return mixer?.videoSource != null
+            return mixer?.hasVideo == true
         }
         protected set
 
@@ -127,14 +127,14 @@ abstract class Stream(
      * Registers an audio codec instance.
      */
     fun registerAudioCodec(codec: AudioCodec) {
-        mixer?.audioSource?.registerAudioCodec(codec)
+        mixer?.registerAudioCodec(codec)
     }
 
     /**
      * Unregisters an audio codec instance.
      */
     fun unregisterAudioCodec(codec: AudioCodec) {
-        mixer?.audioSource?.unregisterAudioCodec(codec)
+        mixer?.unregisterAudioCodec(codec)
     }
 
     /**
@@ -217,11 +217,7 @@ abstract class Stream(
         }
         when (mode) {
             Codec.MODE_ENCODE -> {
-                mixer?.audioSource?.let {
-                    audioCodec.startRunning()
-                    it.registerAudioCodec(audioCodec)
-                }
-                mixer?.videoSource?.let {
+                if (mixer?.hasVideo == true) {
                     videoCodec.startRunning()
                 }
             }
@@ -242,7 +238,7 @@ abstract class Stream(
         }
         when (mode) {
             Codec.MODE_ENCODE -> {
-                mixer?.audioSource?.unregisterAudioCodec(audioCodec)
+                mixer?.unregisterAudioCodec(audioCodec)
             }
 
             Codec.MODE_DECODE -> {
