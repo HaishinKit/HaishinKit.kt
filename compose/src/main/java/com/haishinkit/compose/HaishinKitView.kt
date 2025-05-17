@@ -36,7 +36,7 @@ fun HaishinKitView(
 
     DisposableEffect(Unit) {
         onDispose {
-            stream.attachView(videoView)
+            stream.unregisterOutput(videoView)
         }
     }
 
@@ -44,7 +44,7 @@ fun HaishinKitView(
         factory = {
             videoView.apply {
                 this.videoGravity = videoGravity
-                stream.attachView(this)
+                stream.registerOutput(this)
             }
         },
         modifier = modifier,

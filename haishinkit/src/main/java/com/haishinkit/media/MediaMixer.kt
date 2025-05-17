@@ -22,22 +22,19 @@ import kotlin.coroutines.CoroutineContext
 @Suppress("UNUSED")
 class MediaMixer(
     context: Context,
-) : CoroutineScope,
+) : MediaSource,
+    CoroutineScope,
     DefaultLifecycleObserver {
-    interface Output {
-        fun append(buffer: MediaBuffer)
-    }
-
     /**
      * Whether audio source is enabled or not.
      */
-    val hasAudio: Boolean
+    override val hasAudio: Boolean
         get() = audioSources.isNotEmpty()
 
     /**
      * Whether video source is enabled or not.
      */
-    val hasVideo: Boolean
+    override val hasVideo: Boolean
         get() = videoSources.isNotEmpty()
 
     /**
@@ -52,7 +49,7 @@ class MediaMixer(
     override val coroutineContext: CoroutineContext
         get() = Dispatchers.IO
 
-    private var outputs = mutableListOf<Output>()
+    private var outputs = mutableListOf<MediaOutput>()
 
     @Volatile
     private var keepAlive = true
@@ -128,8 +125,9 @@ class MediaMixer(
     /**
      * Registers an output instance.
      */
-    fun registerOutput(output: Output) {
+    fun registerOutput(output: MediaOutput) {
         if (!outputs.contains(output)) {
+            output.screen = screen
             outputs.add(output)
         }
     }
@@ -137,9 +135,10 @@ class MediaMixer(
     /**
      * Unregisters an output instance.
      */
-    fun unregisterOutput(output: Output) {
+    fun unregisterOutput(output: MediaOutput) {
         if (outputs.contains(output)) {
             outputs.remove(output)
+            output.screen = null
         }
     }
 

@@ -21,7 +21,7 @@ import kotlin.coroutines.CoroutineContext
 /**
  * The MediaLink class can be used to synchronously play audio and video streams.
  */
-class MediaLink(
+internal class MediaLink(
     val stream: Stream,
 ) : Running,
     CoroutineScope,

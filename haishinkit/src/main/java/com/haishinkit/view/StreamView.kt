@@ -2,9 +2,10 @@ package com.haishinkit.view
 
 import com.haishinkit.graphics.VideoGravity
 import com.haishinkit.graphics.effect.VideoEffect
-import com.haishinkit.screen.Screen
+import com.haishinkit.media.MediaBuffer
+import com.haishinkit.media.MediaOutput
 
-interface StreamView {
+interface StreamView : MediaOutput {
     /**
      * Specifies the videoGravity how the displays the visual content.
      */
@@ -20,8 +21,6 @@ interface StreamView {
      */
     var frameRate: Int
 
-    /**
-     * Specifies the offscreen object for video input.
-     */
-    var screen: Screen?
+    override fun append(buffer: MediaBuffer) {
+    }
 }

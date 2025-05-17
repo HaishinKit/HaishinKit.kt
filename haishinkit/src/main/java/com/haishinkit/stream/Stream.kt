@@ -10,12 +10,11 @@ import com.haishinkit.codec.Codec
 import com.haishinkit.codec.VideoCodec
 import com.haishinkit.media.MediaBuffer
 import com.haishinkit.media.MediaLink
-import com.haishinkit.media.MediaMixer
+import com.haishinkit.media.MediaOutput
 import com.haishinkit.media.MediaType
 import com.haishinkit.rtmp.RtmpStream
 import com.haishinkit.screen.Screen
 import com.haishinkit.screen.VideoScreenObject
-import com.haishinkit.view.StreamView
 import java.nio.ByteBuffer
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -25,32 +24,21 @@ import java.util.concurrent.atomic.AtomicBoolean
 @Suppress("UNUSED")
 abstract class Stream(
     private var context: Context,
-) : MediaMixer.Output,
+) : MediaOutput,
     VideoScreenObject.OnSurfaceChangedListener {
     var hasAudio: Boolean = false
-        get() {
-            if (mixer == null) {
-                return field
-            }
-            return mixer?.hasAudio == true
-        }
-        protected set
 
     var hasVideo: Boolean = false
-        get() {
-            if (mixer == null) {
-                return field
-            }
-            return mixer?.hasVideo == true
-        }
-        protected set
 
     /**
      * The offscreen renderer for video output.
      */
-    var screen: Screen? = Screen.create(context)
-        get() {
-            return mixer?.screen ?: field
+    override var screen: Screen? = null
+        set(value) {
+            field = value
+            outputs.forEach {
+                it.screen = value
+            }
         }
 
     /**
@@ -67,9 +55,6 @@ abstract class Stream(
         AudioCodec.Setting(audioCodec)
     }
 
-    internal var view: StreamView? = null
-        private set
-
     internal val mediaLink: MediaLink by lazy {
         MediaLink(this)
     }
@@ -77,15 +62,6 @@ abstract class Stream(
     protected val audioCodec by lazy { AudioCodec() }
 
     protected val videoCodec by lazy { VideoCodec(context) }
-
-    protected var mixer: MediaMixer? = null
-        private set(value) {
-            field?.unregisterOutput(this)
-            videoCodec.pixelTransform.screen = value?.screen
-            view?.screen = value?.screen
-            field = value
-            field?.registerOutput(this)
-        }
 
     protected var mode = Codec.MODE_ENCODE
         set(value) {
@@ -104,21 +80,28 @@ abstract class Stream(
         }
     }
 
+    private var outputs = mutableListOf<MediaOutput>()
     private var audioBufferPool = Pools.SynchronizedPool<MediaBuffer>(BUFFER_POOL_COUNTS)
     private var videoBufferPool = Pools.SynchronizedPool<MediaBuffer>(BUFFER_POOL_COUNTS)
 
     /**
-     * Attaches a view.
+     * Registers an output instance.
      */
-    fun attachView(view: StreamView?) {
-        this.view = view
+    fun registerOutput(output: MediaOutput) {
+        if (!outputs.contains(output)) {
+            output.screen = screen
+            outputs.add(output)
+        }
     }
 
     /**
-     * Attaches the media mixer.
+     * Unregisters an output instance.
      */
-    fun attachMediaMixer(mixer: MediaMixer?) {
-        this.mixer = mixer
+    fun unregisterOutput(output: MediaOutput) {
+        if (outputs.contains(output)) {
+            outputs.remove(output)
+            output.screen = null
+        }
     }
 
     /**
@@ -130,13 +113,17 @@ abstract class Stream(
      * Disposes the stream of memory management.
      */
     open fun dispose() {
-        view = null
-        mixer = null
+        outputs.forEach {
+            unregisterOutput(it)
+        }
         audioCodec.dispose()
         videoCodec.dispose()
     }
 
     override fun append(buffer: MediaBuffer) {
+        outputs.forEach {
+            it.append(buffer)
+        }
         if (!isRunning.get()) return
         when (buffer.type) {
             MediaType.AUDIO -> {

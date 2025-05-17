@@ -140,7 +140,7 @@ fun CameraScreen(modifier: Modifier = Modifier) {
     }
 
     LaunchedEffect(Unit) {
-        session.stream.attachMediaMixer(mixer)
+        mixer.registerOutput(session.stream)
     }
 
     Box(modifier = modifier) {
