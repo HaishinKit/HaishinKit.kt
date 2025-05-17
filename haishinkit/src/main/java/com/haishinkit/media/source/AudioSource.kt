@@ -1,6 +1,6 @@
 package com.haishinkit.media.source
 
-import com.haishinkit.media.MediaLink
+import com.haishinkit.media.MediaBuffer
 
 /**
  * An interface that captures an audio source.
@@ -11,5 +11,5 @@ interface AudioSource : Source {
      */
     var isMuted: Boolean
 
-    fun read(track: Int): MediaLink.Buffer
+    fun read(track: Int): MediaBuffer
 }

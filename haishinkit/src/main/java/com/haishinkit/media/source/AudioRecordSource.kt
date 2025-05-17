@@ -10,7 +10,7 @@ import android.media.MediaRecorder
 import android.os.Build
 import android.util.Log
 import androidx.core.app.ActivityCompat
-import com.haishinkit.media.MediaLink
+import com.haishinkit.media.MediaBuffer
 import com.haishinkit.media.MediaMixer
 import com.haishinkit.media.MediaType
 import java.nio.ByteBuffer
@@ -74,7 +74,7 @@ class AudioRecordSource(
         return Result.success(Unit)
     }
 
-    override fun read(track: Int): MediaLink.Buffer {
+    override fun read(track: Int): MediaBuffer {
         byteBuffer.rewind()
         val result = audioRecord?.read(byteBuffer, sampleCount * 2) ?: -1
         if (isMuted) {
@@ -85,7 +85,7 @@ class AudioRecordSource(
             byteBuffer.clear()
             byteBuffer.put(noSignalBuffer)
         }
-        return MediaLink.Buffer(
+        return MediaBuffer(
             type = MediaType.AUDIO,
             index = track,
             payload = byteBuffer,

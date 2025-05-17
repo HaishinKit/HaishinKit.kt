@@ -8,8 +8,8 @@ import com.haishinkit.BuildConfig
 import com.haishinkit.codec.AudioCodec
 import com.haishinkit.codec.Codec
 import com.haishinkit.codec.VideoCodec
+import com.haishinkit.media.MediaBuffer
 import com.haishinkit.media.MediaLink
-import com.haishinkit.media.MediaLink.Buffer
 import com.haishinkit.media.MediaMixer
 import com.haishinkit.media.MediaType
 import com.haishinkit.rtmp.RtmpStream
@@ -104,8 +104,8 @@ abstract class Stream(
         }
     }
 
-    private var audioBufferPool = Pools.SynchronizedPool<Buffer>(BUFFER_POOL_COUNTS)
-    private var videoBufferPool = Pools.SynchronizedPool<Buffer>(BUFFER_POOL_COUNTS)
+    private var audioBufferPool = Pools.SynchronizedPool<MediaBuffer>(BUFFER_POOL_COUNTS)
+    private var videoBufferPool = Pools.SynchronizedPool<MediaBuffer>(BUFFER_POOL_COUNTS)
 
     /**
      * Attaches a view.
@@ -136,7 +136,7 @@ abstract class Stream(
         videoCodec.dispose()
     }
 
-    override fun append(buffer: Buffer) {
+    override fun append(buffer: MediaBuffer) {
         if (!isRunning.get()) return
         when (buffer.type) {
             MediaType.AUDIO -> {
@@ -164,7 +164,7 @@ abstract class Stream(
         when (type) {
             MediaType.AUDIO -> {
                 mediaLink.queueAudio(
-                    (audioBufferPool.acquire() ?: Buffer(type, 0, null, 0, false)).apply {
+                    (audioBufferPool.acquire() ?: MediaBuffer(type, 0, null, 0, false)).apply {
                         this.index = index
                         this.payload = payload
                         this.timestamp = timestamp
@@ -175,7 +175,7 @@ abstract class Stream(
 
             MediaType.VIDEO -> {
                 mediaLink.queueVideo(
-                    (videoBufferPool.acquire() ?: Buffer(type, 0, null, 0, false)).apply {
+                    (videoBufferPool.acquire() ?: MediaBuffer(type, 0, null, 0, false)).apply {
                         this.index = index
                         this.payload = payload
                         this.timestamp = timestamp
@@ -187,7 +187,7 @@ abstract class Stream(
     }
 
     internal fun releaseOutputBuffer(
-        buffer: Buffer,
+        buffer: MediaBuffer,
         render: Boolean,
     ) {
         when (buffer.type) {

@@ -14,7 +14,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
-import java.nio.ByteBuffer
 import java.util.concurrent.LinkedBlockingDeque
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.coroutines.CoroutineContext
@@ -27,14 +26,6 @@ class MediaLink(
 ) : Running,
     CoroutineScope,
     Choreographer.FrameCallback {
-    data class Buffer(
-        val type: MediaType,
-        var index: Int,
-        var payload: ByteBuffer? = null,
-        var timestamp: Long = 0L,
-        var sync: Boolean = false,
-    )
-
     /**
      * Specifies the paused indicates the playback of a media pause(TRUE) or not(FALSE).
      */
@@ -79,8 +70,8 @@ class MediaLink(
 
     private var syncMode = SYNC_MODE_CLOCK
     private var hasKeyframe = false
-    private val videoBuffers = LinkedBlockingDeque<Buffer>()
-    private val audioBuffers = LinkedBlockingDeque<Buffer>()
+    private val videoBuffers = LinkedBlockingDeque<MediaBuffer>()
+    private val audioBuffers = LinkedBlockingDeque<MediaBuffer>()
     private var choreographer: Choreographer? = null
         set(value) {
             field?.removeFrameCallback(this)
@@ -122,7 +113,7 @@ class MediaLink(
     /**
      * Queues the audio data asynchronously for playback.
      */
-    fun queueAudio(buffer: Buffer) {
+    fun queueAudio(buffer: MediaBuffer) {
         if (!isRunning.get()) return
         audioBuffers.add(buffer)
         if (!stream.hasVideo) {
@@ -138,7 +129,7 @@ class MediaLink(
     /**
      * Queues the video data asynchronously for playback.
      */
-    fun queueVideo(buffer: Buffer) {
+    fun queueVideo(buffer: MediaBuffer) {
         if (!isRunning.get()) return
         if (videoTimestampZero == -1L) {
             videoTimestampZero = buffer.timestamp

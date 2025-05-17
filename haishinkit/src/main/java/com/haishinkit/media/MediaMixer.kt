@@ -25,7 +25,7 @@ class MediaMixer(
 ) : CoroutineScope,
     DefaultLifecycleObserver {
     interface Output {
-        fun append(buffer: MediaLink.Buffer)
+        fun append(buffer: MediaBuffer)
     }
 
     /**
