@@ -34,7 +34,7 @@ import java.io.FileDescriptor
  */
 @Suppress("UNUSED", "MemberVisibilityCanBePrivate")
 class StreamRecorder(
-    applicationContext: Context,
+    context: Context,
 ) {
     /**
      * The isRecording value indicates whether the audio recorder is recording.
@@ -59,7 +59,7 @@ class StreamRecorder(
     private var muxer: StreamRecorderMuxer? = null
     private var stream: Stream? = null
     private val audioCodec by lazy { AudioCodec() }
-    private val videoCodec by lazy { VideoCodec(applicationContext) }
+    private val videoCodec by lazy { VideoCodec(context) }
 
     /**
      * Attaches the stream.

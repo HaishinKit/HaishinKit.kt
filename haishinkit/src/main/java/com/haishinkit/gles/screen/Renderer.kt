@@ -14,12 +14,12 @@ import com.haishinkit.screen.VideoScreenObject
 import javax.microedition.khronos.opengles.GL10
 
 internal class Renderer(
-    applicationContext: Context,
+    context: Context,
 ) : Renderer {
     private var textureIds = intArrayOf(0)
     private var surfaceTextures = mutableMapOf<Int, SurfaceTexture>()
     private val shaderLoader by lazy {
-        ShaderLoader(applicationContext)
+        ShaderLoader(context)
     }
 
     override fun layout(screenObject: ScreenObject) {

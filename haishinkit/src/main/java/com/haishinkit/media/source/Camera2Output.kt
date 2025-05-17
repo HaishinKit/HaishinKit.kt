@@ -25,7 +25,7 @@ import java.util.concurrent.Executors
 import kotlin.coroutines.resume
 
 internal class Camera2Output(
-    val applicationContext: Context,
+    val context: Context,
     val source: VideoSource,
     private val cameraId: String,
 ) : CameraDevice.StateCallback(),
@@ -55,7 +55,7 @@ internal class Camera2Output(
             field = value
         }
     private val manager =
-        applicationContext.getSystemService(Context.CAMERA_SERVICE) as CameraManager
+        context.getSystemService(Context.CAMERA_SERVICE) as CameraManager
     private val executor = Executors.newSingleThreadExecutor()
     private var characteristics: CameraCharacteristics? = null
     private val handler: Handler by lazy {

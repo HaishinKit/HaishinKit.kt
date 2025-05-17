@@ -21,10 +21,10 @@ interface StreamSession {
      * Helper class for building new [StreamSession].
      */
     class Builder(
-        private val applicationContext: Context,
+        private val context: Context,
         private val uri: Uri,
     ) {
-        fun build(): StreamSession = RtmpSession(applicationContext, uri)
+        fun build(): StreamSession = RtmpSession(context, uri)
     }
 
     /**

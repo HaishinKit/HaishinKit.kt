@@ -9,9 +9,15 @@ import android.graphics.Rect
  * An object that manages offscreen rendering a foundation.
  */
 abstract class Screen(
-    val applicationContext: Context,
+    val context: Context,
 ) : ScreenObjectContainer() {
+    /**
+     * Callbacks for a screen.
+     */
     abstract class Callback {
+        /**
+         * Invoked immediately after layout frame.
+         */
         abstract fun onEnterFrame()
     }
 

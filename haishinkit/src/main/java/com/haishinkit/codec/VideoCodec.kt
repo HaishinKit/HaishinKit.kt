@@ -16,7 +16,7 @@ import kotlin.properties.Delegates
  * The VideoCodec class provides methods for encode or decode for video.
  */
 class VideoCodec(
-    applicationContext: Context,
+    context: Context,
 ) : Codec() {
     @Suppress("UNUSED")
     data class Setting(
@@ -139,7 +139,7 @@ class VideoCodec(
      * The pixel transform instance.
      */
     val pixelTransform: PixelTransform by lazy {
-        PixelTransform.create(applicationContext).apply {
+        PixelTransform.create(context).apply {
             videoGravity = DEFAULT_VIDEO_GRAVITY
             frameRate = DEFAULT_FRAME_RATE
         }

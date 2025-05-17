@@ -23,9 +23,9 @@ import java.util.concurrent.atomic.AtomicInteger
  */
 @Suppress("UNUSED", "MemberVisibilityCanBePrivate")
 class RtmpStream(
-    internal var applicationContext: Context,
+    internal var context: Context,
     internal var connection: RtmpConnection,
-) : Stream(applicationContext),
+) : Stream(context),
     IEventDispatcher {
     data class Info(
         var resourceName: String? = null,

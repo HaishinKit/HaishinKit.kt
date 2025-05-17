@@ -24,7 +24,7 @@ import java.util.concurrent.atomic.AtomicBoolean
  */
 @Suppress("UNUSED")
 abstract class Stream(
-    private var applicationContext: Context,
+    private var context: Context,
 ) : VideoScreenObject.OnSurfaceChangedListener {
     var hasAudio: Boolean = false
         get() {
@@ -47,7 +47,7 @@ abstract class Stream(
     /**
      * The offscreen renderer for video output.
      */
-    var screen: Screen? = Screen.create(applicationContext)
+    var screen: Screen? = Screen.create(context)
         get() {
             return mixer?.screen ?: field
         }
@@ -75,7 +75,7 @@ abstract class Stream(
 
     protected val audioCodec by lazy { AudioCodec() }
 
-    protected val videoCodec by lazy { VideoCodec(applicationContext) }
+    protected val videoCodec by lazy { VideoCodec(context) }
 
     protected var mixer: MediaMixer? = null
         private set(value) {
