@@ -197,7 +197,6 @@ class RtmpStream(
                     videoTimestamp = DEFAULT_TIMESTAMP
                     audioTimestamp = DEFAULT_TIMESTAMP
                     muxer.clear()
-                    view?.screen = null
                 }
 
                 ReadyState.PUBLISHING -> {
@@ -227,7 +226,6 @@ class RtmpStream(
                 }
 
                 ReadyState.PLAY -> {
-                    view?.screen = screen
                     mode = Codec.MODE_DECODE
                     startRunning()
                 }

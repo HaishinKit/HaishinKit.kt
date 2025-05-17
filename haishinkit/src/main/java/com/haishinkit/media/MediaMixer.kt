@@ -14,6 +14,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import java.lang.ref.WeakReference
 import kotlin.coroutines.CoroutineContext
 
 /**
@@ -22,24 +23,9 @@ import kotlin.coroutines.CoroutineContext
 @Suppress("UNUSED")
 class MediaMixer(
     context: Context,
-) : CoroutineScope,
+) : MediaOutputDataSource,
+    CoroutineScope,
     DefaultLifecycleObserver {
-    interface Output {
-        fun append(buffer: MediaBuffer)
-    }
-
-    /**
-     * Whether audio source is enabled or not.
-     */
-    val hasAudio: Boolean
-        get() = audioSources.isNotEmpty()
-
-    /**
-     * Whether video source is enabled or not.
-     */
-    val hasVideo: Boolean
-        get() = videoSources.isNotEmpty()
-
     /**
      * The offscreen renderer for video output.
      */
@@ -49,10 +35,16 @@ class MediaMixer(
         }
     }
 
+    override val hasAudio: Boolean
+        get() = audioSources.isNotEmpty()
+
+    override val hasVideo: Boolean
+        get() = videoSources.isNotEmpty()
+
     override val coroutineContext: CoroutineContext
         get() = Dispatchers.IO
 
-    private var outputs = mutableListOf<Output>()
+    private var outputs = mutableListOf<MediaOutput>()
 
     @Volatile
     private var keepAlive = true
@@ -125,21 +117,19 @@ class MediaMixer(
         videoSources[track]?.video?.videoEffect = videoEffect
     }
 
-    /**
-     * Registers an output instance.
-     */
-    fun registerOutput(output: Output) {
+    override fun registerOutput(output: MediaOutput) {
         if (!outputs.contains(output)) {
+            output.dataSource = WeakReference(this)
+            output.screen = screen
             outputs.add(output)
         }
     }
 
-    /**
-     * Unregisters an output instance.
-     */
-    fun unregisterOutput(output: Output) {
+    override fun unregisterOutput(output: MediaOutput) {
         if (outputs.contains(output)) {
             outputs.remove(output)
+            output.screen = null
+            output.dataSource = null
         }
     }
 

@@ -116,7 +116,7 @@ class MediaProjectionService :
             getSystemService(MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
 
         // mixer.attachAudio(AudioRecordSource(this))
-        stream.attachMediaMixer(mixer)
+        mixer.registerOutput(stream)
 
         stream.listener = listener
         data?.let {

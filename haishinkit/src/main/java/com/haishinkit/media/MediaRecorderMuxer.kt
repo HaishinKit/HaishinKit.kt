@@ -1,4 +1,4 @@
-package com.haishinkit.stream
+package com.haishinkit.media
 
 import android.media.MediaCodec
 import android.media.MediaFormat
@@ -9,17 +9,16 @@ import java.lang.ref.WeakReference
 import java.nio.ByteBuffer
 import java.util.concurrent.atomic.AtomicBoolean
 
-internal class StreamRecorderMuxer(
-    stream: Stream?,
+internal class MediaRecorderMuxer(
+    private var dataSource: WeakReference<MediaOutputDataSource>?,
     private var muxer: MediaMuxer?,
 ) : Running,
     Codec.Listener {
     override val isRunning: AtomicBoolean = AtomicBoolean(false)
-    private var stream = WeakReference(stream)
     private val isReady: Boolean
         get() {
-            val hasAudio = stream.get()?.hasAudio == true
-            val hasVideo = stream.get()?.hasVideo == true
+            val hasAudio = dataSource?.get()?.hasAudio == true
+            val hasVideo = dataSource?.get()?.hasVideo == true
             if (hasAudio && hasVideo) {
                 return DEFAULT_TRACK_INDEX < audioTrackIndex && DEFAULT_TRACK_INDEX < videoTrackIndex
             }
@@ -91,6 +90,6 @@ internal class StreamRecorderMuxer(
 
     private companion object {
         private const val DEFAULT_TRACK_INDEX = -1
-        private val TAG = StreamRecorderMuxer::class.java.simpleName
+        private val TAG = MediaRecorderMuxer::class.java.simpleName
     }
 }

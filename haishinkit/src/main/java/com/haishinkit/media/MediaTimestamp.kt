@@ -1,6 +1,6 @@
 package com.haishinkit.media
 
-internal data class Timestamp(
+internal data class MediaTimestamp(
     val scale: Long = 1L,
     private var start: Long = DEFAULT_TIMESTAMP,
 ) {

@@ -9,7 +9,9 @@ import com.haishinkit.graphics.PixelTransform
 import com.haishinkit.graphics.VideoGravity
 import com.haishinkit.graphics.effect.VideoEffect
 import com.haishinkit.media.MediaMixer
+import com.haishinkit.media.MediaOutputDataSource
 import com.haishinkit.screen.Screen
+import java.lang.ref.WeakReference
 
 /**
  * A view that displays a video content of a [MediaMixer] object which uses [SurfaceView].
@@ -23,6 +25,8 @@ class HkSurfaceView
         defStyleRes: Int = 0,
     ) : SurfaceView(context, attrs, defStyleAttr, defStyleRes),
         StreamView {
+        override var dataSource: WeakReference<MediaOutputDataSource>? = null
+
         override var videoGravity: VideoGravity
             get() = pixelTransform.videoGravity
             set(value) {

@@ -21,7 +21,7 @@ import kotlin.coroutines.CoroutineContext
 /**
  * The MediaLink class can be used to synchronously play audio and video streams.
  */
-class MediaLink(
+internal class MediaLink(
     val stream: Stream,
 ) : Running,
     CoroutineScope,
@@ -77,7 +77,7 @@ class MediaLink(
             field?.removeFrameCallback(this)
             field = value
         }
-    private var videoTimestamp = Timestamp(1000L)
+    private var videoTimestamp = MediaTimestamp(1000L)
     private var videoTimestampZero: Long = -1
     private var handler: Handler? = null
         get() {

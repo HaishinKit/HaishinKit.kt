@@ -9,29 +9,28 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import com.haishinkit.stream.Stream
-import com.haishinkit.stream.StreamRecorder
+import com.haishinkit.media.MediaOutputDataSource
+import com.haishinkit.media.MediaRecorder
 
 @Composable
 fun rememberRecorderState(
     context: Context,
-    stream: Stream,
+    dataSource: MediaOutputDataSource,
 ): RecorderState =
     remember(context) {
-        RecorderState(stream, StreamRecorder(context))
+        RecorderState(dataSource, MediaRecorder(context))
     }
 
 @Stable
 class RecorderState(
-    stream: Stream,
-    private val recorder: StreamRecorder,
+    dataSource: MediaOutputDataSource,
+    private val recorder: MediaRecorder,
 ) {
+    init {
+    }
+
     var isRecording by mutableStateOf(false)
         private set
-
-    init {
-        recorder.attachStream(stream)
-    }
 
     fun startRecording(
         path: String,
