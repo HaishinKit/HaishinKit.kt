@@ -5,13 +5,16 @@ import android.hardware.SensorManager
 import android.view.OrientationEventListener
 import android.view.WindowManager
 import androidx.lifecycle.DefaultLifecycleObserver
-import androidx.lifecycle.LifecycleOwner
-import com.haishinkit.codec.AudioCodec
 import com.haishinkit.graphics.effect.VideoEffect
 import com.haishinkit.media.source.AudioSource
 import com.haishinkit.media.source.VideoSource
 import com.haishinkit.screen.Screen
 import com.haishinkit.screen.ScreenObjectContainer
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlin.coroutines.CoroutineContext
 
 /**
  * Mixing audio and video for streaming.
@@ -19,10 +22,21 @@ import com.haishinkit.screen.ScreenObjectContainer
 @Suppress("UNUSED")
 class MediaMixer(
     context: Context,
-) : DefaultLifecycleObserver {
+) : CoroutineScope,
+    DefaultLifecycleObserver {
+    interface Output {
+        fun append(buffer: MediaLink.Buffer)
+    }
+
+    /**
+     * Whether audio source is enabled or not.
+     */
     val hasAudio: Boolean
         get() = audioSources.isNotEmpty()
 
+    /**
+     * Whether video source is enabled or not.
+     */
     val hasVideo: Boolean
         get() = videoSources.isNotEmpty()
 
@@ -35,6 +49,13 @@ class MediaMixer(
         }
     }
 
+    override val coroutineContext: CoroutineContext
+        get() = Dispatchers.IO
+
+    private var outputs = mutableListOf<Output>()
+
+    @Volatile
+    private var keepAlive = true
     private var videoSources = mutableMapOf<Int, VideoSource>()
     private var audioSources = mutableMapOf<Int, AudioSource>()
     private val videoContainer: ScreenObjectContainer by lazy {
@@ -56,20 +77,21 @@ class MediaMixer(
 
     init {
         orientationEventListener.enable()
+        doAudio()
     }
 
     /**
      * Attaches a audio source.
      */
     suspend fun attachAudio(
-        channel: Int,
+        track: Int,
         audio: AudioSource?,
     ): Result<Unit> {
         if (audio != null) {
-            audioSources[channel] = audio
+            audioSources[track] = audio
             return audio.open(this)
         }
-        audioSources.remove(channel)?.close()
+        audioSources.remove(track)?.close()
         return Result.success(Unit)
     }
 
@@ -77,16 +99,16 @@ class MediaMixer(
      * Attaches a video source.
      */
     suspend fun attachVideo(
-        channel: Int,
+        track: Int,
         video: VideoSource?,
     ): Result<Unit> {
         if (video != null) {
-            videoSources[channel] = video
+            videoSources[track] = video
             return video.open(this).onSuccess {
                 videoContainer.addChild(video.video)
             }
         }
-        videoSources.remove(channel)?.let {
+        videoSources.remove(track)?.let {
             videoContainer.removeChild(it.video)
             it.close()
         }
@@ -97,27 +119,27 @@ class MediaMixer(
      * Sets a video effect.
      */
     fun setVideoEffect(
-        channel: Int,
+        track: Int,
         videoEffect: VideoEffect,
     ) {
-        videoSources[channel]?.video?.videoEffect = videoEffect
+        videoSources[track]?.video?.videoEffect = videoEffect
     }
 
     /**
-     * Registers an audio codec instance.
+     * Registers an output instance.
      */
-    fun registerAudioCodec(codec: AudioCodec) {
-        audioSources.forEach {
-            it.value.registerAudioCodec(codec)
+    fun registerOutput(output: Output) {
+        if (!outputs.contains(output)) {
+            outputs.add(output)
         }
     }
 
     /**
-     * Unregisters an audio codec instance.
+     * Unregisters an output instance.
      */
-    fun unregisterAudioCodec(codec: AudioCodec) {
-        audioSources.forEach {
-            it.value.unregisterAudioCodec(codec)
+    fun unregisterOutput(output: Output) {
+        if (outputs.contains(output)) {
+            outputs.remove(output)
         }
     }
 
@@ -125,15 +147,27 @@ class MediaMixer(
      * Disposes the stream of memory management.
      */
     fun dispose() {
+        keepAlive = false
         orientationEventListener.disable()
         audioSources.clear()
         videoSources.clear()
         screen.dispose()
     }
 
-    override fun onResume(owner: LifecycleOwner) {
-        super.onResume(owner)
-    }
+    private fun doAudio() =
+        launch {
+            while (keepAlive) {
+                if (audioSources.isEmpty()) {
+                    delay(1000)
+                }
+                audioSources.forEach { audio ->
+                    var buffer = audio.value.read(audio.key)
+                    outputs.forEach { output ->
+                        output.append(buffer)
+                    }
+                }
+            }
+        }
 
     private companion object {
         private val TAG = MediaMixer::class.java.simpleName

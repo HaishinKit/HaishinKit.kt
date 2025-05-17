@@ -1,6 +1,6 @@
 package com.haishinkit.media.source
 
-import com.haishinkit.codec.AudioCodec
+import com.haishinkit.media.MediaLink
 
 /**
  * An interface that captures an audio source.
@@ -11,13 +11,5 @@ interface AudioSource : Source {
      */
     var isMuted: Boolean
 
-    /**
-     * Registers an audio codec instance.
-     */
-    fun registerAudioCodec(codec: AudioCodec)
-
-    /**
-     * Unregisters an audio codec instance.
-     */
-    fun unregisterAudioCodec(codec: AudioCodec)
+    fun read(track: Int): MediaLink.Buffer
 }

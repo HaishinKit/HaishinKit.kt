@@ -47,9 +47,7 @@ class Camera2Source(
         }
     }
 
-    override suspend fun close() {
-        output?.close()
-    }
+    override suspend fun close(): Result<Unit> = output?.close() ?: Result.success(Unit)
 
     override fun onSurfaceChanged(surface: Surface?) {
         surface?.let { output?.createCaptureSession(it) }

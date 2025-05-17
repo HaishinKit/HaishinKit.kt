@@ -78,9 +78,10 @@ internal class Camera2Output(
             }
         }
 
-    fun close() {
+    fun close(): Result<Unit> {
         device = null
         session = null
+        return Result.success(Unit)
     }
 
     fun createCaptureSession(surface: Surface) {

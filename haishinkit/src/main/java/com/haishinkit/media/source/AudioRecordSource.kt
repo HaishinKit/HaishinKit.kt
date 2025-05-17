@@ -10,14 +10,10 @@ import android.media.MediaRecorder
 import android.os.Build
 import android.util.Log
 import androidx.core.app.ActivityCompat
-import com.haishinkit.BuildConfig
-import com.haishinkit.codec.AudioCodec
+import com.haishinkit.media.MediaLink
 import com.haishinkit.media.MediaMixer
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
+import com.haishinkit.media.MediaType
 import java.nio.ByteBuffer
-import kotlin.coroutines.CoroutineContext
 
 /**
  * An audio source that captures a microphone by the AudioRecord api.
@@ -25,15 +21,11 @@ import kotlin.coroutines.CoroutineContext
 @Suppress("MemberVisibilityCanBePrivate")
 class AudioRecordSource(
     private val context: Context,
-) : CoroutineScope,
-    AudioSource {
+) : AudioSource {
+    override var isMuted = false
     var channel = DEFAULT_CHANNEL
     var audioSource = DEFAULT_AUDIO_SOURCE
     var sampleRate = DEFAULT_SAMPLE_RATE
-    override var isMuted = false
-    override val coroutineContext: CoroutineContext
-        get() = Dispatchers.IO
-
     var minBufferSize = -1
         get() {
             if (field == -1) {
@@ -41,7 +33,6 @@ class AudioRecordSource(
             }
             return field
         }
-
     var audioRecord: AudioRecord? = null
         get() {
             if (ActivityCompat.checkSelfPermission(
@@ -58,72 +49,50 @@ class AudioRecordSource(
         }
         private set
 
-    private var codecs = mutableListOf<AudioCodec>()
     private var encoding = DEFAULT_ENCODING
     private var sampleCount = DEFAULT_SAMPLE_COUNT
     private var noSignalBuffer = ByteBuffer.allocateDirect(0)
     private var byteBuffer: ByteBuffer = ByteBuffer.allocateDirect(sampleCount * 2)
 
-    @Volatile
-    private var keepAlive = false
-
     override suspend fun open(mixer: MediaMixer): Result<Unit> {
-        doAudio()
+        try {
+            audioRecord?.startRecording()
+        } catch (e: IllegalStateException) {
+            return Result.failure(e)
+        }
         return Result.success(Unit)
     }
 
-    override suspend fun close() {
-        keepAlive = false
-    }
-
-    override fun registerAudioCodec(codec: AudioCodec) {
-        if (codecs.contains(codec)) return
-        codec.sampleRate = sampleRate
-        codecs.add(codec)
-    }
-
-    override fun unregisterAudioCodec(codec: AudioCodec) {
-        if (!codecs.contains(codec)) return
-        codecs.remove(codec)
-    }
-
-    private fun doAudio() =
-        launch {
-            keepAlive = true
-            try {
-                audioRecord?.startRecording()
-            } catch (e: IllegalStateException) {
-                Log.w(TAG, e)
-            }
-            while (keepAlive) {
-                byteBuffer.rewind()
-                val result = audioRecord?.read(byteBuffer, sampleCount * 2) ?: -1
-                if (isMuted) {
-                    if (noSignalBuffer.capacity() < result) {
-                        noSignalBuffer = ByteBuffer.allocateDirect(result)
-                    }
-                    noSignalBuffer.clear()
-                    byteBuffer.clear()
-                    byteBuffer.put(noSignalBuffer)
-                }
-                if (0 <= result) {
-                    codecs.forEach {
-                        it.append(byteBuffer)
-                    }
-                } else {
-                    if (BuildConfig.DEBUG) {
-                        Log.w(TAG, error(result))
-                    }
-                }
-            }
-            try {
-                audioRecord?.stop()
-                audioRecord?.release()
-            } catch (e: java.lang.IllegalStateException) {
-                Log.w(TAG, e)
-            }
-            audioRecord = null
+    override suspend fun close(): Result<Unit> {
+        try {
+            audioRecord?.stop()
+            audioRecord?.release()
+        } catch (e: java.lang.IllegalStateException) {
+            Log.w(TAG, e)
+            return Result.failure(e)
         }
+        return Result.success(Unit)
+    }
+
+    override fun read(track: Int): MediaLink.Buffer {
+        byteBuffer.rewind()
+        val result = audioRecord?.read(byteBuffer, sampleCount * 2) ?: -1
+        if (isMuted) {
+            if (noSignalBuffer.capacity() < result) {
+                noSignalBuffer = ByteBuffer.allocateDirect(result)
+            }
+            noSignalBuffer.clear()
+            byteBuffer.clear()
+            byteBuffer.put(noSignalBuffer)
+        }
+        return MediaLink.Buffer(
+            type = MediaType.AUDIO,
+            index = track,
+            payload = byteBuffer,
+            timestamp = 0,
+            sync = true,
+        )
+    }
 
     companion object {
         const val DEFAULT_CHANNEL = AudioFormat.CHANNEL_IN_MONO

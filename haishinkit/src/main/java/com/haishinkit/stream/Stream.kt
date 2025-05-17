@@ -25,7 +25,8 @@ import java.util.concurrent.atomic.AtomicBoolean
 @Suppress("UNUSED")
 abstract class Stream(
     private var context: Context,
-) : VideoScreenObject.OnSurfaceChangedListener {
+) : MediaMixer.Output,
+    VideoScreenObject.OnSurfaceChangedListener {
     var hasAudio: Boolean = false
         get() {
             if (mixer == null) {
@@ -79,9 +80,11 @@ abstract class Stream(
 
     protected var mixer: MediaMixer? = null
         private set(value) {
+            field?.unregisterOutput(this)
             videoCodec.pixelTransform.screen = value?.screen
             view?.screen = value?.screen
             field = value
+            field?.registerOutput(this)
         }
 
     protected var mode = Codec.MODE_ENCODE
@@ -124,20 +127,6 @@ abstract class Stream(
     abstract fun close()
 
     /**
-     * Registers an audio codec instance.
-     */
-    fun registerAudioCodec(codec: AudioCodec) {
-        mixer?.registerAudioCodec(codec)
-    }
-
-    /**
-     * Unregisters an audio codec instance.
-     */
-    fun unregisterAudioCodec(codec: AudioCodec) {
-        mixer?.unregisterAudioCodec(codec)
-    }
-
-    /**
      * Disposes the stream of memory management.
      */
     open fun dispose() {
@@ -145,6 +134,20 @@ abstract class Stream(
         mixer = null
         audioCodec.dispose()
         videoCodec.dispose()
+    }
+
+    override fun append(buffer: Buffer) {
+        if (!isRunning.get()) return
+        when (buffer.type) {
+            MediaType.AUDIO -> {
+                buffer.payload?.let {
+                    audioCodec.append(it)
+                }
+            }
+
+            MediaType.VIDEO -> {
+            }
+        }
     }
 
     override fun onSurfaceChanged(surface: Surface?) {
@@ -217,7 +220,10 @@ abstract class Stream(
         }
         when (mode) {
             Codec.MODE_ENCODE -> {
-                if (mixer?.hasVideo == true) {
+                if (hasAudio) {
+                    audioCodec.startRunning()
+                }
+                if (hasVideo) {
                     videoCodec.startRunning()
                 }
             }
@@ -238,7 +244,6 @@ abstract class Stream(
         }
         when (mode) {
             Codec.MODE_ENCODE -> {
-                mixer?.unregisterAudioCodec(audioCodec)
             }
 
             Codec.MODE_DECODE -> {

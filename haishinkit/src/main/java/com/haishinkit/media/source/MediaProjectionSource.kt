@@ -117,10 +117,11 @@ class MediaProjectionSource(
         return Result.success(Unit)
     }
 
-    override suspend fun close() {
+    override suspend fun close(): Result<Unit> {
         mediaProjection.unregisterCallback(callback)
         mediaProjection.stop()
         virtualDisplay = null
+        return Result.success(Unit)
     }
 
     override fun onSurfaceChanged(surface: Surface?) {

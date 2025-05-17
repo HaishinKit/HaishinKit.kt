@@ -14,5 +14,5 @@ interface Source {
     /**
      * Closes a source.
      */
-    suspend fun close()
+    suspend fun close(): Result<Unit>
 }

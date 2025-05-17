@@ -117,11 +117,9 @@ class StreamRecorder(
         audioCodec.startRunning()
         videoCodec.listener = muxer
         videoCodec.startRunning()
-        stream?.registerAudioCodec(audioCodec)
     }
 
     private fun stopRunning() {
-        stream?.unregisterAudioCodec(audioCodec)
         audioCodec.stopRunning()
         audioCodec.listener = null
         videoCodec.stopRunning()
