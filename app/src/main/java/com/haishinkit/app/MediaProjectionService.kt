@@ -9,6 +9,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.ServiceInfo
+import android.graphics.Rect
 import android.media.projection.MediaProjectionManager
 import android.os.Build
 import android.os.Handler
@@ -19,20 +20,42 @@ import android.os.Messenger
 import android.util.Log
 import androidx.annotation.RequiresApi
 import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
+import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
-import com.haishinkit.graphics.effect.LanczosVideoEffect
-import com.haishinkit.graphics.effect.VideoEffect
 import com.haishinkit.media.MediaMixer
+import com.haishinkit.media.source.AudioRecordSource
 import com.haishinkit.media.source.MediaProjectionSource
 import com.haishinkit.stream.StreamSession
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlin.coroutines.CoroutineContext
 
-class MediaProjectionService : Service() {
-    private lateinit var mixer: MediaMixer
-    private lateinit var session: StreamSession
-    private lateinit var videoSource: MediaProjectionSource
+class MediaProjectionService :
+    Service(),
+    CoroutineScope {
+    override val coroutineContext: CoroutineContext
+        get() = Dispatchers.IO
+
+    private val mixer: MediaMixer by lazy {
+        MediaMixer(applicationContext).apply {
+            registerOutput(session.stream)
+        }
+    }
+    private val session: StreamSession by lazy {
+        StreamSession.Builder(applicationContext, Preference.shared.rtmpURL.toUri()).build()
+    }
+    private val notificationManager by lazy { NotificationManagerCompat.from(this) }
+    private val mediaProjectionManager by lazy {
+        getSystemService(MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
+    }
     private val localBroadcastManager: LocalBroadcastManager by lazy {
         LocalBroadcastManager.getInstance(this)
+    }
+    private val messenger: Messenger by lazy {
+        Messenger(handler)
     }
     private val isRunningReceiver =
         object : BroadcastReceiver() {
@@ -42,40 +65,26 @@ class MediaProjectionService : Service() {
             ) {
             }
         }
-    private var messenger: Messenger? = null
     private var handler =
         object : Handler(Looper.getMainLooper()) {
             override fun handleMessage(msg: Message) {
                 when (msg.what) {
                     MSG_CONNECT -> {
-                        // session.connect(StreamSession.Method.INGEST)
+                        Log.i(TAG, "MSG_CONNECT")
                     }
 
                     MSG_CLOSE -> {
                         Log.i(TAG, "MSG_CLOSE")
-                        // session.close()
-                        stopSelf()
-                    }
-
-                    MSG_SET_VIDEO_EFFECT -> {
-                        if (msg.obj is LanczosVideoEffect) {
-                            val lanczosVideoEffect = msg.obj as LanczosVideoEffect
-                            lanczosVideoEffect.texelWidth =
-                                videoSource.video.videoSize.width
-                                    .toFloat()
-                            lanczosVideoEffect.texelHeight =
-                                videoSource.video.videoSize.height
-                                    .toFloat()
-                            mixer.screen.videoEffect = lanczosVideoEffect
-                            return
+                        launch {
+                            session.close()
                         }
-                        mixer.screen.videoEffect = msg.obj as VideoEffect
+                        stopSelf()
                     }
                 }
             }
         }
 
-    override fun onBind(intent: Intent?): IBinder? = messenger?.binder
+    override fun onBind(intent: Intent?): IBinder? = messenger.binder
 
     @RequiresApi(Build.VERSION_CODES.O)
     override fun onStartCommand(
@@ -84,53 +93,49 @@ class MediaProjectionService : Service() {
         startId: Int,
     ): Int {
         Log.i(TAG, "onStartCommand")
-        val manager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
-        if (manager.getNotificationChannel(CHANNEL_ID) == null) {
+        if (notificationManager.getNotificationChannel(CHANNEL_ID) == null) {
             val channel =
                 NotificationChannel(CHANNEL_ID, CHANNEL_NAME, NotificationManager.IMPORTANCE_LOW)
             channel.description = CHANNEL_DESC
             channel.setSound(null, null)
-            manager.createNotificationChannel(channel)
+            notificationManager.createNotificationChannel(channel)
         }
-        val notification =
-            NotificationCompat
-                .Builder(this, CHANNEL_ID)
-                .apply {
-                    setColorized(true)
-                    setSmallIcon(R.mipmap.ic_launcher)
-                    setStyle(NotificationCompat.DecoratedCustomViewStyle())
-                    setContentTitle(NOTIFY_TITLE)
-                }.build()
-        if (Build.VERSION_CODES.Q <= Build.VERSION.SDK_INT) {
-            startForeground(ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION)
-        } else {
-            startForeground(ID, notification)
-        }
-        val mediaProjectionManager =
-            getSystemService(MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
-
-        // mixer.attachAudio(AudioRecordSource(this))
-        mixer.registerOutput(session.stream)
-        data?.let {
-            val source =
-                MediaProjectionSource(
-                    this,
-                    mediaProjectionManager.getMediaProjection(Activity.RESULT_OK, it),
-                )
-            // mixer.attachVideo(0, source)
-            // stream.videoSetting.width = source.video.videoSize.width shr 2
-            // stream.videoSetting.height = source.video.videoSize.height shr 2
-            videoSource = source
+        NotificationCompat
+            .Builder(this, CHANNEL_ID)
+            .apply {
+                setColorized(true)
+                setSmallIcon(R.mipmap.ic_launcher)
+                setStyle(NotificationCompat.DecoratedCustomViewStyle())
+                setContentTitle(NOTIFY_TITLE)
+            }.build()
+            .apply {
+                if (Build.VERSION_CODES.Q <= Build.VERSION.SDK_INT) {
+                    startForeground(ID, this, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION)
+                } else {
+                    startForeground(ID, this)
+                }
+            }
+        launch {
+            mixer.attachAudio(0, AudioRecordSource(applicationContext))
+            intent?.getParcelableExtra<Intent>(EXTRA_RESULT_DATA)?.let {
+                val source =
+                    MediaProjectionSource(
+                        applicationContext,
+                        mediaProjectionManager.getMediaProjection(Activity.RESULT_OK, it),
+                    )
+                mixer.attachVideo(0, source).onSuccess {
+                    Log.i(TAG, "${source.video.videoSize}")
+                    mixer.screen.frame =
+                        Rect(0, 0, source.video.videoSize.width, source.video.videoSize.height)
+                    session.connect(StreamSession.Method.INGEST)
+                }
+            }
         }
         return START_NOT_STICKY
     }
 
     override fun onCreate() {
         super.onCreate()
-        mixer = MediaMixer(applicationContext)
-        messenger = Messenger(handler)
-        session =
-            StreamSession.Builder(applicationContext, Preference.shared.rtmpURL.toUri()).build()
         localBroadcastManager.registerReceiver(
             isRunningReceiver,
             IntentFilter(ACTION_SERVICE_RUNNING),
@@ -151,13 +156,27 @@ class MediaProjectionService : Service() {
         const val CHANNEL_NAME = "MediaProjectionService"
         const val CHANNEL_DESC = ""
         const val NOTIFY_TITLE = "Recording."
-
-        var data: Intent? = null
         const val MSG_CONNECT = 0
         const val MSG_CLOSE = 1
         const val MSG_SET_VIDEO_EFFECT = 2
+        const val MSG_SET_MEDIA_PROJECTION = 3
 
+        private const val EXTRA_RESULT_CODE = "EXTRA_RESULT_CODE"
+        private const val EXTRA_RESULT_DATA = "EXTRA_RESULT_DATA"
         private val TAG = MediaProjectionSource::class.java.simpleName
+
+        fun startService(
+            context: Context,
+            resultCode: Int,
+            resultData: Intent?,
+        ) = Intent(context, MediaProjectionService::class.java)
+            .apply {
+                putExtra(EXTRA_RESULT_CODE, resultCode)
+                putExtra(EXTRA_RESULT_DATA, resultData)
+            }.apply {
+                ContextCompat.startForegroundService(context, this)
+                return this
+            }
 
         fun isRunning(context: Context): Boolean = LocalBroadcastManager.getInstance(context).sendBroadcast(Intent(ACTION_SERVICE_RUNNING))
     }

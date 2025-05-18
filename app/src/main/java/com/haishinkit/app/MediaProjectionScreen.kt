@@ -6,7 +6,6 @@ import android.content.ComponentName
 import android.content.Intent
 import android.content.ServiceConnection
 import android.media.projection.MediaProjectionManager
-import android.os.Build
 import android.os.IBinder
 import android.os.Message
 import android.os.Messenger
@@ -65,15 +64,9 @@ fun MediaProjectionScreen(modifier: Modifier = Modifier) {
     val startMediaProjection =
         rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
             if (result.resultCode == RESULT_OK) {
-                MediaProjectionService.data = result.data
-                Intent(context, MediaProjectionService::class.java).also { intent ->
-                    if (Build.VERSION_CODES.O <= Build.VERSION.SDK_INT) {
-                        context.startForegroundService(intent)
-                    } else {
-                        context.startService(intent)
-                    }
-                    context.bindService(intent, connection, 0)
-                }
+                var intent =
+                    MediaProjectionService.startService(context, result.resultCode, result.data)
+                context.bindService(intent, connection, 0)
                 Log.i(TAG, "mediaProjectionManager success")
             }
         }

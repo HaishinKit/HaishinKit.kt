@@ -112,7 +112,7 @@ class MediaProjectionSource(
 
     override suspend fun open(mixer: MediaMixer): Result<Unit> {
         // Android 14 must register an callback.
-        mediaProjection.registerCallback(callback, null)
+        mediaProjection.registerCallback(callback, handler)
         video.videoSize = displaySize
         return Result.success(Unit)
     }
@@ -125,6 +125,7 @@ class MediaProjectionSource(
     }
 
     override fun onSurfaceChanged(surface: Surface?) {
+        if (surface == null) return
         handler?.post {
             virtualDisplay =
                 mediaProjection.createVirtualDisplay(
