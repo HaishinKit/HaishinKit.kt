@@ -32,10 +32,10 @@ Issues/Discussions with priority response.
 
 ## 🌏 Related projects
 
- Project name                                                                                    | Notes                                                         | License                                                                                                          
--------------------------------------------------------------------------------------------------|---------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------
- [HaishinKit for iOS, macOS, tvOS and visionOS.](https://github.com/HaishinKit/HaishinKit.swift) | Camera and Microphone streaming library via RTMP for Android. | [BSD 3-Clause "New" or "Revised" License](https://github.com/HaishinKit/HaishinKit.swift/blob/master/LICENSE.md) 
- [HaishinKit for Flutter.](https://github.com/HaishinKit/HaishinKit.dart)                        | Camera and Microphone streaming library via RTMP for Flutter. | [BSD 3-Clause "New" or "Revised" License](https://github.com/HaishinKit/HaishinKit.dart/blob/master/LICENSE.md)  
+| Project name                                                                                    | Notes                                                         | License                                                                                                          |
+|-------------------------------------------------------------------------------------------------|---------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------|
+| [HaishinKit for iOS, macOS, tvOS and visionOS.](https://github.com/HaishinKit/HaishinKit.swift) | Camera and Microphone streaming library via RTMP for Android. | [BSD 3-Clause "New" or "Revised" License](https://github.com/HaishinKit/HaishinKit.swift/blob/master/LICENSE.md) |
+| [HaishinKit for Flutter.](https://github.com/HaishinKit/HaishinKit.dart)                        | Camera and Microphone streaming library via RTMP for Flutter. | [BSD 3-Clause "New" or "Revised" License](https://github.com/HaishinKit/HaishinKit.dart/blob/master/LICENSE.md)  |
 
 ## 🎨 Features
 
@@ -64,9 +64,10 @@ Now support local recording. Additionally, you can specify separate videoSetting
 from the live stream.
 
 ```kt
-val recorder: StreamRecorder by lazy { StreamRecorder(requireContext()) }
+var mixer = MediaMixer(context)
+var recorder = MediaRecorder(context)
+mixer.registerOutput(recorder)
 recorder.videoSettings.profileLevel = VideoCodecProfileLevel.HEVC_MAIN_3_1
-recorder.attachStream(stream)
 recorder.startRecording(
     File(
         Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
@@ -109,10 +110,10 @@ recorder.startRecording(
 ```kt
 stream.audioSettings.bitrate = 32 * 1000
 
-stream.videoSettings.width = 640 // The width resoulution of video output.
-stream.videoSettings.height = 360 // The height resoulution of video output.
+stream.videoSettings.width = 640 // The width resolution of video output.
+stream.videoSettings.height = 360 // The height resolution of video output.
 stream.videoSettings.bitrate = 160 * 1000 // The bitRate of video output.
-stream.videoSettings.IFrameInterval = 2 // The key-frmae interval
+stream.videoSettings.IFrameInterval = 2 // The keyframe interval
 ```
 
 ### Offscreen Rendering.
@@ -126,7 +127,7 @@ display.
 </p>
 
 ```kt
-mixer.attachVideo(cameraSource)
+mixer.attachVideo(0, cameraSource)
 
 val text = TextScreenObject()
 text.textSize = 60f
@@ -134,22 +135,14 @@ text.textValue = "23:44:56"
 text.layoutMargins.set(0, 0, 16, 16)
 text.horizontalAlignment = ScreenObject.HORIZONTAL_ALIGNMENT_RIGHT
 text.verticalAlignment = ScreenObject.VERTICAL_ALIGNMENT_BOTTOM
-stream.screen.addChild(text)
+mixer.screen.addChild(text)
 
 val image = ImageScreenObject()
 image.bitmap = BitmapFactory.decodeResource(resources, R.drawable.game_jikkyou)
 image.verticalAlignment = ScreenObject.VERTICAL_ALIGNMENT_BOTTOM
 image.frame.set(0, 0, 180, 180)
-stream.screen.addChild(image)
+mixer.screen.addChild(image)
 ```
-
-## 🌏 Architecture Overview
-
-### Publishing Feature
-
-<p align="center">
-  <img width="732" alt="" src="https://user-images.githubusercontent.com/810189/164874912-3cdc0dde-2cfb-4c94-9404-eeb2ff6091ac.png">
-</p>
 
 ## 🐾 Examples
 
@@ -161,7 +154,6 @@ Examples project are available for Android.
 ```sh
 git clone https://github.com/HaishinKit/HaishinKit.kt.git
 cd HaishinKit.kt
-git submodule update --init
 
 # Open [Android Studio] -> [Open] ...
 ```
@@ -186,6 +178,7 @@ allprojects {
 
 dependencies {
   implementation 'com.github.HaishinKit.HaishinKit~kt:haishinkit:x.x.x'
+  implementation 'com.github.HaishinKit.HaishinKit~kt:rtmp:x.x.x'
   implementation 'com.github.HaishinKit.HaishinKit~kt:compose:x.x.x'
   implementation 'com.github.HaishinKit.HaishinKit~kt:lottie:x.x.x'
 }
@@ -196,15 +189,17 @@ dependencies {
 | -          | minSdk | Android | Requirements | Status | Description                                                              |
 |:-----------|:-------|:--------|:-------------|:-------|:-------------------------------------------------------------------------|
 | haishinkit | 21+    | 5       | Require      | Stable | It's the base module for HaishinKit.                                     |
+| rtmp       | 21+    | 5       | Require      | Stable | It's support for an rtmp streaming.                                      |
 | compose    | 21+    | 5       | Optional     | Beta   | It's support for a composable component for HaishinKit.                  |
 | lottie     | 21+    | 5       | Optional     | Beta   | It's a module for embedding Lottie animations into live streaming video. |
 
 ### Android manifest
 
 ```xml
-<uses-permission android:name="android.permission.INTERNET" />
-<uses-permission android:name="android.permission.CAMERA" />
-<uses-permission android:name="android.permission.RECORD_AUDIO" />
+
+<uses-permission android:name="android.permission.INTERNET" /><uses-permission
+android:name="android.permission.CAMERA" /><uses-permission
+android:name="android.permission.RECORD_AUDIO" />
 ```
 
 ### Prerequisites
