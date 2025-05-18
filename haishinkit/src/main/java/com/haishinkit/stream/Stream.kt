@@ -230,7 +230,7 @@ abstract class Stream(
             }
 
             Codec.MODE_DECODE -> {
-                screen?.addChild(video)
+                screen.addChild(video)
                 mediaLink.startRunning()
             }
         }
@@ -249,7 +249,7 @@ abstract class Stream(
 
             Codec.MODE_DECODE -> {
                 mediaLink.stopRunning()
-                screen?.removeChild(video)
+                screen.removeChild(video)
                 hasAudio = false
                 hasVideo = false
             }

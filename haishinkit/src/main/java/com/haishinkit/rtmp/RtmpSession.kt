@@ -53,7 +53,7 @@ internal class RtmpSession(
     override fun handleEvent(event: Event) {
         val data = EventUtils.toMap(event)
         if (BuildConfig.DEBUG) {
-            Log.d(TAG, "$data['code']")
+            Log.d(TAG, "$data")
         }
         when (data["code"]) {
             RtmpConnection.Code.CONNECT_SUCCESS.rawValue -> {
@@ -69,9 +69,6 @@ internal class RtmpSession(
             }
 
             else -> {
-                if (connection.isConnected) {
-                    connection.close()
-                }
                 continuation?.resume(Result.failure(RtmpStatusException("${data["code"]}")))
                 continuation = null
             }

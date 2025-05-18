@@ -432,7 +432,7 @@ class RtmpStream(
     internal fun configure(decoderConfigurationRecord: DecoderConfigurationRecord): Boolean {
         if (decoderConfigurationRecord.configure(videoCodec)) {
             decoderConfigurationRecord.videoSize?.let {
-                screen?.frame = Rect(0, 0, it.width, it.height)
+                screen.frame = Rect(0, 0, it.width, it.height)
                 video.videoSize = it
             }
             videoCodec.startRunning()
