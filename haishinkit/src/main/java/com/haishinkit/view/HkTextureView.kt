@@ -9,9 +9,9 @@ import android.view.TextureView
 import com.haishinkit.graphics.PixelTransform
 import com.haishinkit.graphics.VideoGravity
 import com.haishinkit.graphics.effect.VideoEffect
+import com.haishinkit.media.MediaBuffer
 import com.haishinkit.media.MediaMixer
 import com.haishinkit.media.MediaOutputDataSource
-import com.haishinkit.screen.Screen
 import java.lang.ref.WeakReference
 
 /**
@@ -28,6 +28,10 @@ class HkTextureView
         StreamView,
         TextureView.SurfaceTextureListener {
         override var dataSource: WeakReference<MediaOutputDataSource>? = null
+            set(value) {
+                field = value
+                pixelTransform.screen = value?.get()?.screen
+            }
 
         override var videoGravity: VideoGravity
             get() = pixelTransform.videoGravity
@@ -45,12 +49,6 @@ class HkTextureView
             get() = pixelTransform.videoEffect
             set(value) {
                 pixelTransform.videoEffect = value
-            }
-
-        override var screen: Screen?
-            get() = pixelTransform.screen
-            set(value) {
-                pixelTransform.screen = value
             }
 
         private val pixelTransform: PixelTransform by lazy { PixelTransform.create(context) }
@@ -82,6 +80,9 @@ class HkTextureView
         }
 
         override fun onSurfaceTextureUpdated(surface: SurfaceTexture) {
+        }
+
+        override fun append(buffer: MediaBuffer) {
         }
 
         private companion object {

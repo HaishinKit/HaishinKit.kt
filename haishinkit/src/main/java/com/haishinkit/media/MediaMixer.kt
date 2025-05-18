@@ -26,20 +26,17 @@ class MediaMixer(
 ) : MediaOutputDataSource,
     CoroutineScope,
     DefaultLifecycleObserver {
-    /**
-     * The offscreen renderer for video output.
-     */
-    val screen: Screen by lazy {
-        Screen.create(context).apply {
-            addChild(videoContainer)
-        }
-    }
-
     override val hasAudio: Boolean
         get() = audioSources.isNotEmpty()
 
     override val hasVideo: Boolean
         get() = videoSources.isNotEmpty()
+
+    override val screen: Screen by lazy {
+        Screen.create(context).apply {
+            addChild(videoContainer)
+        }
+    }
 
     override val coroutineContext: CoroutineContext
         get() = Dispatchers.IO
@@ -120,7 +117,6 @@ class MediaMixer(
     override fun registerOutput(output: MediaOutput) {
         if (!outputs.contains(output)) {
             output.dataSource = WeakReference(this)
-            output.screen = screen
             outputs.add(output)
         }
     }
@@ -128,7 +124,6 @@ class MediaMixer(
     override fun unregisterOutput(output: MediaOutput) {
         if (outputs.contains(output)) {
             outputs.remove(output)
-            output.screen = null
             output.dataSource = null
         }
     }

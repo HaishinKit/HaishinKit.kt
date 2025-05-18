@@ -29,7 +29,27 @@ abstract class Stream(
 ) : MediaOutput,
     MediaOutputDataSource,
     VideoScreenObject.OnSurfaceChangedListener {
+    /**
+     * Specifies the video codec settings.
+     */
+    val videoSetting: VideoCodec.Setting by lazy {
+        VideoCodec.Setting(videoCodec)
+    }
+
+    /**
+     * Specifies the audio codec settings.
+     */
+    val audioSetting: AudioCodec.Setting by lazy {
+        AudioCodec.Setting(audioCodec)
+    }
+
     override var dataSource: WeakReference<MediaOutputDataSource>? = null
+        set(value) {
+            field = value
+            outputs.forEach {
+                it.dataSource = value
+            }
+        }
 
     override var hasAudio: Boolean = false
         get() {
@@ -47,30 +67,13 @@ abstract class Stream(
             return field
         }
 
-    /**
-     * The offscreen renderer for video output.
-     */
-    override var screen: Screen? = null
-        set(value) {
-            field = value
-            outputs.forEach {
-                it.screen = value
+    override val screen: Screen = Screen.create(context)
+        get() {
+            if (dataSource != null) {
+                return dataSource?.get()?.screen ?: field
             }
+            return field
         }
-
-    /**
-     * Specifies the video codec settings.
-     */
-    val videoSetting: VideoCodec.Setting by lazy {
-        VideoCodec.Setting(videoCodec)
-    }
-
-    /**
-     * Specifies the audio codec settings.
-     */
-    val audioSetting: AudioCodec.Setting by lazy {
-        AudioCodec.Setting(audioCodec)
-    }
 
     internal val mediaLink: MediaLink by lazy {
         MediaLink(this)
@@ -104,7 +107,6 @@ abstract class Stream(
     override fun registerOutput(output: MediaOutput) {
         if (!outputs.contains(output)) {
             output.dataSource = WeakReference(this)
-            output.screen = screen
             outputs.add(output)
         }
     }
@@ -112,7 +114,6 @@ abstract class Stream(
     override fun unregisterOutput(output: MediaOutput) {
         if (outputs.contains(output)) {
             outputs.remove(output)
-            output.screen = null
             output.dataSource = null
         }
     }

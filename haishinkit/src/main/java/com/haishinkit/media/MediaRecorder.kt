@@ -7,7 +7,6 @@ import android.util.Log
 import androidx.annotation.RequiresApi
 import com.haishinkit.codec.AudioCodec
 import com.haishinkit.codec.VideoCodec
-import com.haishinkit.screen.Screen
 import java.io.FileDescriptor
 import java.lang.ref.WeakReference
 
@@ -22,11 +21,12 @@ import java.lang.ref.WeakReference
  *
  * ### Code
  * ```kotlin
- * var recorder = [StreamRecorder](context)
+ * var mixer = MediaMixer(context)
+ * var recorder = [MediaRecorder](context)
+ * mixer.registerOutput(recorder)
  * if (recorder.isRecording) {
  *   recorder.stopRecording()
  * } else {
- *   recorder.attachStream(stream)
  *   recorder.startRecording(
  *     File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "output.mp4").toString(),
  *     MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4
@@ -59,11 +59,9 @@ class MediaRecorder(
     }
 
     override var dataSource: WeakReference<MediaOutputDataSource>? = null
-    override var screen: Screen? = null
         set(value) {
-            if (field == value) return
-            videoCodec.pixelTransform.screen = value
             field = value
+            videoCodec.pixelTransform.screen = dataSource?.get()?.screen
         }
 
     private var muxer: MediaRecorderMuxer? = null

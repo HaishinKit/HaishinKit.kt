@@ -29,6 +29,9 @@ internal class PixelTransform(
     override var screen: Screen? = null
         set(value) {
             if (value == field) return
+            if (field != null) {
+                stopRunning()
+            }
             field = value
             if (value == null) {
                 stopRunning()
