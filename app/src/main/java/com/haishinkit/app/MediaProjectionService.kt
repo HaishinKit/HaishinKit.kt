@@ -19,23 +19,17 @@ import android.os.Messenger
 import android.util.Log
 import androidx.annotation.RequiresApi
 import androidx.core.app.NotificationCompat
+import androidx.core.net.toUri
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
-import com.haishinkit.event.Event
-import com.haishinkit.event.EventUtils
-import com.haishinkit.event.IEventListener
 import com.haishinkit.graphics.effect.LanczosVideoEffect
 import com.haishinkit.graphics.effect.VideoEffect
 import com.haishinkit.media.MediaMixer
 import com.haishinkit.media.source.MediaProjectionSource
-import com.haishinkit.rtmp.RtmpConnection
-import com.haishinkit.rtmp.RtmpStream
+import com.haishinkit.stream.StreamSession
 
-class MediaProjectionService :
-    Service(),
-    IEventListener {
+class MediaProjectionService : Service() {
     private lateinit var mixer: MediaMixer
-    private lateinit var stream: RtmpStream
-    private lateinit var connection: RtmpConnection
+    private lateinit var session: StreamSession
     private lateinit var videoSource: MediaProjectionSource
     private val localBroadcastManager: LocalBroadcastManager by lazy {
         LocalBroadcastManager.getInstance(this)
@@ -54,12 +48,12 @@ class MediaProjectionService :
             override fun handleMessage(msg: Message) {
                 when (msg.what) {
                     MSG_CONNECT -> {
-                        connection.connect(Preference.shared.rtmpURL)
+                        // session.connect(StreamSession.Method.INGEST)
                     }
 
                     MSG_CLOSE -> {
                         Log.i(TAG, "MSG_CLOSE")
-                        connection.close()
+                        // session.close()
                         stopSelf()
                     }
 
@@ -116,9 +110,7 @@ class MediaProjectionService :
             getSystemService(MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
 
         // mixer.attachAudio(AudioRecordSource(this))
-        mixer.registerOutput(stream)
-
-        stream.listener = listener
+        mixer.registerOutput(session.stream)
         data?.let {
             val source =
                 MediaProjectionSource(
@@ -126,13 +118,10 @@ class MediaProjectionService :
                     mediaProjectionManager.getMediaProjection(Activity.RESULT_OK, it),
                 )
             // mixer.attachVideo(0, source)
-            stream.videoSetting.width = source.video.videoSize.width shr 2
-            stream.videoSetting.height = source.video.videoSize.height shr 2
+            // stream.videoSetting.width = source.video.videoSize.width shr 2
+            // stream.videoSetting.height = source.video.videoSize.height shr 2
             videoSource = source
-            Log.e(TAG, "${stream.videoSetting.width}:${stream.videoSetting.height}")
         }
-
-        connection.connect(Preference.shared.rtmpURL)
         return START_NOT_STICKY
     }
 
@@ -140,9 +129,8 @@ class MediaProjectionService :
         super.onCreate()
         mixer = MediaMixer(applicationContext)
         messenger = Messenger(handler)
-        connection = RtmpConnection()
-        connection.addEventListener(Event.RTMP_STATUS, this)
-        stream = RtmpStream(applicationContext, connection)
+        session =
+            StreamSession.Builder(applicationContext, Preference.shared.rtmpURL.toUri()).build()
         localBroadcastManager.registerReceiver(
             isRunningReceiver,
             IntentFilter(ACTION_SERVICE_RUNNING),
@@ -152,18 +140,7 @@ class MediaProjectionService :
     override fun onDestroy() {
         super.onDestroy()
         mixer.dispose()
-        connection.dispose()
         localBroadcastManager.unregisterReceiver(isRunningReceiver)
-    }
-
-    override fun handleEvent(event: Event) {
-        Log.i(TAG, event.toString())
-        val data = EventUtils.toMap(event)
-        val code = data["code"].toString()
-        if (code == RtmpConnection.Code.CONNECT_SUCCESS.rawValue) {
-            stream.publish(Preference.shared.streamName)
-        }
-        Log.i(TAG, code)
     }
 
     companion object {
@@ -176,8 +153,6 @@ class MediaProjectionService :
         const val NOTIFY_TITLE = "Recording."
 
         var data: Intent? = null
-        var listener: RtmpStream.Listener? = null
-
         const val MSG_CONNECT = 0
         const val MSG_CLOSE = 1
         const val MSG_SET_VIDEO_EFFECT = 2

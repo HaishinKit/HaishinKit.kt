@@ -1,3 +1,3 @@
 package com.haishinkit.util
 
-internal fun Byte.toPositiveInt() = toInt() and 0xFF
+fun Byte.toPositiveInt() = toInt() and 0xFF

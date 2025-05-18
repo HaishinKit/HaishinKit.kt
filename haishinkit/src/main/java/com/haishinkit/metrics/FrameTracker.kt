@@ -4,7 +4,7 @@ import android.util.Log
 import kotlin.math.pow
 import kotlin.math.sqrt
 
-internal class FrameTracker {
+class FrameTracker {
     private class Frame(
         val type: String,
     ) {

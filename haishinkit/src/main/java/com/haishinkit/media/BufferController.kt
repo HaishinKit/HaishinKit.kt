@@ -5,7 +5,7 @@ import android.util.Log
 import java.util.concurrent.LinkedBlockingDeque
 import java.util.concurrent.atomic.AtomicInteger
 
-internal class BufferController<T>(
+class BufferController<T>(
     suffix: String,
 ) : Object() {
     interface Listener {

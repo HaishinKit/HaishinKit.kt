@@ -32,7 +32,7 @@ object MediaFormatUtil {
         return height
     }
 
-    internal fun createAudioTrack(mediaFormat: MediaFormat): AudioTrack {
+    fun createAudioTrack(mediaFormat: MediaFormat): AudioTrack {
         val sampleRate = mediaFormat.getInteger(MediaFormat.KEY_SAMPLE_RATE)
         val channelCount = mediaFormat.getInteger(MediaFormat.KEY_CHANNEL_COUNT)
         val channelMask =

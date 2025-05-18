@@ -2,7 +2,7 @@ package com.haishinkit.util
 
 import java.nio.ByteBuffer
 
-internal fun ByteBuffer.toHexString(): String {
+fun ByteBuffer.toHexString(): String {
     val builder = StringBuilder()
     val newPosition = position()
     while (hasRemaining()) {

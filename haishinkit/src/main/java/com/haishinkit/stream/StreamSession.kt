@@ -2,13 +2,11 @@ package com.haishinkit.stream
 
 import android.content.Context
 import android.net.Uri
-import com.haishinkit.rtmp.RtmpConnection
-import com.haishinkit.rtmp.RtmpSession
 
 /**
  * [StreamSession] is a session for live streaming.
  *
- * Streaming with [RtmpConnection] is difficult to use because it requires many idioms.
+ * Streaming with [com.haishinkit.rtmp.RtmpConnection] is difficult to use because it requires many idioms.
  * This is a helper class specialized for a one-connection, one-stream setup.
  */
 interface StreamSession {
@@ -24,7 +22,28 @@ interface StreamSession {
         private val context: Context,
         private val uri: Uri,
     ) {
-        fun build(): StreamSession = RtmpSession(context, uri)
+        companion object {
+            private var factoryMap = mutableMapOf<String, StreamSessionFactory>()
+
+            /**
+             * Registers a stream session factory.
+             */
+            fun registerFactory(factory: StreamSessionFactory) {
+                factory.protocols.forEach {
+                    factoryMap[it] = factory
+                }
+            }
+        }
+
+        fun build(): StreamSession {
+            val scheme = uri.scheme
+            for (factory in factoryMap) {
+                if (factory.key == scheme) {
+                    return factory.value.create(context, uri)
+                }
+            }
+            throw NullPointerException()
+        }
     }
 
     /**

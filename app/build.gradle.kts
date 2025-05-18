@@ -39,6 +39,7 @@ android {
 
 dependencies {
     implementation(project(":haishinkit"))
+    implementation(project(":rtmp"))
     implementation(project(":lottie"))
     implementation(project(":compose"))
     implementation(libs.accompanist.permissions)

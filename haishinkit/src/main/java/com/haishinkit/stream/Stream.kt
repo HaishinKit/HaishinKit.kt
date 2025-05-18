@@ -13,7 +13,6 @@ import com.haishinkit.media.MediaLink
 import com.haishinkit.media.MediaOutput
 import com.haishinkit.media.MediaOutputDataSource
 import com.haishinkit.media.MediaType
-import com.haishinkit.rtmp.RtmpStream
 import com.haishinkit.screen.Screen
 import com.haishinkit.screen.VideoScreenObject
 import java.lang.ref.WeakReference
@@ -21,7 +20,7 @@ import java.nio.ByteBuffer
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
- * The Stream class is the foundation of a [RtmpStream].
+ * The Stream class is the foundation of a [com.haishinkit.rtmp.RtmpStream].
  */
 @Suppress("UNUSED")
 abstract class Stream(
@@ -75,7 +74,7 @@ abstract class Stream(
             return field
         }
 
-    internal val mediaLink: MediaLink by lazy {
+    val mediaLink: MediaLink by lazy {
         MediaLink(this)
     }
 
@@ -155,7 +154,7 @@ abstract class Stream(
         videoCodec.surface = surface
     }
 
-    internal fun queueOutputBuffer(
+    fun queueOutputBuffer(
         type: MediaType,
         index: Int,
         payload: ByteBuffer?,
