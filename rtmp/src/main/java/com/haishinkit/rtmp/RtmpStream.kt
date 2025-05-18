@@ -23,7 +23,7 @@ import java.util.concurrent.atomic.AtomicInteger
  */
 @Suppress("UNUSED", "MemberVisibilityCanBePrivate")
 class RtmpStream(
-    internal var context: Context,
+    context: Context,
     internal var connection: RtmpConnection,
 ) : Stream(context),
     IEventDispatcher {

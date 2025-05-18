@@ -45,6 +45,7 @@ abstract class Stream(
     override var dataSource: WeakReference<MediaOutputDataSource>? = null
         set(value) {
             field = value
+            videoCodec.pixelTransform.screen = value?.get()?.screen
             outputs.forEach {
                 it.dataSource = value
             }
