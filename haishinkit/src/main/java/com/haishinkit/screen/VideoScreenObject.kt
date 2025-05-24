@@ -16,14 +16,14 @@ import com.haishinkit.util.swap
  * An object that manages offscreen rendering a video source.
  */
 @Suppress("MemberVisibilityCanBePrivate")
-class VideoScreenObject(
+open class VideoScreenObject(
     target: Int = GLES11Ext.GL_TEXTURE_EXTERNAL_OES,
 ) : ScreenObject(target),
     SurfaceTexture.OnFrameAvailableListener {
     /**
      * Specifies the surface that is an input source.
      */
-    var surface: Surface? = null
+    open var surface: Surface? = null
         set(value) {
             if (field == value) return
             field = value
@@ -58,7 +58,7 @@ class VideoScreenObject(
     /**
      * Specifies the videoSize that describe the video source.
      */
-    var videoSize = Size(0, 0)
+    open var videoSize = Size(0, 0)
         set(value) {
             if (field == value) return
             field = value
