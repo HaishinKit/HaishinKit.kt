@@ -13,7 +13,7 @@ import com.haishinkit.screen.Screen
 import java.lang.ref.WeakReference
 
 internal class ThreadPixelTransform(
-    override val applicationContext: Context,
+    override val context: Context,
 ) : PixelTransform {
     override var screen: Screen?
         get() = pixelTransform.screen
@@ -65,7 +65,7 @@ internal class ThreadPixelTransform(
     }
 
     private val pixelTransform: com.haishinkit.gles.PixelTransform by lazy {
-        PixelTransform(applicationContext)
+        PixelTransform(context)
     }
 
     private class Handler(

@@ -21,7 +21,7 @@ import com.haishinkit.screen.VideoScreenObject
 import java.util.concurrent.atomic.AtomicBoolean
 
 internal class PixelTransform(
-    override val applicationContext: Context,
+    override val context: Context,
 ) : PixelTransform,
     Running,
     Choreographer.FrameCallback {
@@ -98,7 +98,7 @@ internal class PixelTransform(
             field = value
         }
     private val shaderLoader by lazy {
-        ShaderLoader(applicationContext)
+        ShaderLoader(context)
     }
     private val video: VideoScreenObject by lazy { VideoScreenObject(target = GLES20.GL_TEXTURE_2D) }
     private val renderer: Renderer by lazy { NullRenderer.SHARED }

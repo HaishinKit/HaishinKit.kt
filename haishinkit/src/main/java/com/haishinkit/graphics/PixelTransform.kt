@@ -6,13 +6,15 @@ import android.view.Surface
 import com.haishinkit.gles.ThreadPixelTransform
 import com.haishinkit.graphics.effect.VideoEffect
 import com.haishinkit.screen.Screen
-import kotlin.reflect.KClass
 
 /**
  * The PixelTransform interface provides some graphics operations.
  */
 interface PixelTransform {
-    val applicationContext: Context
+    /**
+     * The current application environment.
+     */
+    val context: Context
 
     /**
      * Specifies the off screen object.
@@ -45,35 +47,9 @@ interface PixelTransform {
     var frameRate: Int
 
     companion object {
-        private var pixelTransforms: MutableList<KClass<*>> = mutableListOf()
-
-        fun create(applicationContext: Context): PixelTransform {
-            if (pixelTransforms.isEmpty()) {
-                return ThreadPixelTransform(applicationContext)
-            }
-            return try {
-                val pixelTransformClass = pixelTransforms.first()
-                pixelTransformClass.java.newInstance() as PixelTransform
-            } catch (e: Exception) {
-                return ThreadPixelTransform(applicationContext)
-            }
-        }
-
-        fun <T : PixelTransform> registerPixelTransform(clazz: KClass<T>) {
-            for (i in 0 until pixelTransforms.size) {
-                if (pixelTransforms[i] == clazz) {
-                    return
-                }
-            }
-            pixelTransforms.add(clazz)
-        }
-
-        fun <T : PixelTransform> unregisterPixelTransform(clazz: KClass<T>) {
-            for (i in (0 until pixelTransforms.size).reversed()) {
-                if (pixelTransforms[i] == clazz) {
-                    pixelTransforms.removeAt(i)
-                }
-            }
-        }
+        /**
+         * Creates a pixel transform instance.
+         */
+        fun create(context: Context): PixelTransform = ThreadPixelTransform(context)
     }
 }
