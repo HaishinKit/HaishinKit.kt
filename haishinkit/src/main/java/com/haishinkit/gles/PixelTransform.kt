@@ -1,6 +1,7 @@
 package com.haishinkit.gles
 
 import android.content.Context
+import android.graphics.Color
 import android.opengl.GLES20
 import android.util.Log
 import android.util.Size
@@ -85,6 +86,8 @@ internal class PixelTransform(
             fpsController.frameRate = value
         }
 
+    override var backgroundColor: Int = Color.BLACK
+
     private val graphicsContext: GraphicsContext by lazy { GraphicsContext() }
     private var choreographer: Choreographer? = null
         set(value) {
@@ -129,7 +132,7 @@ internal class PixelTransform(
         if (BuildConfig.DEBUG) {
             Log.d(TAG, "stopRunning()")
         }
-        GLES20.glClearColor(0f, 0f, 0f, 0f)
+        clearColor(backgroundColor)
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT)
         graphicsContext.swapBuffers()
         program = null
@@ -151,7 +154,7 @@ internal class PixelTransform(
         if (fpsController.advanced(timestamp)) {
             timestamp = fpsController.timestamp(timestamp)
             try {
-                GLES20.glClearColor(0f, 0f, 0f, 0f)
+                clearColor(backgroundColor)
                 GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT)
                 if (video.videoSize.width != screen.frame.width() || video.videoSize.height != screen.frame.height()) {
                     video.videoSize = Size(screen.frame.width(), screen.frame.height())
@@ -169,6 +172,15 @@ internal class PixelTransform(
                 Log.e(TAG, "", e)
             }
         }
+    }
+
+    fun clearColor(color: Int) {
+        GLES20.glClearColor(
+            ((color shr 16) and 0xFF) / 255.0f,
+            ((color shr 8) and 0xFF) / 255.0f,
+            (color and 0xFF) / 255.0f,
+            ((color shr 24) and 0xFF) / 255.0f,
+        )
     }
 
     companion object {

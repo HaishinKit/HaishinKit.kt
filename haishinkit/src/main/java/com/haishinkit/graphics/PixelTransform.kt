@@ -46,6 +46,11 @@ interface PixelTransform {
      */
     var frameRate: Int
 
+    /**
+     * Specifies the background color.
+     */
+    var backgroundColor: Int
+
     companion object {
         /**
          * Creates a pixel transform instance.
