@@ -57,6 +57,10 @@ class HkTextureView
             surfaceTextureListener = this
         }
 
+        override fun setBackgroundColor(color: Int) {
+            pixelTransform.backgroundColor = color
+        }
+
         override fun onSurfaceTextureAvailable(
             surface: SurfaceTexture,
             width: Int,

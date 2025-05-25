@@ -2,6 +2,8 @@
 
 package com.haishinkit.compose
 
+import android.graphics.Color
+import android.view.TextureView
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
@@ -21,6 +23,8 @@ import com.haishinkit.view.HkTextureView
 fun HaishinKitView(
     stream: Stream,
     modifier: Modifier = Modifier,
+    backgroundColor: Int = Color.BLACK,
+    isOpaque: Boolean = true,
     videoGravity: VideoGravity = VideoGravity.RESIZE_ASPECT,
     viewType: HaishinKitViewType = HaishinKitViewType.SurfaceView,
 ) {
@@ -44,8 +48,18 @@ fun HaishinKitView(
         factory = {
             videoView.apply {
                 this.videoGravity = videoGravity
+                this.setBackgroundColor(backgroundColor)
+                (this as? TextureView)?.let {
+                    it.isOpaque = isOpaque
+                }
                 stream.registerOutput(this)
             }
+        },
+        update = {
+            (videoView as? TextureView)?.let {
+                it.isOpaque = isOpaque
+            }
+            videoView.setBackgroundColor(backgroundColor)
         },
         modifier = modifier,
     )
