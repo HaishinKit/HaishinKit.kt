@@ -75,6 +75,10 @@ class HkSurfaceView
             )
         }
 
+        override fun setBackgroundColor(color: Int) {
+            pixelTransform.backgroundColor = color
+        }
+
         override fun append(buffer: MediaBuffer) {
         }
 

@@ -58,6 +58,14 @@ internal class ThreadPixelTransform(
             }
         }
 
+    override var backgroundColor: Int
+        get() = pixelTransform.backgroundColor
+        set(value) {
+            handler.apply {
+                sendMessage(obtainMessage(MSG_SET_BACKGROUND_COLOR, value))
+            }
+        }
+
     private val handler: Handler by lazy {
         val thread = HandlerThread(TAG)
         thread.start()
@@ -110,6 +118,10 @@ internal class ThreadPixelTransform(
                     transform.frameRate = message.obj as Int
                 }
 
+                MSG_SET_BACKGROUND_COLOR -> {
+                    transform.backgroundColor = message.obj as Int
+                }
+
                 else -> throw RuntimeException("Unhandled msg what=$message.what")
             }
         }
@@ -121,13 +133,14 @@ internal class ThreadPixelTransform(
         handler.looper.quitSafely()
     }
 
-    companion object {
+    private companion object {
         private const val MSG_SET_OUTPUT_SURFACE = 0
         private const val MSG_SET_SCREEN = 1
         private const val MSG_SET_VIDEO_GRAVITY = 2
         private const val MSG_SET_IMAGE_EXTENT = 3
         private const val MSG_SET_VIDEO_EFFECT = 4
         private const val MSG_SET_FRAME_RATE = 5
+        private const val MSG_SET_BACKGROUND_COLOR = 6
 
         private val TAG = ThreadPixelTransform::class.java.simpleName
     }
