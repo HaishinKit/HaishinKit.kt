@@ -1,13 +1,11 @@
 desc 'Runs the PR review.'
 lane :review do
-  if Helper.is_ci?
-    gradle(task: 'lint')
-    danger(
-      danger_id: 'danger',
-      dangerfile: 'Dangerfile',
-      verbose: true
-    )
-  end
+  gradle(task: 'lint')
+  danger(
+    danger_id: 'danger',
+    dangerfile: 'Dangerfile',
+    verbose: true
+  ) if Helper.is_ci?
 end
 
 desc 'Update the API documentation.'
