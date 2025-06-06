@@ -2,6 +2,9 @@ name: Android CI
 on:
   pull_request:
     branches: [main]
+permissions:
+  checks: write
+  pull-requests: write
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -9,7 +12,7 @@ jobs:
       - uses: actions/checkout@v2
         with:
           submodules: true
-      - name: Setup JDK 17
+      - name: SetUp JDK 17
         uses: actions/setup-java@v4
         with:
           java-version: '17'
@@ -18,10 +21,10 @@ jobs:
       - uses: gradle/actions/setup-gradle@v3
         with:
           cache-read-only: false
-      - name: Setup Ruby
+      - name: SetUp Ruby
         uses: ruby/setup-ruby@v1
         with:
-          ruby-version: 3.0.6
+          ruby-version: 3.4.4
           bundler-cache: true
       - name: fastlane
         env:
