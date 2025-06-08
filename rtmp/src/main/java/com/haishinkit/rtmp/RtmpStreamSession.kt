@@ -3,7 +3,6 @@ package com.haishinkit.rtmp
 import android.content.Context
 import android.net.Uri
 import android.util.Log
-import com.haishinkit.BuildConfig
 import com.haishinkit.rtmp.event.Event
 import com.haishinkit.rtmp.event.EventUtils
 import com.haishinkit.rtmp.event.IEventListener

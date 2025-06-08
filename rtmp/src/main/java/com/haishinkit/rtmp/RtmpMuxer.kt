@@ -5,7 +5,6 @@ import android.media.MediaFormat
 import android.os.Build
 import android.os.SystemClock
 import android.util.Log
-import com.haishinkit.BuildConfig
 import com.haishinkit.codec.Codec
 import com.haishinkit.media.BufferController
 import com.haishinkit.media.MediaType
@@ -171,7 +170,7 @@ internal class RtmpMuxer(
             MediaFormat.MIMETYPE_VIDEO_AV1,
             MediaFormat.MIMETYPE_VIDEO_HEVC,
             MediaFormat.MIMETYPE_VIDEO_VP9,
-            -> {
+                -> {
                 val config = DecoderConfigurationRecord.create(mime, mediaFormat) ?: return
                 stream.doOutput(
                     RtmpChunk.ZERO,
@@ -266,7 +265,7 @@ internal class RtmpMuxer(
             MediaFormat.MIMETYPE_VIDEO_AV1,
             MediaFormat.MIMETYPE_VIDEO_VP9,
             MediaFormat.MIMETYPE_VIDEO_HEVC,
-            -> {
+                -> {
                 if (info.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG != 0) {
                     return true
                 }
