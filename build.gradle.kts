@@ -10,7 +10,7 @@ plugins {
 }
 
 rootProject.ext["PUBLISH_GROUP_ID"] = "com.github.HaishinKit"
-rootProject.ext["PUBLISH_VERSION"] = "0.14.2"
+rootProject.ext["PUBLISH_VERSION"] = "0.16.0"
 
 subprojects {
     apply(plugin = "org.jlleitschuh.gradle.ktlint")
