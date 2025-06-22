@@ -118,16 +118,18 @@ class MediaProjectionService :
         launch {
             mixer.attachAudio(0, AudioRecordSource(applicationContext))
             intent?.getParcelableExtra<Intent>(EXTRA_RESULT_DATA)?.let {
-                val source =
-                    MediaProjectionSource(
-                        applicationContext,
-                        mediaProjectionManager.getMediaProjection(Activity.RESULT_OK, it),
-                    )
-                mixer.attachVideo(0, source).onSuccess {
-                    Log.i(TAG, "${source.video.videoSize}")
-                    mixer.screen.frame =
-                        Rect(0, 0, source.video.videoSize.width, source.video.videoSize.height)
-                    session.connect(StreamSession.Method.INGEST)
+                mediaProjectionManager.getMediaProjection(Activity.RESULT_OK, it)?.let {
+                    val source =
+                        MediaProjectionSource(
+                            applicationContext,
+                            it,
+                        )
+                    mixer.attachVideo(0, source).onSuccess {
+                        Log.i(TAG, "${source.video.videoSize}")
+                        mixer.screen.frame =
+                            Rect(0, 0, source.video.videoSize.width, source.video.videoSize.height)
+                        session.connect(StreamSession.Method.INGEST)
+                    }
                 }
             }
         }
@@ -178,6 +180,7 @@ class MediaProjectionService :
                 return this
             }
 
-        fun isRunning(context: Context): Boolean = LocalBroadcastManager.getInstance(context).sendBroadcast(Intent(ACTION_SERVICE_RUNNING))
+        fun isRunning(context: Context): Boolean =
+            LocalBroadcastManager.getInstance(context).sendBroadcast(Intent(ACTION_SERVICE_RUNNING))
     }
 }
