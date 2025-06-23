@@ -18,7 +18,7 @@ androidxNavigation = "2.9.0"
 appcompat = "1.7.1"
 lottie = "6.4.1"
 material = "1.12.0"
-robolectric = "4.14.1"
+robolectric = "4.15.1"
 dokkaPlugin = "2.0.0"
 
 [libraries]
