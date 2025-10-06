@@ -7,8 +7,8 @@ data class Preference(
     companion object {
         var shared =
             Preference(
-                "rtmp://wms.hdezwebcast.com/show_hdezweblive/46640/E9XVaGtYSh?streamID=E9XVaGtYSh",
-                "E9XVaGtYSh",
+                "rtmp://192.168.1.14/live",
+                "live",
             )
     }
 }
