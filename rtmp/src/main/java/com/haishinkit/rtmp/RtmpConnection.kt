@@ -195,13 +195,45 @@ class RtmpConnection : EventDispatcher(null) {
         command: String,
         vararg arguments: Any?,
     ) {
+        Log.i(TAG, "")
+        Log.i(TAG, "┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓")
+        Log.i(TAG, "┃  [RtmpConnection.kt] CONNECT CALLED        ┃")
+        Log.i(TAG, "┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛")
+        Log.i(TAG, "")
+        Log.i(TAG, "[RtmpConnection.kt] 📥 Connection String:")
+        Log.i(TAG, "[RtmpConnection.kt]    Command: $command")
+        Log.i(TAG, "[RtmpConnection.kt]    Arguments: ${arguments.contentToString()}")
+        Log.i(TAG, "")
+
         uri = URI.create(command)
         val uri = this.uri ?: return
+
+        Log.i(TAG, "[RtmpConnection.kt] 🔍 Parsed URI:")
+        Log.i(TAG, "[RtmpConnection.kt]    Scheme: ${uri.scheme}")
+        Log.i(TAG, "[RtmpConnection.kt]    Host: ${uri.host}")
+        Log.i(TAG, "[RtmpConnection.kt]    Port: ${uri.port}")
+        Log.i(TAG, "[RtmpConnection.kt]    Path: ${uri.path}")
+        Log.i(TAG, "[RtmpConnection.kt]    Query: ${uri.query}")
+        Log.i(TAG, "")
+
         if (isConnected || !SUPPORTED_PROTOCOLS.containsKey(uri.scheme)) {
+            if (isConnected) {
+                Log.w(TAG, "[RtmpConnection.kt] ⚠️  Already connected, ignoring")
+            } else {
+                Log.e(TAG, "[RtmpConnection.kt] ❌ Unsupported protocol: ${uri.scheme}")
+            }
             return
         }
+
         val port = uri.port
         val isSecure = uri.scheme == "rtmps"
+
+        Log.i(TAG, "[RtmpConnection.kt] 🔌 Socket Connection:")
+        Log.i(TAG, "[RtmpConnection.kt]    Host: ${uri.host}")
+        Log.i(TAG, "[RtmpConnection.kt]    Port: ${if (port == -1) SUPPORTED_PROTOCOLS[uri.scheme] ?: DEFAULT_PORT else port}")
+        Log.i(TAG, "[RtmpConnection.kt]    Secure: $isSecure")
+        Log.i(TAG, "[RtmpConnection.kt] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+
         this.arguments.clear()
         arguments.forEach { value -> this.arguments.add(value) }
         socket.connect(
@@ -313,15 +345,32 @@ class RtmpConnection : EventDispatcher(null) {
     }
 
     internal fun createStream(stream: RtmpStream) {
+        Log.i(TAG, "")
+        Log.i(TAG, "┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓")
+        Log.i(TAG, "┃  [RtmpConnection.kt] CREATE STREAM         ┃")
+        Log.i(TAG, "┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛")
+        Log.i(TAG, "")
+        Log.i(TAG, "[RtmpConnection.kt] 🆕 Requesting stream from server...")
+
         stream.fcPublishName?.let {
+            Log.i(TAG, "[RtmpConnection.kt]    FMLE-compatible: releaseStream($it)")
             // FMLE-compatible sequences
             call("releaseStream", Responder.NULL, it)
+            Log.i(TAG, "[RtmpConnection.kt]    FMLE-compatible: FCPublish($it)")
             call("FCPublish", Responder.NULL, it)
         }
+
+        Log.i(TAG, "[RtmpConnection.kt] 📞 Calling createStream...")
+        Log.i(TAG, "[RtmpConnection.kt] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+
         call(
             "createStream",
             object : Responder {
                 override fun onResult(arguments: List<Any?>) {
+                    Log.i(TAG, "")
+                    Log.i(TAG, "[RtmpConnection.kt] ✅ createStream Response:")
+                    Log.i(TAG, "[RtmpConnection.kt]    Arguments: $arguments")
+
                     for (s in streams) {
                         if (s.value == stream) {
                             streams.remove(s.key)
@@ -329,12 +378,21 @@ class RtmpConnection : EventDispatcher(null) {
                         }
                     }
                     val id = (arguments[0] as Double).toInt()
+
+                    Log.i(TAG, "[RtmpConnection.kt]    Assigned Stream ID: $id")
+
                     stream.id = id
                     streams[id] = stream
+
+                    Log.i(TAG, "[RtmpConnection.kt] 🔓 Setting stream to OPEN state")
+                    Log.i(TAG, "[RtmpConnection.kt]    This will trigger queued publish/play commands")
+                    Log.i(TAG, "[RtmpConnection.kt] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+
                     stream.readyState = RtmpStream.ReadyState.OPEN
                 }
 
                 override fun onStatus(arguments: List<Any?>) {
+                    Log.w(TAG, "[RtmpConnection.kt] ⚠️  createStream onStatus: $arguments")
                     Log.w("$TAG#onStatus", arguments.toString())
                 }
             },
@@ -362,17 +420,58 @@ class RtmpConnection : EventDispatcher(null) {
     }
 
     internal fun createConnectionMessage(uri: URI): RtmpMessage {
+        Log.i(TAG, "")
+        Log.i(TAG, "┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓")
+        Log.i(TAG, "┃  [RtmpConnection.kt] CREATE MESSAGE        ┃")
+        Log.i(TAG, "┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛")
+        Log.i(TAG, "")
+        Log.i(TAG, "[RtmpConnection.kt] 📥 Input URI:")
+        Log.i(TAG, "[RtmpConnection.kt]    Full URI: $uri")
+        Log.i(TAG, "[RtmpConnection.kt]    Scheme: ${uri.scheme}")
+        Log.i(TAG, "[RtmpConnection.kt]    Host: ${uri.host}")
+        Log.i(TAG, "[RtmpConnection.kt]    Port: ${uri.port}")
+        Log.i(TAG, "[RtmpConnection.kt]    Path: ${uri.path}")
+        Log.i(TAG, "[RtmpConnection.kt]    Query: ${uri.query}")
+        Log.i(TAG, "")
+
         val paths =
             uri.path
                 .split("/".toRegex())
                 .dropLastWhile { it.isEmpty() }
                 .toTypedArray()
+
+        Log.i(TAG, "[RtmpConnection.kt] 🔪 Path Segments (split by '/'):")
+        paths.forEachIndexed { index, segment ->
+            Log.i(TAG, "[RtmpConnection.kt]    paths[$index] = \"$segment\"")
+        }
+        Log.i(TAG, "")
+
         val message = RtmpCommandMessage(RtmpObjectEncoding.AMF0)
         val commandObject = mutableMapOf<String, Any?>()
-        var app = paths[1]
+
+        // FIXED: Build app path from ALL path segments (not just paths[1])
+        // This allows for multi-segment application paths like /app/instance
+        val appSegments = paths.filter { it.isNotEmpty() }
+        var app = appSegments.joinToString("/")
+
+        Log.i(TAG, "[RtmpConnection.kt] 🔧 Building 'app' parameter:")
+        Log.i(TAG, "[RtmpConnection.kt]    Non-empty segments: ${appSegments.size}")
+        Log.i(TAG, "[RtmpConnection.kt]    Joined path: \"$app\"")
+
         if (uri.query != null) {
             app += "?" + uri.query
+            Log.i(TAG, "[RtmpConnection.kt]    Added query: \"$app\"")
         }
+
+        if (paths.size > 2) {
+            Log.w(TAG, "[RtmpConnection.kt]    ⚠️  Multi-segment path detected!")
+            Log.w(TAG, "[RtmpConnection.kt]    All segments included in app parameter")
+        }
+
+        Log.i(TAG, "")
+        Log.i(TAG, "[RtmpConnection.kt] 📡 Final 'app' parameter: \"$app\"")
+        Log.i(TAG, "[RtmpConnection.kt] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+
         commandObject["app"] = app
         commandObject["flashVer"] = flashVer
         commandObject["swfUrl"] = swfUrl
