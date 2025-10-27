@@ -104,7 +104,7 @@ open class VideoScreenObject(
                 ImageOrientation.RIGHT -> 270
                 ImageOrientation.UP_MIRRORED -> 0
                 ImageOrientation.DOWN_MIRRORED -> 180
-                ImageOrientation.LEFT_MIRRORED -> 270
+                ImageOrientation.LEFT_MIRRORED -> 90
                 ImageOrientation.RIGHT_MIRRORED -> 90
             }
 
@@ -128,6 +128,14 @@ open class VideoScreenObject(
         if (target == GLES11Ext.GL_TEXTURE_EXTERNAL_OES) {
             matrix[5] = matrix[5] * -1
             Matrix.rotateM(matrix, 0, -degrees.toFloat(), 0f, 0f, 1f)
+            
+            if (imageOrientation == ImageOrientation.UP_MIRRORED ||
+                imageOrientation == ImageOrientation.DOWN_MIRRORED ||
+                imageOrientation == ImageOrientation.LEFT_MIRRORED ||
+                imageOrientation == ImageOrientation.RIGHT_MIRRORED
+            ) {
+                Matrix.scaleM(matrix, 0, -1f, 1f, 1f)
+            }
         }
 
         val swapped = degrees == 90 || degrees == 270

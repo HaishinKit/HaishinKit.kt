@@ -34,12 +34,13 @@ internal class Camera2Output(
         private set
     val imageOrientation: ImageOrientation
         get() {
+            val isFrontCamera = characteristics?.get(CameraCharacteristics.LENS_FACING) == CameraCharacteristics.LENS_FACING_FRONT
             return when (characteristics?.get(CameraCharacteristics.SENSOR_ORIENTATION)) {
-                0 -> ImageOrientation.UP
-                90 -> ImageOrientation.LEFT
-                180 -> ImageOrientation.DOWN
-                270 -> ImageOrientation.RIGHT
-                else -> ImageOrientation.UP
+                0 -> if (isFrontCamera) ImageOrientation.UP_MIRRORED else ImageOrientation.UP
+                90 -> if (isFrontCamera) ImageOrientation.RIGHT_MIRRORED else ImageOrientation.LEFT
+                180 -> if (isFrontCamera) ImageOrientation.DOWN_MIRRORED else ImageOrientation.DOWN
+                270 -> if (isFrontCamera) ImageOrientation.LEFT_MIRRORED else ImageOrientation.RIGHT
+                else -> if (isFrontCamera) ImageOrientation.UP_MIRRORED else ImageOrientation.UP
             }
         }
     private var device: CameraDevice? = null
