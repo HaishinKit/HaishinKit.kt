@@ -128,7 +128,7 @@ class MediaProjectionService :
                         Log.i(TAG, "${source.video.videoSize}")
                         mixer.screen.frame =
                             Rect(0, 0, source.video.videoSize.width, source.video.videoSize.height)
-                        session.connect(StreamSession.Method.INGEST)
+                        session.connect()
                     }
                 }
             }
@@ -180,7 +180,6 @@ class MediaProjectionService :
                 return this
             }
 
-        fun isRunning(context: Context): Boolean =
-            LocalBroadcastManager.getInstance(context).sendBroadcast(Intent(ACTION_SERVICE_RUNNING))
+        fun isRunning(context: Context): Boolean = LocalBroadcastManager.getInstance(context).sendBroadcast(Intent(ACTION_SERVICE_RUNNING))
     }
 }

@@ -250,7 +250,7 @@ fun CameraScreen(modifier: Modifier = Modifier) {
                         if (session.isConnected) {
                             session.close()
                         } else {
-                            session.connect(StreamSession.Method.INGEST).onFailure {
+                            session.connect().onFailure {
                                 Toast
                                     .makeText(context, it.message, Toast.LENGTH_SHORT)
                                     .show()

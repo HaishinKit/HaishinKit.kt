@@ -9,12 +9,15 @@ import com.haishinkit.rtmp.event.IEventListener
 import com.haishinkit.stream.Stream
 import com.haishinkit.stream.StreamSession
 import kotlinx.coroutines.CancellableContinuation
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume
 
 internal class RtmpStreamSession(
     applicationContext: Context,
     uri: Uri,
+    val mode: StreamSession.Mode,
 ) : StreamSession,
     IEventListener {
     override val stream: Stream
@@ -23,8 +26,10 @@ internal class RtmpStreamSession(
     override val isConnected: Boolean
         get() = connection.isConnected
 
+    private val _readyState = MutableStateFlow(StreamSession.ReadyState.CLOSED)
+    override var readyState: StateFlow<StreamSession.ReadyState> = _readyState
+
     private val uri = RtmpUri(uri)
-    private var method: StreamSession.Method = StreamSession.Method.INGEST
     private val rtmpStream: RtmpStream
     private val connection: RtmpConnection = RtmpConnection()
     private var continuation: CancellableContinuation<Result<Unit>>? = null
@@ -37,15 +42,17 @@ internal class RtmpStreamSession(
             }
     }
 
-    override suspend fun connect(method: StreamSession.Method): Result<Unit> =
+    override suspend fun connect(): Result<Unit> =
         suspendCancellableCoroutine { continuation ->
-            this.method = method
+            _readyState.value = StreamSession.ReadyState.CONNECTING
             this.continuation = continuation
             connection.connect(uri.tcUrl)
         }
 
     override suspend fun close(): Result<Unit> {
+        _readyState.value = StreamSession.ReadyState.CLOSING
         connection.close()
+        _readyState.value = StreamSession.ReadyState.CLOSED
         return Result.success(Unit)
     }
 
@@ -56,20 +63,22 @@ internal class RtmpStreamSession(
         }
         when (data["code"]) {
             RtmpConnection.Code.CONNECT_SUCCESS.rawValue -> {
-                when (method) {
-                    StreamSession.Method.INGEST -> rtmpStream.publish(this@RtmpStreamSession.uri.streamName)
-                    StreamSession.Method.PLAYBACK -> rtmpStream.play(this@RtmpStreamSession.uri.streamName)
+                when (mode) {
+                    StreamSession.Mode.PUBLISH -> rtmpStream.publish(this@RtmpStreamSession.uri.streamName)
+                    StreamSession.Mode.PLAYBACK -> rtmpStream.play(this@RtmpStreamSession.uri.streamName)
                 }
             }
 
             RtmpStream.Code.PLAY_START.rawValue, RtmpStream.Code.PUBLISH_START.rawValue -> {
                 continuation?.resume(Result.success(Unit))
                 continuation = null
+                _readyState.value = StreamSession.ReadyState.OPEN
             }
 
             else -> {
                 continuation?.resume(Result.failure(RtmpStatusException("${data["code"]}")))
                 continuation = null
+                _readyState.value = StreamSession.ReadyState.CLOSED
             }
         }
     }

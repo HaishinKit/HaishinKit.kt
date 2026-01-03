@@ -8,6 +8,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import com.haishinkit.stream.Stream
 import com.haishinkit.stream.StreamSession
+import kotlinx.coroutines.flow.StateFlow
 
 /*
 * Create and [remember] a [StreamSessionState] instance.
@@ -29,8 +30,10 @@ class StreamSessionState(
 
     override val stream: Stream = session.stream
 
-    override suspend fun connect(method: StreamSession.Method): Result<Unit> =
-        session.connect(method).onSuccess {
+    override val readyState: StateFlow<StreamSession.ReadyState> = session.readyState
+
+    override suspend fun connect(): Result<Unit> =
+        session.connect().onSuccess {
             isConnected = session.isConnected
         }
 

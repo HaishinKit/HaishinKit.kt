@@ -34,7 +34,9 @@ fun PlaybackScreen(modifier: Modifier = Modifier) {
                 .Builder(
                     context,
                     Preference.shared.rtmpURL.toUri(),
-                ).build(),
+                )
+                .setMode(StreamSession.Mode.PLAYBACK)
+                .build(),
         )
 
     DisposableEffect(Unit) {
@@ -63,7 +65,7 @@ fun PlaybackScreen(modifier: Modifier = Modifier) {
                     if (session.isConnected) {
                         session.close()
                     } else {
-                        session.connect(StreamSession.Method.PLAYBACK)
+                        session.connect()
                     }
                 }
             },
