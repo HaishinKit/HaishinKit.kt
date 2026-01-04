@@ -35,7 +35,10 @@ internal class RtmpStreamSession(
     private var continuation: CancellableContinuation<Result<Unit>>? = null
 
     init {
-        connection.addEventListener(Event.RTMP_STATUS, this)
+        connection.apply {
+            addEventListener(Event.RTMP_STATUS, this@RtmpStreamSession)
+            addEventListener(Event.IO_ERROR, this@RtmpStreamSession)
+        }
         rtmpStream =
             RtmpStream(applicationContext, connection).apply {
                 addEventListener(Event.RTMP_STATUS, this@RtmpStreamSession)
@@ -50,6 +53,9 @@ internal class RtmpStreamSession(
         }
 
     override suspend fun close(): Result<Unit> {
+        if (connection.isConnected) {
+            return Result.failure(IllegalStateException())
+        }
         _readyState.value = StreamSession.ReadyState.CLOSING
         connection.close()
         _readyState.value = StreamSession.ReadyState.CLOSED
@@ -61,6 +67,19 @@ internal class RtmpStreamSession(
         if (BuildConfig.DEBUG) {
             Log.d(TAG, "$data")
         }
+
+        when (event.type) {
+            Event.IO_ERROR -> {
+                continuation?.resume(Result.failure(RtmpStatusException("")))
+                continuation = null
+                _readyState.value = StreamSession.ReadyState.CLOSED
+                return
+            }
+            else -> {
+                // no op
+            }
+        }
+
         when (data["code"]) {
             RtmpConnection.Code.CONNECT_SUCCESS.rawValue -> {
                 when (mode) {

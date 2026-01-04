@@ -13,7 +13,7 @@ interface NetSocket {
     interface Listener {
         fun onInput(buffer: ByteBuffer)
 
-        fun onTimeout()
+        fun onSocketError()
 
         fun onConnect()
 
