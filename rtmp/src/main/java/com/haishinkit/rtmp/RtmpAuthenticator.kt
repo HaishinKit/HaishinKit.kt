@@ -7,6 +7,7 @@ import com.haishinkit.rtmp.event.EventUtils
 import com.haishinkit.rtmp.event.IEventListener
 import com.haishinkit.rtmp.util.Md5Util
 import java.net.URI
+import androidx.core.net.toUri
 
 internal class RtmpAuthenticator(
     val connection: RtmpConnection,
@@ -83,7 +84,7 @@ internal class RtmpAuthenticator(
         if (uri.rawUserInfo == null) return uri.toString()
         val command = createAuthQuery(uri)
         val query = description.split("?")[1]
-        val descriptionUri = Uri.parse("https://localhost?$query")
+        val descriptionUri = "https://localhost?$query".toUri()
         val info =
             Info(
                 user = uri.userInfo.split(":")[0],

@@ -22,6 +22,7 @@ import java.io.InputStream
 import java.lang.ref.WeakReference
 import java.util.zip.ZipInputStream
 import kotlin.math.min
+import androidx.core.graphics.createBitmap
 
 /**
  * An object that manages offscreen rendering a lottie source.
@@ -256,12 +257,7 @@ class LottieScreen(
         val composition = composition ?: return
         if (bitmap?.width != bounds.width() || bitmap?.height != bounds.height()) {
             bitmap =
-                Bitmap
-                    .createBitmap(
-                        bounds.width(),
-                        bounds.height(),
-                        Bitmap.Config.ARGB_8888,
-                    ).apply {
+                createBitmap(bounds.width(), bounds.height()).apply {
                         canvas = Canvas(this)
                     }
         }

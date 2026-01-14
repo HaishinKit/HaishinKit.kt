@@ -4,9 +4,6 @@ import com.haishinkit.lang.decodeHex
 import com.haishinkit.util.toHexString
 import junit.framework.TestCase
 import java.nio.ByteBuffer
-import kotlin.text.toByte
-import kotlin.text.toInt
-import kotlin.text.toLong
 
 class HevcDecoderConfigurationRecordTest : TestCase() {
     fun testMediaFormat() {

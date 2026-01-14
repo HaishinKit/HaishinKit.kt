@@ -3,7 +3,6 @@ package com.haishinkit.rtmp.iso
 import junit.framework.TestCase
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
-import kotlin.text.get
 
 class NalUnitReaderTest : TestCase() {
     fun testReader() {
