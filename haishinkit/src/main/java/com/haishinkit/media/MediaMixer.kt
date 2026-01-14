@@ -77,6 +77,7 @@ class MediaMixer(
         audio: AudioSource?,
     ): Result<Unit> {
         if (audio != null) {
+            audioSources.remove(track)?.close()
             audioSources[track] = audio
             return audio.open(this)
         }
@@ -92,6 +93,10 @@ class MediaMixer(
         video: VideoSource?,
     ): Result<Unit> {
         if (video != null) {
+            videoSources.remove(track)?.let {
+                videoContainer.removeChild(it.video)
+                it.close()
+            }
             videoSources[track] = video
             return video.open(this).onSuccess {
                 videoContainer.addChild(video.video)
@@ -134,6 +139,13 @@ class MediaMixer(
     fun dispose() {
         keepAlive = false
         orientationEventListener.disable()
+        launch {
+            audioSources.values.forEach { it.close() }
+            videoSources.values.forEach {
+                videoContainer.removeChild(it.video)
+                it.close()
+            }
+        }
         audioSources.clear()
         videoSources.clear()
         screen.dispose()
@@ -146,7 +158,7 @@ class MediaMixer(
                     delay(1000)
                 }
                 audioSources.forEach { audio ->
-                    var buffer = audio.value.read(audio.key)
+                    val buffer = audio.value.read(audio.key)
                     outputs.forEach { output ->
                         output.append(buffer)
                     }
