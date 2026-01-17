@@ -6,6 +6,7 @@ import android.view.OrientationEventListener
 import android.view.WindowManager
 import androidx.lifecycle.DefaultLifecycleObserver
 import com.haishinkit.graphics.effect.VideoEffect
+import com.haishinkit.lang.Running
 import com.haishinkit.media.source.AudioSource
 import com.haishinkit.media.source.VideoSource
 import com.haishinkit.screen.Screen
@@ -15,6 +16,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.lang.ref.WeakReference
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.coroutines.CoroutineContext
 
 /**
@@ -23,9 +25,23 @@ import kotlin.coroutines.CoroutineContext
 @Suppress("UNUSED")
 class MediaMixer(
     context: Context,
+    override val isRunning: AtomicBoolean = AtomicBoolean(false),
 ) : MediaOutputDataSource,
     CoroutineScope,
-    DefaultLifecycleObserver {
+    DefaultLifecycleObserver, Running {
+    /**
+     * Specifies the audio mixer settings.
+     */
+    var audioMixerSettings = AudioMixerSettings()
+        set(value) {
+            if (field.isMuted != value.isMuted) {
+                audioSources.values.forEach {
+                    it.isMuted = value.isMuted
+                }
+            }
+            field = value
+        }
+
     override val hasAudio: Boolean
         get() = audioSources.isNotEmpty()
 
@@ -64,11 +80,6 @@ class MediaMixer(
         }
     }
 
-    init {
-        orientationEventListener.enable()
-        doAudio()
-    }
-
     /**
      * Attaches a audio source.
      */
@@ -77,7 +88,7 @@ class MediaMixer(
         audio: AudioSource?,
     ): Result<Unit> {
         if (audio != null) {
-            audioSources.remove(track)?.close()
+            attachAudio(track, null)
             audioSources[track] = audio
             return audio.open(this)
         }
@@ -93,10 +104,7 @@ class MediaMixer(
         video: VideoSource?,
     ): Result<Unit> {
         if (video != null) {
-            videoSources.remove(track)?.let {
-                videoContainer.removeChild(it.video)
-                it.close()
-            }
+            attachVideo(track, null)
             videoSources[track] = video
             return video.open(this).onSuccess {
                 videoContainer.addChild(video.video)
@@ -133,12 +141,29 @@ class MediaMixer(
         }
     }
 
+    override fun startRunning() {
+        if (isRunning.get()) {
+            return
+        }
+        orientationEventListener.enable()
+        startAudioCapturing()
+        isRunning.set(true)
+    }
+
+    override fun stopRunning() {
+        if (!isRunning.get()) {
+            return
+        }
+        keepAlive = false
+        orientationEventListener.disable()
+        isRunning.set(false)
+    }
+
     /**
      * Disposes the stream of memory management.
      */
     fun dispose() {
-        keepAlive = false
-        orientationEventListener.disable()
+        stopRunning()
         launch {
             audioSources.values.forEach { it.close() }
             videoSources.values.forEach {
@@ -151,7 +176,7 @@ class MediaMixer(
         screen.dispose()
     }
 
-    private fun doAudio() =
+    private fun startAudioCapturing() =
         launch {
             while (keepAlive) {
                 if (audioSources.isEmpty()) {
