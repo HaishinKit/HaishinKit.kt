@@ -15,6 +15,11 @@ class Camera2Source(
     val cameraId: String = DEFAULT_CAMERA_ID,
 ) : VideoSource,
     VideoScreenObject.OnSurfaceChangedListener {
+    var isTouchEnabled: Boolean = false
+        set(value) {
+            output?.setTorchEnabled(value)
+            field = value
+        }
     /**
      * The video screen object.
      */
@@ -41,6 +46,7 @@ class Camera2Source(
         this.output = output
         return output.open().onSuccess {
             video.imageOrientation = output.imageOrientation
+            output.setTorchEnabled(isTouchEnabled)
             output.getCameraSize(mixer.screen.frame)?.let {
                 video.videoSize = it
             }

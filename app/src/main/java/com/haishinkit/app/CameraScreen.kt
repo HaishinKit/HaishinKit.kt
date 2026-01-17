@@ -91,8 +91,8 @@ fun CameraScreen(modifier: Modifier = Modifier) {
         )
 
     val lifecycleOwner = LocalLifecycleOwner.current
-
     DisposableEffect(Unit) {
+        mixer.startRunning()
         lifecycleOwner.lifecycle.addObserver(mixer)
         onDispose {
             lifecycleOwner.lifecycle.removeObserver(mixer)

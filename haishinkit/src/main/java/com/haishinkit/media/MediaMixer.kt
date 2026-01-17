@@ -8,6 +8,7 @@ import androidx.lifecycle.DefaultLifecycleObserver
 import com.haishinkit.graphics.effect.VideoEffect
 import com.haishinkit.lang.Running
 import com.haishinkit.media.source.AudioSource
+import com.haishinkit.media.source.Camera2Source
 import com.haishinkit.media.source.VideoSource
 import com.haishinkit.screen.Screen
 import com.haishinkit.screen.ScreenObjectContainer
@@ -29,6 +30,18 @@ class MediaMixer(
 ) : MediaOutputDataSource,
     CoroutineScope,
     DefaultLifecycleObserver, Running {
+    /**
+     * Specifies the device torch indicating whether the turn on(TRUE) or not(FALSE).
+     */
+    var isToucheEnabled: Boolean = false
+        set(value) {
+            videoSources.values.forEach {
+                val source = it as? Camera2Source ?: return@forEach
+                source.isTouchEnabled = value
+            }
+            field = value
+        }
+
     /**
      * Specifies the audio mixer settings.
      */
@@ -106,6 +119,9 @@ class MediaMixer(
         if (video != null) {
             attachVideo(track, null)
             videoSources[track] = video
+            if (video is Camera2Source) {
+                video.isTouchEnabled = isToucheEnabled
+            }
             return video.open(this).onSuccess {
                 videoContainer.addChild(video.video)
             }

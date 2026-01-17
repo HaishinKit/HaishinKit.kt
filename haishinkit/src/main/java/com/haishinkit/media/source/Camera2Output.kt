@@ -8,6 +8,7 @@ import android.hardware.camera2.CameraCaptureSession
 import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraDevice
 import android.hardware.camera2.CameraManager
+import android.hardware.camera2.CaptureRequest
 import android.hardware.camera2.params.OutputConfiguration
 import android.hardware.camera2.params.SessionConfiguration
 import android.os.Build
@@ -32,6 +33,10 @@ internal class Camera2Output(
     VideoScreenObject.OnSurfaceChangedListener {
     var isDisconnected: Boolean = false
         private set
+    val isTouchSupported: Boolean
+        get() {
+            return characteristics?.get<Boolean>(CameraCharacteristics.FLASH_INFO_AVAILABLE) == true
+        }
     val imageOrientation: ImageOrientation
         get() {
             return when (characteristics?.get(CameraCharacteristics.SENSOR_ORIENTATION)) {
@@ -65,6 +70,7 @@ internal class Camera2Output(
     }
 
     private var continuation: CancellableContinuation<Result<Unit>>? = null
+    private var previewRequestBuilder: CaptureRequest.Builder? = null
 
     @SuppressLint("MissingPermission")
     suspend fun open(): Result<Unit> =
@@ -79,19 +85,34 @@ internal class Camera2Output(
         }
 
     fun close(): Result<Unit> {
+        previewRequestBuilder = null
         device = null
         session = null
         return Result.success(Unit)
     }
 
+    fun setTorchEnabled(enable: Boolean) {
+        if (!isTouchSupported) return
+        val builder = previewRequestBuilder ?: return
+        builder.set<Int>(CaptureRequest.FLASH_MODE,
+            if (enable) CaptureRequest.FLASH_MODE_TORCH
+            else CaptureRequest.FLASH_MODE_OFF
+        )
+        session?.setRepeatingRequest(
+            builder.build(),
+            null,
+            null
+        )
+    }
+
     fun createCaptureSession(surface: Surface) {
         val device = device ?: return
-        val request =
-            device
-                .createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW)
-                .apply {
-                    addTarget(surface)
-                }.build()
+        previewRequestBuilder = device
+            .createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW)
+            .apply {
+                addTarget(surface)
+            }
+        val request = previewRequestBuilder?.build() ?: return
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             val outputList =
                 buildList {
