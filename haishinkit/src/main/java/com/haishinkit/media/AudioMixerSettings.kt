@@ -10,5 +10,5 @@ data class AudioMixerSettings(
     /**
      * Specifies the muted that indicates whether the audio output is muted.
      */
-    val isMuted: Boolean = false
+    val isMuted: Boolean = false,
 )

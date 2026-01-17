@@ -94,24 +94,29 @@ internal class Camera2Output(
     fun setTorchEnabled(enable: Boolean) {
         if (!isTouchSupported) return
         val builder = previewRequestBuilder ?: return
-        builder.set<Int>(CaptureRequest.FLASH_MODE,
-            if (enable) CaptureRequest.FLASH_MODE_TORCH
-            else CaptureRequest.FLASH_MODE_OFF
+        builder.set<Int>(
+            CaptureRequest.FLASH_MODE,
+            if (enable) {
+                CaptureRequest.FLASH_MODE_TORCH
+            } else {
+                CaptureRequest.FLASH_MODE_OFF
+            },
         )
         session?.setRepeatingRequest(
             builder.build(),
             null,
-            null
+            null,
         )
     }
 
     fun createCaptureSession(surface: Surface) {
         val device = device ?: return
-        previewRequestBuilder = device
-            .createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW)
-            .apply {
-                addTarget(surface)
-            }
+        previewRequestBuilder =
+            device
+                .createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW)
+                .apply {
+                    addTarget(surface)
+                }
         val request = previewRequestBuilder?.build() ?: return
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             val outputList =

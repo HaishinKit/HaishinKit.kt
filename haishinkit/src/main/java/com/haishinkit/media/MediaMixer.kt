@@ -29,7 +29,8 @@ class MediaMixer(
     override val isRunning: AtomicBoolean = AtomicBoolean(false),
 ) : MediaOutputDataSource,
     CoroutineScope,
-    DefaultLifecycleObserver, Running {
+    DefaultLifecycleObserver,
+    Running {
     /**
      * Specifies the device torch indicating whether the turn on(TRUE) or not(FALSE).
      */

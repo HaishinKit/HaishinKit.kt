@@ -26,7 +26,6 @@ class RecorderState(
     dataSource: MediaOutputDataSource,
     private val recorder: MediaRecorder,
 ) {
-
     var isRecording by mutableStateOf(false)
         private set
 

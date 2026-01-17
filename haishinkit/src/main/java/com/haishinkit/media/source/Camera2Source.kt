@@ -20,6 +20,7 @@ class Camera2Source(
             output?.setTorchEnabled(value)
             field = value
         }
+
     /**
      * The video screen object.
      */

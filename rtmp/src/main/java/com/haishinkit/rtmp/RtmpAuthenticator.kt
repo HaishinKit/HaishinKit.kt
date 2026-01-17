@@ -2,12 +2,12 @@ package com.haishinkit.rtmp
 
 import android.net.Uri
 import android.util.Base64
+import androidx.core.net.toUri
 import com.haishinkit.rtmp.event.Event
 import com.haishinkit.rtmp.event.EventUtils
 import com.haishinkit.rtmp.event.IEventListener
 import com.haishinkit.rtmp.util.Md5Util
 import java.net.URI
-import androidx.core.net.toUri
 
 internal class RtmpAuthenticator(
     val connection: RtmpConnection,
