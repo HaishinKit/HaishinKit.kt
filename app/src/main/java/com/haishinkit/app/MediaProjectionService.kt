@@ -180,7 +180,6 @@ class MediaProjectionService :
                 return this
             }
 
-        fun isRunning(context: Context): Boolean =
-            LocalBroadcastManager.getInstance(context).sendBroadcast(Intent(ACTION_SERVICE_RUNNING))
+        fun isRunning(context: Context): Boolean = LocalBroadcastManager.getInstance(context).sendBroadcast(Intent(ACTION_SERVICE_RUNNING))
     }
 }

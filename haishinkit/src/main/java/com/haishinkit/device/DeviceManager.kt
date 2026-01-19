@@ -13,7 +13,7 @@ import kotlinx.coroutines.flow.asStateFlow
 
 @Suppress("UNUSED")
 class DeviceManager(
-    private val context: Context
+    private val context: Context,
 ) {
     private val cameraManager =
         context.getSystemService(Context.CAMERA_SERVICE) as CameraManager
@@ -29,22 +29,24 @@ class DeviceManager(
             }
         }
 
-    private val usbReceiver = UsbCameraReceiver {
-        refresh()
-    }
+    private val usbReceiver =
+        UsbCameraReceiver {
+            refresh()
+        }
 
     private val _cameraList = MutableStateFlow<List<CameraDevice>>(emptyList())
     val cameraList: StateFlow<List<CameraDevice>> = _cameraList.asStateFlow()
 
     init {
-        val filter = IntentFilter().apply {
-            addAction(UsbManager.ACTION_USB_DEVICE_ATTACHED)
-            addAction(UsbManager.ACTION_USB_DEVICE_DETACHED)
-        }
+        val filter =
+            IntentFilter().apply {
+                addAction(UsbManager.ACTION_USB_DEVICE_ATTACHED)
+                addAction(UsbManager.ACTION_USB_DEVICE_DETACHED)
+            }
         context.registerReceiver(usbReceiver, filter)
         cameraManager.registerAvailabilityCallback(
             availabilityCallback,
-            Handler(Looper.getMainLooper())
+            Handler(Looper.getMainLooper()),
         )
         refresh()
     }
@@ -52,21 +54,23 @@ class DeviceManager(
     fun getCameraList(): List<CameraDevice> {
         return cameraManager.cameraIdList.map { cameraId ->
             val chars = cameraManager.getCameraCharacteristics(cameraId)
-            val position = when (
-                chars.get(CameraCharacteristics.LENS_FACING)
-            ) {
-                CameraCharacteristics.LENS_FACING_FRONT -> CameraDevice.Position.FRONT
-                CameraCharacteristics.LENS_FACING_BACK -> CameraDevice.Position.BACK
-                CameraCharacteristics.LENS_FACING_EXTERNAL -> CameraDevice.Position.EXTERNAL
-                else -> CameraDevice.Position.UNSPECIFIED
-            }
+            val position =
+                when (
+                    chars.get(CameraCharacteristics.LENS_FACING)
+                ) {
+                    CameraCharacteristics.LENS_FACING_FRONT -> CameraDevice.Position.FRONT
+                    CameraCharacteristics.LENS_FACING_BACK -> CameraDevice.Position.BACK
+                    CameraCharacteristics.LENS_FACING_EXTERNAL -> CameraDevice.Position.EXTERNAL
+                    else -> CameraDevice.Position.UNSPECIFIED
+                }
             CameraDevice(
                 id = cameraId,
-                name = buildString {
-                    append("${position.name.lowercase().replaceFirstChar { it.uppercase() }} Camera")
-                    append(" ($cameraId)")
-                },
-                position = position
+                name =
+                    buildString {
+                        append("${position.name.lowercase().replaceFirstChar { it.uppercase() }} Camera")
+                        append(" ($cameraId)")
+                    },
+                position = position,
             )
         }
     }

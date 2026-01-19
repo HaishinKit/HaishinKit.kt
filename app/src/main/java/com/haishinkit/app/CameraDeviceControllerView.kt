@@ -102,7 +102,7 @@ fun CameraDeviceControllerView(
                 expanded = expanded,
                 onDismissRequest = {
                     expanded = false
-                }
+                },
             ) {
                 cameras.forEach { selectionOption ->
                     DropdownMenuItem(

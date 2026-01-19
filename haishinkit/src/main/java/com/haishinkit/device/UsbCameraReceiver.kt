@@ -7,12 +7,16 @@ import android.hardware.usb.UsbManager
 
 @Suppress("UNUSED")
 internal class UsbCameraReceiver(
-    private val onChanged: () -> Unit
+    private val onChanged: () -> Unit,
 ) : BroadcastReceiver() {
-    override fun onReceive(context: Context?, intent: Intent?) {
+    override fun onReceive(
+        context: Context?,
+        intent: Intent?,
+    ) {
         when (intent?.action) {
             UsbManager.ACTION_USB_DEVICE_ATTACHED,
-            UsbManager.ACTION_USB_DEVICE_DETACHED -> {
+            UsbManager.ACTION_USB_DEVICE_DETACHED,
+            -> {
                 onChanged()
             }
         }

@@ -46,15 +46,19 @@ internal class RtmpStreamSession(
             }
     }
 
-    override suspend fun connect(): Result<Unit> =
-        suspendCancellableCoroutine { continuation ->
+    override suspend fun connect(): Result<Unit> {
+        if (connection.isConnected) {
+            return Result.failure(IllegalStateException())
+        }
+        return suspendCancellableCoroutine { continuation ->
             _readyState.value = ReadyState.CONNECTING
             this.continuation = continuation
             connection.connect(uri.tcUrl)
         }
+    }
 
     override suspend fun close(): Result<Unit> {
-        if (connection.isConnected) {
+        if (!connection.isConnected) {
             return Result.failure(IllegalStateException())
         }
         _readyState.value = ReadyState.CLOSING

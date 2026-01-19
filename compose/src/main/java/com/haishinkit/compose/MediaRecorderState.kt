@@ -11,9 +11,7 @@ import androidx.compose.runtime.setValue
 import com.haishinkit.media.MediaRecorder
 
 @Composable
-fun rememberMediaRecorderState(
-    recorder: MediaRecorder
-): MediaRecorderState =
+fun rememberMediaRecorderState(recorder: MediaRecorder): MediaRecorderState =
     remember(recorder) {
         MediaRecorderState(recorder)
     }

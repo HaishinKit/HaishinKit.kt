@@ -18,7 +18,7 @@ import kotlinx.serialization.Serializable
 data class CameraDevice(
     val id: String,
     val name: String,
-    val position: Position
+    val position: Position,
 ) {
     /**
      * Indicates the physical location or category of the camera device.
@@ -27,7 +27,6 @@ data class CameraDevice(
      * with other platforms and external representations.
      */
     enum class Position {
-
         /** Camera located on the front side of the device (typically used for selfies). */
         @SerialName("front")
         FRONT,
@@ -42,6 +41,6 @@ data class CameraDevice(
 
         /** Position could not be determined or is not provided by the system. */
         @SerialName("unspecified")
-        UNSPECIFIED
+        UNSPECIFIED,
     }
 }

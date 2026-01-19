@@ -52,7 +52,7 @@ private const val TAG = "CameraScreen"
 @Composable
 fun CameraScreen(
     viewModel: CameraViewModel = viewModel(),
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -121,7 +121,8 @@ fun CameraScreen(
                             // viewModel.selectAudioDevice(null)
                         }
                     }
-                }, onVideoPermissionStatus = { state ->
+                },
+                onVideoPermissionStatus = { state ->
                     when (state.status) {
                         PermissionStatus.Granted -> {
                             viewModel.selectCameraDevice(selectedCamera)
@@ -130,7 +131,8 @@ fun CameraScreen(
                         is PermissionStatus.Denied -> {
                         }
                     }
-                })
+                },
+            )
             Spacer(modifier = Modifier.weight(1f))
 
             HorizontalPager(

@@ -37,14 +37,15 @@ import kotlinx.coroutines.launch
 import java.io.ByteArrayOutputStream
 
 class CameraViewModel(
-    application: Application
+    application: Application,
 ) : AndroidViewModel(application), DefaultLifecycleObserver {
     private var deviceManager: DeviceManager =
         DeviceManager(context = application.applicationContext)
     private var mixer: MediaMixer = MediaMixer(application.applicationContext)
-    val session: StreamSession = StreamSession
-        .Builder(application.applicationContext, Preference.shared.rtmpURL.toUri())
-        .build()
+    val session: StreamSession =
+        StreamSession
+            .Builder(application.applicationContext, Preference.shared.rtmpURL.toUri())
+            .build()
     val cameraList: StateFlow<List<CameraDevice>>
         get() {
             return deviceManager.cameraList
@@ -72,10 +73,11 @@ class CameraViewModel(
         text.verticalAlignment = ScreenObject.VERTICAL_ALIGNMENT_BOTTOM
 
         val image = ImageScreenObject()
-        image.bitmap = BitmapFactory.decodeResource(
-            application.applicationContext.resources,
-            R.drawable.game_jikkyou
-        )
+        image.bitmap =
+            BitmapFactory.decodeResource(
+                application.applicationContext.resources,
+                R.drawable.game_jikkyou,
+            )
         image.verticalAlignment = ScreenObject.VERTICAL_ALIGNMENT_BOTTOM
         image.frame.set(0, 0, 180, 180)
 
