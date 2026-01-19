@@ -90,6 +90,8 @@ internal class MediaRecorderMuxer(
 
     private companion object {
         private const val DEFAULT_TRACK_INDEX = -1
+
+        @Suppress("unused")
         private val TAG = MediaRecorderMuxer::class.java.simpleName
     }
 }

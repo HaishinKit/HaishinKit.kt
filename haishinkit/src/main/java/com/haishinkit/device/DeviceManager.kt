@@ -7,7 +7,6 @@ import android.hardware.camera2.CameraManager
 import android.hardware.usb.UsbManager
 import android.os.Handler
 import android.os.Looper
-import android.util.Log
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow

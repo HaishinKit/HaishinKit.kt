@@ -129,6 +129,7 @@ internal class Screen(
     }
 
     companion object {
+        @Suppress("unused")
         private val TAG = Screen::class.java.simpleName
     }
 }

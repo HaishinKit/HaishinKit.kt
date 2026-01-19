@@ -97,6 +97,7 @@ internal class RtmpAuthenticator(
     }
 
     companion object {
+        @Suppress("unused")
         private val TAG = RtmpAuthenticator::class.java.simpleName
     }
 }

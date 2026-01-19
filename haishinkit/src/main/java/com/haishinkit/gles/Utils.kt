@@ -7,6 +7,7 @@ import java.nio.ByteOrder
 import java.nio.FloatBuffer
 
 internal object Utils {
+    @Suppress("unused")
     private val TAG = Utils::class.java.toString()
 
     fun checkGlError(op: String) {

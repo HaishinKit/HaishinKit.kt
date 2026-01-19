@@ -8,6 +8,7 @@ import com.haishinkit.rtmp.event.EventUtils
 import com.haishinkit.rtmp.event.IEventListener
 import com.haishinkit.stream.Stream
 import com.haishinkit.stream.StreamSession
+import com.haishinkit.stream.StreamSession.ReadyState
 import kotlinx.coroutines.CancellableContinuation
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -26,8 +27,8 @@ internal class RtmpStreamSession(
     override val isConnected: Boolean
         get() = connection.isConnected
 
-    private val _readyState = MutableStateFlow(StreamSession.ReadyState.CLOSED)
-    override var readyState: StateFlow<StreamSession.ReadyState> = _readyState
+    private val _readyState = MutableStateFlow(ReadyState.CLOSED)
+    override var readyState: StateFlow<ReadyState> = _readyState
 
     private val uri = RtmpUri(uri)
     private val rtmpStream: RtmpStream
@@ -47,7 +48,7 @@ internal class RtmpStreamSession(
 
     override suspend fun connect(): Result<Unit> =
         suspendCancellableCoroutine { continuation ->
-            _readyState.value = StreamSession.ReadyState.CONNECTING
+            _readyState.value = ReadyState.CONNECTING
             this.continuation = continuation
             connection.connect(uri.tcUrl)
         }
@@ -56,9 +57,9 @@ internal class RtmpStreamSession(
         if (connection.isConnected) {
             return Result.failure(IllegalStateException())
         }
-        _readyState.value = StreamSession.ReadyState.CLOSING
+        _readyState.value = ReadyState.CLOSING
         connection.close()
-        _readyState.value = StreamSession.ReadyState.CLOSED
+        _readyState.value = ReadyState.CLOSED
         return Result.success(Unit)
     }
 
@@ -72,7 +73,7 @@ internal class RtmpStreamSession(
             Event.IO_ERROR -> {
                 continuation?.resume(Result.failure(RtmpStatusException("")))
                 continuation = null
-                _readyState.value = StreamSession.ReadyState.CLOSED
+                _readyState.value = ReadyState.CLOSED
                 return
             }
             else -> {
@@ -91,13 +92,13 @@ internal class RtmpStreamSession(
             RtmpStream.Code.PLAY_START.rawValue, RtmpStream.Code.PUBLISH_START.rawValue -> {
                 continuation?.resume(Result.success(Unit))
                 continuation = null
-                _readyState.value = StreamSession.ReadyState.OPEN
+                _readyState.value = ReadyState.OPEN
             }
 
             else -> {
                 continuation?.resume(Result.failure(RtmpStatusException("${data["code"]}")))
                 continuation = null
-                _readyState.value = StreamSession.ReadyState.CLOSED
+                _readyState.value = ReadyState.CLOSED
             }
         }
     }

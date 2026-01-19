@@ -20,6 +20,7 @@ import com.haishinkit.compose.rememberStreamSessionState
 import com.haishinkit.stream.StreamSession
 import kotlinx.coroutines.launch
 
+@Suppress("unused")
 private const val TAG = "PlaybackScreen"
 
 @Suppress("ktlint:standard:function-naming")

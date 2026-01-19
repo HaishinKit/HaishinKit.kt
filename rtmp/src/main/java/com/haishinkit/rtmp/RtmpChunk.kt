@@ -201,6 +201,7 @@ internal enum class RtmpChunk(
                 else -> throw IllegalArgumentException("value=$value")
             }
 
+        @Suppress("unused")
         private val TAG = RtmpChunk::class.java.simpleName
     }
 }

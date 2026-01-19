@@ -203,6 +203,7 @@ class VideoCodec(
         const val DEFAULT_COLOR_FORMAT = MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface
         val DEFAULT_VIDEO_GRAVITY = VideoGravity.RESIZE_ASPECT
 
+        @Suppress("unused")
         private val TAG = VideoCodec::class.java.simpleName
     }
 }

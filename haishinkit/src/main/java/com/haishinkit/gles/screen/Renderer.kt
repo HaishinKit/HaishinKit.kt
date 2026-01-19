@@ -134,6 +134,7 @@ internal class Renderer(
     }
 
     companion object {
+        @Suppress("unused")
         private val TAG = Renderer::class.java.simpleName
     }
 }

@@ -90,6 +90,7 @@ class HkTextureView
         }
 
         private companion object {
+            @Suppress("unused")
             private val TAG = HkTextureView::class.java.simpleName
         }
     }
