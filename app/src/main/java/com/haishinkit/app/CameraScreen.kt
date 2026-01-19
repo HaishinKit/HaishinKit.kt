@@ -32,21 +32,16 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.core.net.toUri
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.google.accompanist.pager.HorizontalPagerIndicator
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.PermissionStatus
 import com.haishinkit.compose.HaishinKitView
-import com.haishinkit.compose.rememberRecorderState
+import com.haishinkit.compose.rememberMediaRecorderState
 import com.haishinkit.compose.rememberStreamSessionState
 import com.haishinkit.graphics.VideoGravity
 import com.haishinkit.graphics.effect.DefaultVideoEffect
-import com.haishinkit.graphics.effect.MonochromeVideoEffect
-import com.haishinkit.graphics.effect.MosaicVideoEffect
-import com.haishinkit.graphics.effect.SepiaVideoEffect
-import com.haishinkit.stream.StreamSession
 import kotlinx.coroutines.launch
 import java.io.File
 
@@ -57,19 +52,13 @@ private const val TAG = "CameraScreen"
 @Composable
 fun CameraScreen(
     viewModel: CameraViewModel = viewModel(),
-    modifier: Modifier = Modifier) {
+    modifier: Modifier = Modifier
+) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
     val cameraList by viewModel.cameraList.collectAsState()
     val selectedCamera by viewModel.selectedCamera.collectAsState()
-
-    val session =
-        rememberStreamSessionState(
-            StreamSession
-                .Builder(context, Preference.shared.rtmpURL.toUri())
-                .build(),
-        )
 
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
@@ -85,14 +74,13 @@ fun CameraScreen(
         viewModel.onConfigurationChanged(configuration)
     }
 
-    LaunchedEffect(Unit) {
-        viewModel.registerOutput(session.stream)
-    }
-
     val pagerState =
         rememberPagerState(pageCount = {
             viewModel.videoEffectItems.size
         })
+
+    val sessionState =
+        rememberStreamSessionState(viewModel.session)
 
     LaunchedEffect(pagerState, 0) {
         snapshotFlow { pagerState.currentPage }.collect { page ->
@@ -103,7 +91,7 @@ fun CameraScreen(
 
     Box(modifier = modifier) {
         HaishinKitView(
-            stream = session.stream,
+            stream = viewModel.session.stream,
             videoGravity = VideoGravity.RESIZE_ASPECT_FILL,
             modifier = Modifier.fillMaxSize(),
         )
@@ -124,25 +112,25 @@ fun CameraScreen(
                     viewModel.selectCameraDevice(camera)
                 },
                 onAudioPermissionStatus = { state ->
-                when (state.status) {
-                    PermissionStatus.Granted -> {
-                        viewModel.selectAudioDevice()
-                    }
+                    when (state.status) {
+                        PermissionStatus.Granted -> {
+                            viewModel.selectAudioDevice()
+                        }
 
-                    is PermissionStatus.Denied -> {
-                        // viewModel.selectAudioDevice(null)
+                        is PermissionStatus.Denied -> {
+                            // viewModel.selectAudioDevice(null)
+                        }
                     }
-                }
-            }, onVideoPermissionStatus = { state ->
-                when (state.status) {
-                    PermissionStatus.Granted -> {
-                        viewModel.selectCameraDevice(selectedCamera)
-                    }
+                }, onVideoPermissionStatus = { state ->
+                    when (state.status) {
+                        PermissionStatus.Granted -> {
+                            viewModel.selectCameraDevice(selectedCamera)
+                        }
 
-                    is PermissionStatus.Denied -> {
+                        is PermissionStatus.Denied -> {
+                        }
                     }
-                }
-            })
+                })
             Spacer(modifier = Modifier.weight(1f))
 
             HorizontalPager(
@@ -165,7 +153,8 @@ fun CameraScreen(
                                 .background(
                                     color = Color.Black,
                                     shape = RoundedCornerShape(20.dp),
-                                ).padding(8.dp, 0.dp),
+                                )
+                                .padding(8.dp, 0.dp),
                     )
                 }
             }
@@ -179,20 +168,20 @@ fun CameraScreen(
                         .padding(32.dp),
             )
 
-            val recorderState = rememberRecorderState(context, session.stream)
+            val recorderState = rememberMediaRecorderState(viewModel.recorder)
 
             CameraControllerView(
                 isRecording = recorderState.isRecording,
-                isConnected = session.isConnected,
+                isConnected = sessionState.isConnected,
                 onClickScreenShot = {
                     viewModel.takeSnapShot(context)
                 },
                 onClickConnect = {
                     scope.launch {
-                        if (session.isConnected) {
-                            session.close()
+                        if (sessionState.isConnected) {
+                            sessionState.close()
                         } else {
-                            session.connect().onFailure {
+                            sessionState.connect().onFailure {
                                 Toast
                                     .makeText(context, it.message, Toast.LENGTH_SHORT)
                                     .show()

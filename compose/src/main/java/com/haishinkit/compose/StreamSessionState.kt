@@ -15,7 +15,7 @@ import kotlinx.coroutines.flow.StateFlow
 */
 @Composable
 fun rememberStreamSessionState(session: StreamSession): StreamSessionState =
-    remember {
+    remember(session) {
         StreamSessionState(
             session,
         )

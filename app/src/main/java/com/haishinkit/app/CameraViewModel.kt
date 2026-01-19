@@ -22,14 +22,16 @@ import com.haishinkit.graphics.effect.SepiaVideoEffect
 import com.haishinkit.graphics.effect.VideoEffect
 import com.haishinkit.lottie.LottieScreen
 import com.haishinkit.media.MediaMixer
-import com.haishinkit.media.MediaOutput
+import com.haishinkit.media.MediaRecorder
 import com.haishinkit.media.source.AudioRecordSource
 import com.haishinkit.media.source.Camera2Source
 import com.haishinkit.screen.ImageScreenObject
 import com.haishinkit.screen.Screen
 import com.haishinkit.screen.ScreenObject
 import com.haishinkit.screen.TextScreenObject
+import com.haishinkit.stream.StreamSession
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import java.io.ByteArrayOutputStream
@@ -37,13 +39,20 @@ import java.io.ByteArrayOutputStream
 class CameraViewModel(
     application: Application
 ) : AndroidViewModel(application), DefaultLifecycleObserver {
-    private var deviceManager: DeviceManager = DeviceManager(context = application.applicationContext)
+    private var deviceManager: DeviceManager =
+        DeviceManager(context = application.applicationContext)
     private var mixer: MediaMixer = MediaMixer(application.applicationContext)
+    val session: StreamSession = StreamSession
+        .Builder(application.applicationContext, Preference.shared.rtmpURL.toUri())
+        .build()
+    val cameraList: StateFlow<List<CameraDevice>>
+        get() {
+            return deviceManager.cameraList
+        }
 
-    val cameraList = deviceManager.cameraList
+    val recorder: MediaRecorder = MediaRecorder(application.applicationContext)
     private val _selectedCamera = MutableStateFlow<CameraDevice?>(null)
     val selectedCamera = _selectedCamera.asStateFlow()
-
     var videoEffectItems: List<VideoEffectItem>
 
     init {
@@ -63,7 +72,10 @@ class CameraViewModel(
         text.verticalAlignment = ScreenObject.VERTICAL_ALIGNMENT_BOTTOM
 
         val image = ImageScreenObject()
-        image.bitmap = BitmapFactory.decodeResource(application.applicationContext.resources, R.drawable.game_jikkyou)
+        image.bitmap = BitmapFactory.decodeResource(
+            application.applicationContext.resources,
+            R.drawable.game_jikkyou
+        )
         image.verticalAlignment = ScreenObject.VERTICAL_ALIGNMENT_BOTTOM
         image.frame.set(0, 0, 180, 180)
 
@@ -76,7 +88,8 @@ class CameraViewModel(
         lottie.horizontalAlignment = ScreenObject.HORIZONTAL_ALIGNMENT_RIGHT
         lottie.playAnimation()
         mixer.screen.addChild(lottie)
-
+        mixer.registerOutput(recorder)
+        mixer.registerOutput(session.stream)
         mixer.startRunning()
     }
 
@@ -99,10 +112,6 @@ class CameraViewModel(
                 mixer.attachVideo(0, Camera2Source(application.applicationContext, cameraDevice.id))
             }
         }
-    }
-
-    fun registerOutput(output: MediaOutput) {
-        mixer.registerOutput(output)
     }
 
     fun onConfigurationChanged(configuration: Configuration) {

@@ -12,6 +12,7 @@ import com.haishinkit.media.source.Camera2Source
 import com.haishinkit.media.source.VideoSource
 import com.haishinkit.screen.Screen
 import com.haishinkit.screen.ScreenObjectContainer
+import com.haishinkit.stream.Stream
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
