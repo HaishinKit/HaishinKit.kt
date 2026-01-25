@@ -7,6 +7,7 @@ import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Rect
+import android.os.Build
 import android.provider.MediaStore
 import android.util.Log
 import androidx.core.net.toUri
@@ -24,6 +25,7 @@ import com.haishinkit.graphics.effect.VideoEffect
 import com.haishinkit.lottie.LottieScreen
 import com.haishinkit.media.MediaMixer
 import com.haishinkit.media.MediaRecorder
+import com.haishinkit.media.source.AudioContinuousSource
 import com.haishinkit.media.source.AudioRecordSource
 import com.haishinkit.media.source.Camera2Source
 import com.haishinkit.screen.ImageScreenObject
@@ -107,7 +109,11 @@ class CameraViewModel(
 
     fun selectAudioDevice() {
         viewModelScope.launch {
-            mixer.attachAudio(0, AudioRecordSource(application.applicationContext))
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                mixer.attachAudio(0, AudioContinuousSource(application.applicationContext))
+            } else {
+                mixer.attachAudio(0, AudioRecordSource(application.applicationContext))
+            }
         }
     }
 
