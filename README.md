@@ -18,7 +18,7 @@ Issues/Discussions with priority response.
 
 ## 🎨 Features
 - **Protocols** ✨Publish and playback feature are available RTMP.
-- **Multi Camera access** ✨Support multitasking camera access.
+- **Multi Camera access** ✨Support multi camera access.
 - **Multi Streaming** ✨Allowing live streaming to separate services. Views also support this, enabling the verification of raw video data.
 - **Video mixing** ✨Possible to display any text or bitmap on a video during broadcasting or viewing. This allows for various applications such as watermarking and time display.
 
