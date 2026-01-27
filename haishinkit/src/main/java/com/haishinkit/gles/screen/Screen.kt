@@ -22,6 +22,7 @@ internal class Screen(
     Running,
     Choreographer.FrameCallback {
     val graphicsContext: GraphicsContext by lazy { GraphicsContext() }
+
     override var id: Int
         get() = framebuffer.textureId
         set(value) {

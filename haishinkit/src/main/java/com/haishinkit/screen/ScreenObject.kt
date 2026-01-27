@@ -13,6 +13,7 @@ import kotlin.math.max
 abstract class ScreenObject(
     val target: Int = GLES20.GL_TEXTURE_2D,
 ) {
+    abstract val type: String
     open var id: Int = -1
         internal set
 
@@ -71,6 +72,14 @@ abstract class ScreenObject(
      * Specifies the video effect such as a monochrome, a sepia.
      */
     var videoEffect: VideoEffect = DefaultVideoEffect.shared
+
+    /**
+     * A key-value representation of this object for serialization.
+     *
+     * This property is a computed view of the internal state and does not
+     * necessarily have a backing field.
+     */
+    abstract var elements: Map<String, String>
 
     /**
      * Specifies the visibility of the object.

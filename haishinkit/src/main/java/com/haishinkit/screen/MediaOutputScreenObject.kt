@@ -31,6 +31,8 @@ class MediaOutputScreenObject(
     context: Context,
 ) : VideoScreenObject(),
     MediaOutput {
+    override var type: String = "media"
+
     override var surface: Surface?
         get() = super.surface
         set(value) {
@@ -43,6 +45,10 @@ class MediaOutputScreenObject(
             field = value
             pixelTransform.screen = value?.get()?.screen
         }
+
+    override var elements: Map<String, String>
+        get() = emptyMap()
+        set(value) {}
 
     init {
         videoGravity = VideoGravity.RESIZE_ASPECT

@@ -13,6 +13,16 @@ import kotlin.math.max
  */
 @Suppress("MemberVisibilityCanBePrivate")
 class TextScreenObject : ImageScreenObject() {
+    private interface Keys {
+        companion object {
+            const val VALUE = "value"
+            const val COLOR = "color"
+            const val SIZE = "size"
+        }
+    }
+
+    override val type: String = TYPE
+
     /**
      * Specifies the text value.
      */
@@ -43,6 +53,20 @@ class TextScreenObject : ImageScreenObject() {
             invalidateLayout()
         }
 
+    override var elements: Map<String, String>
+        get() {
+            return buildMap {
+                put(Keys.VALUE, value)
+                put(Keys.COLOR, String.format("#%08X", color))
+                put(Keys.SIZE, this@TextScreenObject.size.toString())
+            }
+        }
+        set(value) {
+            this.value = value[Keys.VALUE] ?: ""
+            this.color = Color.parseColor(value[Keys.COLOR] ?: "#FFFFFFFF")
+            this.size = value[Keys.SIZE]?.toFloat() ?: 0f
+        }
+
     private val paint by lazy {
         Paint(ANTI_ALIAS_FLAG).apply {
             textSize = this@TextScreenObject.size
@@ -66,5 +90,10 @@ class TextScreenObject : ImageScreenObject() {
         bitmap?.eraseColor(Color.TRANSPARENT)
         canvas?.drawText(value, -textBounds.left.toFloat(), -textBounds.top.toFloat(), paint)
         super.layout(renderer)
+    }
+
+    companion object {
+        const val TYPE: String = "text"
+        private val TAG = VideoScreenObject::class.java.simpleName
     }
 }

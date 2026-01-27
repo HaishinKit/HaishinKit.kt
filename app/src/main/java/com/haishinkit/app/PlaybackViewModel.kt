@@ -3,7 +3,6 @@ package com.haishinkit.app
 import android.app.Application
 import androidx.core.net.toUri
 import androidx.lifecycle.AndroidViewModel
-import androidx.lifecycle.application
 import com.haishinkit.stream.StreamSession
 
 class PlaybackViewModel(
