@@ -39,9 +39,9 @@ cd HaishinKit.kt
 
 **JitPack**
 
-- A common mistake is trying to use implementation 'com.github.HaishinKit.**HaishinKit.kt**', which
-  does not work. The correct form is implementation 'com.github.HaishinKit.**HaishinKit~kt**'.
-- In older versions, there may be cases where Jetpack is not supported. If it's not available,
+- A common mistake is trying to use implementation `com.github.HaishinKit.**HaishinKit.kt**`, which
+  does not work. The correct form is implementation `com.github.HaishinKit.**HaishinKit~kt**`.
+- In older versions, there may be cases where JitPack is not supported. If it's not available,
   please give up and use the latest version.
 
 ```gradle
