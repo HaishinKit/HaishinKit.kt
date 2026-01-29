@@ -5,6 +5,8 @@ package com.haishinkit.screen
  */
 @Suppress("UNUSED")
 open class ScreenObjectContainer : ScreenObject() {
+    override val type: String = TYPE
+
     /**
      * The total of child counts.
      */
@@ -27,6 +29,10 @@ open class ScreenObjectContainer : ScreenObject() {
         set(value) {
             super.shouldInvalidateLayout = value
         }
+
+    override var elements: Map<String, String>
+        get() = emptyMap()
+        set(value) {}
 
     private val children = mutableListOf<ScreenObject>()
 
@@ -80,6 +86,18 @@ open class ScreenObjectContainer : ScreenObject() {
         invalidateLayout()
     }
 
+    open fun transition(screenObjectContainer: ScreenObjectContainer) {
+        for (i in children.size - 1 downTo 0) {
+            children[i].parent = null
+        }
+        children.clear()
+        for (child in screenObjectContainer.children) {
+            child.parent = this
+            children.add(child)
+        }
+        invalidateLayout()
+    }
+
     override fun layout(renderer: Renderer) {
         getBounds(bounds)
         children.forEach {
@@ -114,5 +132,13 @@ open class ScreenObjectContainer : ScreenObject() {
             removeChild(children[i])
         }
         children.clear()
+    }
+
+    internal open fun getChildren(): List<ScreenObject> {
+        return children
+    }
+
+    companion object {
+        const val TYPE: String = "container"
     }
 }

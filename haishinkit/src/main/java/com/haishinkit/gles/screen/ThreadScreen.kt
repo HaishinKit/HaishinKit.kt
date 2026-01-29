@@ -9,6 +9,7 @@ import android.os.Message
 import com.haishinkit.gles.GraphicsContext
 import com.haishinkit.screen.Screen
 import com.haishinkit.screen.ScreenObject
+import com.haishinkit.screen.ScreenObjectContainer
 import java.lang.ref.WeakReference
 
 internal class ThreadScreen(
@@ -115,6 +116,18 @@ internal class ThreadScreen(
         }
     }
 
+    override fun transition(screenObjectContainer: ScreenObjectContainer) {
+        handler.apply {
+            sendMessage(obtainMessage(MSG_TRANSITION, screenObjectContainer))
+        }
+    }
+
+    override fun getChildren(): List<ScreenObject> {
+        return handler.run {
+            screen.getChildren()
+        }
+    }
+
     override fun dispose() {
         handler.apply {
             sendMessage(obtainMessage(MSG_DISPOSE))
@@ -182,6 +195,10 @@ internal class ThreadScreen(
                     transform.readPixels(message.obj as (bitmap: Bitmap?) -> Unit)
                 }
 
+                MSG_TRANSITION -> {
+                    transform.transition(message.obj as ScreenObjectContainer)
+                }
+
                 MSG_DISPOSE -> {
                     transform.dispose()
                 }
@@ -207,5 +224,7 @@ internal class ThreadScreen(
         private const val MSG_BIND = 10
         private const val MSG_READ_PIXELS = 11
         private const val MSG_UNBIND = 12
+
+        private const val MSG_TRANSITION = 13
     }
 }

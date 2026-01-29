@@ -21,6 +21,8 @@ abstract class Screen(
         abstract fun onEnterFrame()
     }
 
+    override val type: String = TYPE
+
     /**
      * Specifies the screen's background color.
      */
@@ -64,6 +66,8 @@ abstract class Screen(
     companion object {
         const val DEFAULT_WIDTH = 1280
         const val DEFAULT_HEIGHT = 720
+
+        const val TYPE = "screen"
 
         fun create(context: Context): Screen =
             com.haishinkit.gles.screen.ThreadScreen(context).apply {

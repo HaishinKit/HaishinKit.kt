@@ -20,6 +20,8 @@ open class VideoScreenObject(
     target: Int = GLES11Ext.GL_TEXTURE_EXTERNAL_OES,
 ) : ScreenObject(target),
     SurfaceTexture.OnFrameAvailableListener {
+    override val type: String = TYPE
+
     /**
      * Specifies the surface that is an input source.
      */
@@ -90,6 +92,10 @@ open class VideoScreenObject(
         set(value) {
             super.isVisible = value
         }
+
+    override var elements: Map<String, String>
+        get() = emptyMap()
+        set(value) {}
 
     private var isFrameAvailable = false
 
@@ -219,7 +225,8 @@ open class VideoScreenObject(
         fun onSurfaceChanged(surface: Surface?)
     }
 
-    private companion object {
+    companion object {
+        const val TYPE: String = "video"
         private val TAG = VideoScreenObject::class.java.simpleName
     }
 }

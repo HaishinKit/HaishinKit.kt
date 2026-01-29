@@ -29,6 +29,7 @@ import com.haishinkit.screen.ImageScreenObject
 import com.haishinkit.screen.Screen
 import com.haishinkit.screen.ScreenObject
 import com.haishinkit.screen.TextScreenObject
+import com.haishinkit.screen.scene.SceneManager
 import com.haishinkit.stream.StreamSession
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -55,6 +56,14 @@ class CameraViewModel(
     private val _selectedCamera = MutableStateFlow<CameraDevice?>(null)
     val selectedCamera = _selectedCamera.asStateFlow()
     var videoEffectItems: List<VideoEffectItem>
+
+    private val sceneManager: SceneManager by lazy {
+        val manager = SceneManager(mixer.screen)
+        manager.register(LottieScreen.TYPE) { data ->
+            LottieScreen(application.applicationContext)
+        }
+        manager
+    }
 
     init {
         val _videoEffectItems = mutableListOf<VideoEffectItem>()
@@ -90,6 +99,7 @@ class CameraViewModel(
         lottie.horizontalAlignment = ScreenObject.HORIZONTAL_ALIGNMENT_RIGHT
         lottie.playAnimation()
         mixer.screen.addChild(lottie)
+
         mixer.registerOutput(recorder)
         mixer.registerOutput(session.stream)
         mixer.startRunning()
