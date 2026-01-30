@@ -38,7 +38,7 @@ class MediaMixer(
         set(value) {
             videoSources.values.forEach {
                 val source = it as? Camera2Source ?: return@forEach
-                source.isTouchEnabled = value
+                source.isTorchEnabled = value
             }
             field = value
         }
@@ -121,7 +121,7 @@ class MediaMixer(
             attachVideo(track, null)
             videoSources[track] = video
             if (video is Camera2Source) {
-                video.isTouchEnabled = isToucheEnabled
+                video.isTorchEnabled = isToucheEnabled
             }
             return video.open(this).onSuccess {
                 videoContainer.addChild(video.video)
