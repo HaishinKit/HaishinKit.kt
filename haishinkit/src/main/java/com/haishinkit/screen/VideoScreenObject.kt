@@ -1,6 +1,5 @@
 package com.haishinkit.screen
 
-import android.graphics.SurfaceTexture
 import android.opengl.GLES11Ext
 import android.opengl.Matrix
 import android.util.Log
@@ -18,24 +17,21 @@ import com.haishinkit.util.swap
 @Suppress("MemberVisibilityCanBePrivate")
 open class VideoScreenObject(
     target: Int = GLES11Ext.GL_TEXTURE_EXTERNAL_OES,
-) : ScreenObject(target),
-    SurfaceTexture.OnFrameAvailableListener {
+) : ScreenObject(target) {
+    private interface Keys {
+        companion object {
+            const val TRACK = "track"
+        }
+    }
+
     override val type: String = TYPE
 
-    /**
-     * Specifies the surface that is an input source.
-     */
-    open var surface: Surface? = null
+    var track: Int = 0
         set(value) {
             if (field == value) return
             field = value
-            listener?.onSurfaceChanged(value)
+            invalidateLayout()
         }
-
-    /**
-     * Specifies the listener to be invoked when a surface changed.
-     */
-    var listener: OnSurfaceChangedListener? = null
 
     /**
      * Specifies the videoGravity how the displays the visual content.
@@ -87,17 +83,15 @@ open class VideoScreenObject(
             invalidateLayout()
         }
 
-    override var isVisible: Boolean
-        get() = super.isVisible && isFrameAvailable
-        set(value) {
-            super.isVisible = value
-        }
-
     override var elements: Map<String, String>
-        get() = emptyMap()
-        set(value) {}
-
-    private var isFrameAvailable = false
+        get() {
+            return buildMap {
+                put(Keys.TRACK, track.toString())
+            }
+        }
+        set(value) {
+            track = value[Keys.TRACK]?.toInt() ?: 0
+        }
 
     override fun layout(renderer: Renderer) {
         super.layout(renderer)
@@ -208,21 +202,6 @@ open class VideoScreenObject(
                 "$this => matrix: ${matrix.joinToString()}, imageOrientation=$imageOrientation, deviceOrientation=$deviceOrientation, videoSize=$videoSize",
             )
         }
-    }
-
-    override fun onFrameAvailable(surfaceTexture: SurfaceTexture?) {
-        try {
-            surfaceTexture?.updateTexImage()
-            isFrameAvailable = true
-        } catch (e: RuntimeException) {
-            if (BuildConfig.DEBUG) {
-                Log.e(TAG, "", e)
-            }
-        }
-    }
-
-    interface OnSurfaceChangedListener {
-        fun onSurfaceChanged(surface: Surface?)
     }
 
     companion object {

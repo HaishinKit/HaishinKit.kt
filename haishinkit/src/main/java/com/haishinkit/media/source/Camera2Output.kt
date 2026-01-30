@@ -19,7 +19,6 @@ import android.util.Size
 import android.view.Surface
 import com.haishinkit.BuildConfig
 import com.haishinkit.graphics.ImageOrientation
-import com.haishinkit.screen.VideoScreenObject
 import kotlinx.coroutines.CancellableContinuation
 import kotlinx.coroutines.suspendCancellableCoroutine
 import java.util.concurrent.Executors
@@ -29,13 +28,12 @@ internal class Camera2Output(
     val context: Context,
     val source: VideoSource,
     private val cameraId: String,
-) : CameraDevice.StateCallback(),
-    VideoScreenObject.OnSurfaceChangedListener {
+) : CameraDevice.StateCallback() {
     var isDisconnected: Boolean = false
         private set
     val isTouchSupported: Boolean
         get() {
-            return characteristics?.get<Boolean>(CameraCharacteristics.FLASH_INFO_AVAILABLE) == true
+            return characteristics?.get(CameraCharacteristics.FLASH_INFO_AVAILABLE) == true
         }
     val imageOrientation: ImageOrientation
         get() {
@@ -168,12 +166,6 @@ internal class Camera2Output(
                 },
                 handler,
             )
-        }
-    }
-
-    override fun onSurfaceChanged(surface: Surface?) {
-        surface?.let {
-            createCaptureSession(it)
         }
     }
 

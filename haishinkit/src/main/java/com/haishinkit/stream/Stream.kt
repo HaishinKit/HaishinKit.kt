@@ -2,7 +2,6 @@ package com.haishinkit.stream
 
 import android.content.Context
 import android.util.Log
-import android.view.Surface
 import androidx.core.util.Pools
 import com.haishinkit.BuildConfig
 import com.haishinkit.codec.AudioCodec
@@ -26,8 +25,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 abstract class Stream(
     private var context: Context,
 ) : MediaOutput,
-    MediaOutputDataSource,
-    VideoScreenObject.OnSurfaceChangedListener {
+    MediaOutputDataSource {
     /**
      * Specifies the video codec settings.
      */
@@ -95,7 +93,6 @@ abstract class Stream(
 
     protected val video: VideoScreenObject by lazy {
         VideoScreenObject().apply {
-            listener = this@Stream
             isRotatesWithContent = false
         }
     }
@@ -149,10 +146,6 @@ abstract class Stream(
             MediaType.VIDEO -> {
             }
         }
-    }
-
-    override fun onSurfaceChanged(surface: Surface?) {
-        videoCodec.surface = surface
     }
 
     fun queueOutputBuffer(

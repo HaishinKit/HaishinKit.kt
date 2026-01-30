@@ -138,6 +138,23 @@ open class ScreenObjectContainer : ScreenObject() {
         return children
     }
 
+    internal open fun <T : ScreenObject> getScreenObjects(clazz: Class<T>): List<T> {
+        val objects =
+            children
+                .mapNotNull {
+                    try {
+                        clazz.cast(it)
+                    } catch (e: Exception) {
+                        return@mapNotNull null
+                    }
+                }
+
+        return objects +
+            children
+                .filterIsInstance<ScreenObjectContainer>()
+                .flatMap { it.getScreenObjects(clazz) }
+    }
+
     companion object {
         const val TYPE: String = "container"
     }

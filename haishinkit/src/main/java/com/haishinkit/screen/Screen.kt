@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Color
 import android.graphics.Rect
+import com.haishinkit.media.source.VideoSource
 
 /**
  * An object that manages offscreen rendering a foundation.
@@ -44,6 +45,11 @@ abstract class Screen(
      * Unbinds the gpu texture.
      */
     abstract fun unbind(screenObject: ScreenObject)
+
+    abstract fun attachVideo(
+        track: Int,
+        video: VideoSource?,
+    )
 
     /**
      * Registers a listener to receive notifications about when the Screen.

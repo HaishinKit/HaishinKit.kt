@@ -11,7 +11,9 @@ import com.haishinkit.gles.Framebuffer
 import com.haishinkit.gles.GraphicsContext
 import com.haishinkit.gles.Utils
 import com.haishinkit.lang.Running
+import com.haishinkit.media.source.VideoSource
 import com.haishinkit.screen.ScreenObject
+import com.haishinkit.screen.VideoScreenObject
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.util.concurrent.atomic.AtomicBoolean
@@ -22,6 +24,8 @@ internal class Screen(
     Running,
     Choreographer.FrameCallback {
     val graphicsContext: GraphicsContext by lazy { GraphicsContext() }
+
+    private var textureIds = intArrayOf(0)
 
     override var id: Int
         get() = framebuffer.textureId
@@ -45,13 +49,53 @@ internal class Screen(
             field = value
             field?.postFrameCallback(this)
         }
+    private var videoTextureRegistry: VideoTextureRegistry = VideoTextureRegistry()
 
     override fun bind(screenObject: ScreenObject) {
-        renderer.bind(screenObject)
+        when (screenObject) {
+            is VideoScreenObject -> {
+                val track = screenObject.track
+                videoTextureRegistry.getTextureIdByTrack(track)?.let { id ->
+                    screenObject.id = id
+                }
+            }
+            else -> {
+                GLES20.glGenTextures(1, textureIds, 0)
+                screenObject.id = textureIds[0]
+            }
+        }
     }
 
     override fun unbind(screenObject: ScreenObject) {
-        renderer.unbind(screenObject)
+        when (screenObject) {
+            is VideoScreenObject -> {
+            }
+            else -> {
+                textureIds[0] = screenObject.id
+                GLES20.glDeleteTextures(1, textureIds, 0)
+                screenObject.id = 0
+            }
+        }
+    }
+
+    override fun attachVideo(
+        track: Int,
+        video: VideoSource?,
+    ) {
+        if (video == null) {
+            videoTextureRegistry.unregister(track)
+        } else {
+            videoTextureRegistry.register(track, video)
+            videoTextureRegistry.getTextureIdByTrack(track)?.let { id ->
+                getScreenObjects(VideoScreenObject::class.java).forEach {
+                    if (it.track == track) {
+                        it.id = id
+                        it.videoSize = video.videoSize
+                        it.imageOrientation = video.imageOrientation
+                    }
+                }
+            }
+        }
     }
 
     override fun readPixels(lambda: (bitmap: Bitmap?) -> Unit) {

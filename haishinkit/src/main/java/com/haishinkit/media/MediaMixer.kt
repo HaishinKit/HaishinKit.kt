@@ -12,6 +12,7 @@ import com.haishinkit.media.source.Camera2Source
 import com.haishinkit.media.source.VideoSource
 import com.haishinkit.screen.Screen
 import com.haishinkit.screen.ScreenObjectContainer
+import com.haishinkit.screen.VideoScreenObject
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -78,16 +79,18 @@ class MediaMixer(
     private var videoSources = mutableMapOf<Int, VideoSource>()
     private var audioSources = mutableMapOf<Int, AudioSource>()
     private val videoContainer: ScreenObjectContainer by lazy {
-        ScreenObjectContainer()
+        ScreenObjectContainer().apply {
+            addChild(VideoScreenObject())
+        }
     }
     private val orientationEventListener: OrientationEventListener by lazy {
         object : OrientationEventListener(context, SensorManager.SENSOR_DELAY_NORMAL) {
             override fun onOrientationChanged(orientation: Int) {
                 val windowManager =
                     context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
-                windowManager.defaultDisplay?.orientation?.let {
-                    videoSources.forEach { videoSource ->
-                        videoSource.value.video.deviceOrientation = it
+                windowManager.defaultDisplay?.orientation?.let { orientation ->
+                    screen.getScreenObjects(VideoScreenObject::class.java).forEach {
+                        it.deviceOrientation = orientation
                     }
                 }
             }
@@ -124,13 +127,14 @@ class MediaMixer(
                 video.isTorchEnabled = isToucheEnabled
             }
             return video.open(this).onSuccess {
-                videoContainer.addChild(video.video)
+                screen.attachVideo(track, video)
             }
         }
         videoSources.remove(track)?.let {
-            videoContainer.removeChild(it.video)
+            it.surface = null
             it.close()
         }
+        screen.attachVideo(track, null)
         return Result.success(Unit)
     }
 
@@ -141,7 +145,11 @@ class MediaMixer(
         track: Int,
         videoEffect: VideoEffect,
     ) {
-        videoSources[track]?.video?.videoEffect = videoEffect
+        screen.getScreenObjects(VideoScreenObject::class.java).forEach {
+            if (it.track == track) {
+                it.videoEffect = videoEffect
+            }
+        }
     }
 
     override fun registerOutput(output: MediaOutput) {
@@ -184,7 +192,7 @@ class MediaMixer(
         launch {
             audioSources.values.forEach { it.close() }
             videoSources.values.forEach {
-                videoContainer.removeChild(it.video)
+                it.surface = null
                 it.close()
             }
         }
