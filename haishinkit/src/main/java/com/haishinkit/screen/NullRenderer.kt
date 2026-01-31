@@ -7,12 +7,6 @@ internal class NullRenderer : Renderer {
     override fun draw(screenObject: ScreenObject) {
     }
 
-    override fun bind(screenObject: ScreenObject) {
-    }
-
-    override fun unbind(screenObject: ScreenObject) {
-    }
-
     companion object {
         internal val SHARED = NullRenderer()
     }

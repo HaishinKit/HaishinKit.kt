@@ -33,11 +33,12 @@ class MediaOutputScreenObject(
     MediaOutput {
     override var type: String = "media"
 
-    override var surface: Surface?
-        get() = super.surface
+    var surface: Surface?
+        get() {
+            return pixelTransform.surface
+        }
         set(value) {
             pixelTransform.surface = value
-            super.surface = value
         }
 
     override var dataSource: WeakReference<MediaOutputDataSource>? = null

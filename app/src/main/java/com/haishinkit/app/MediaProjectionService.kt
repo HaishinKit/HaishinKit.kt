@@ -124,9 +124,8 @@ class MediaProjectionService :
                             it,
                         )
                     mixer.attachVideo(0, source).onSuccess {
-                        Log.i(TAG, "${source.video.videoSize}")
                         mixer.screen.frame =
-                            Rect(0, 0, source.video.videoSize.width, source.video.videoSize.height)
+                            Rect(0, 0, source.videoSize.width, source.videoSize.height)
                         session.connect()
                     }
                 }

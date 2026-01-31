@@ -17,7 +17,6 @@ import androidx.core.content.getSystemService
 import com.haishinkit.BuildConfig
 import com.haishinkit.graphics.ImageOrientation
 import com.haishinkit.media.MediaMixer
-import com.haishinkit.screen.VideoScreenObject
 
 /**
  * A video source that captures a display by the MediaProjection API.
@@ -26,8 +25,7 @@ import com.haishinkit.screen.VideoScreenObject
 class MediaProjectionSource(
     private val context: Context,
     private var mediaProjection: MediaProjection,
-) : VideoSource,
-    VideoScreenObject.OnSurfaceChangedListener {
+) : VideoSource {
     private class Callback(
         val source: MediaProjectionSource,
     ) : MediaProjection.Callback() {
@@ -44,7 +42,7 @@ class MediaProjectionSource(
         ) {
             super.onCapturedContentResize(width, height)
             if (source.isRotatesWithContent) {
-                source.video.imageOrientation =
+                source.imageOrientation =
                     if (width < height) {
                         ImageOrientation.UP
                     } else {
@@ -66,11 +64,31 @@ class MediaProjectionSource(
 
     var isRotatesWithContent = true
 
-    override val video: VideoScreenObject by lazy {
-        VideoScreenObject().apply {
-            listener = this@MediaProjectionSource
+    override var imageOrientation: ImageOrientation = ImageOrientation.UP
+        private set
+
+    override var surface: Surface? = null
+        set(value) {
+            field = value
+            value?.let {
+                handler?.post {
+                    virtualDisplay =
+                        mediaProjection.createVirtualDisplay(
+                            DEFAULT_DISPLAY_NAME,
+                            displaySize.width,
+                            displaySize.height,
+                            context.resources.configuration.densityDpi,
+                            DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
+                            surface,
+                            null,
+                            handler,
+                        )
+                }
+            }
         }
-    }
+
+    override var videoSize: Size = Size(0, 0)
+        private set
 
     private var virtualDisplay: VirtualDisplay? = null
         set(value) {
@@ -113,7 +131,7 @@ class MediaProjectionSource(
     override suspend fun open(mixer: MediaMixer): Result<Unit> {
         // Android 14 must register an callback.
         mediaProjection.registerCallback(callback, handler)
-        video.videoSize = displaySize
+        videoSize = displaySize
         return Result.success(Unit)
     }
 
@@ -122,23 +140,6 @@ class MediaProjectionSource(
         mediaProjection.stop()
         virtualDisplay = null
         return Result.success(Unit)
-    }
-
-    override fun onSurfaceChanged(surface: Surface?) {
-        if (surface == null) return
-        handler?.post {
-            virtualDisplay =
-                mediaProjection.createVirtualDisplay(
-                    DEFAULT_DISPLAY_NAME,
-                    displaySize.width,
-                    displaySize.height,
-                    context.resources.configuration.densityDpi,
-                    DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
-                    surface,
-                    null,
-                    handler,
-                )
-        }
     }
 
     companion object {

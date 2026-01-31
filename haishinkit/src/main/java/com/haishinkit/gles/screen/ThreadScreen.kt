@@ -7,6 +7,7 @@ import android.os.HandlerThread
 import android.os.Looper
 import android.os.Message
 import com.haishinkit.gles.GraphicsContext
+import com.haishinkit.media.source.VideoSource
 import com.haishinkit.screen.Screen
 import com.haishinkit.screen.ScreenObject
 import com.haishinkit.screen.ScreenObjectContainer
@@ -122,9 +123,24 @@ internal class ThreadScreen(
         }
     }
 
+    override fun attachVideo(
+        track: Int,
+        video: VideoSource?,
+    ) {
+        handler.apply {
+            sendMessage(obtainMessage(MSG_ATTACH_VIDEO, track, 0, video))
+        }
+    }
+
     override fun getChildren(): List<ScreenObject> {
         return handler.run {
             screen.getChildren()
+        }
+    }
+
+    override fun <T : ScreenObject> getScreenObjects(clazz: Class<T>): List<T> {
+        return handler.run {
+            screen.getScreenObjects(clazz)
         }
     }
 
@@ -199,6 +215,10 @@ internal class ThreadScreen(
                     transform.transition(message.obj as ScreenObjectContainer)
                 }
 
+                MSG_ATTACH_VIDEO -> {
+                    transform.attachVideo(message.arg1, message.obj as? VideoSource)
+                }
+
                 MSG_DISPOSE -> {
                     transform.dispose()
                 }
@@ -224,7 +244,7 @@ internal class ThreadScreen(
         private const val MSG_BIND = 10
         private const val MSG_READ_PIXELS = 11
         private const val MSG_UNBIND = 12
-
         private const val MSG_TRANSITION = 13
+        private const val MSG_ATTACH_VIDEO = 14
     }
 }
