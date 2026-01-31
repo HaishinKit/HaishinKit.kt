@@ -80,6 +80,7 @@ internal class RtmpStreamSession(
                 _readyState.value = ReadyState.CLOSED
                 return
             }
+
             else -> {
                 // no op
             }

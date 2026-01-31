@@ -22,7 +22,6 @@ import androidx.annotation.RequiresApi
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
-import androidx.core.net.toUri
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import com.haishinkit.media.MediaMixer
 import com.haishinkit.media.source.AudioRecordSource
@@ -45,7 +44,7 @@ class MediaProjectionService :
         }
     }
     private val session: StreamSession by lazy {
-        StreamSession.Builder(applicationContext, Preference.shared.rtmpURL.toUri()).build()
+        StreamSession.Builder(applicationContext, Preference.shared.toRtmpUrl()).build()
     }
     private val notificationManager by lazy { NotificationManagerCompat.from(this) }
     private val mediaProjectionManager by lazy {
@@ -180,7 +179,6 @@ class MediaProjectionService :
                 return this
             }
 
-        fun isRunning(context: Context): Boolean =
-            LocalBroadcastManager.getInstance(context).sendBroadcast(Intent(ACTION_SERVICE_RUNNING))
+        fun isRunning(context: Context): Boolean = LocalBroadcastManager.getInstance(context).sendBroadcast(Intent(ACTION_SERVICE_RUNNING))
     }
 }

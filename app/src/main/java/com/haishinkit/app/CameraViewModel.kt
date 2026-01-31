@@ -45,7 +45,7 @@ class CameraViewModel(
     private var mixer: MediaMixer = MediaMixer(application.applicationContext)
     val session: StreamSession =
         StreamSession
-            .Builder(application.applicationContext, Preference.shared.rtmpURL.toUri())
+            .Builder(application.applicationContext, Preference.shared.toRtmpUrl())
             .build()
     val cameraList: StateFlow<List<CameraDevice>>
         get() {

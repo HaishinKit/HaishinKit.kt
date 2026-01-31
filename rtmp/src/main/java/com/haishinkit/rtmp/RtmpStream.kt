@@ -152,7 +152,7 @@ class RtmpStream(
     /**
      * Incoming video plays on the stream or not.
      */
-    var receiveVideo = true
+    var receiveVideo: Boolean = true
         set(value) {
             field = value
             if (readyState != ReadyState.PLAYING) return
@@ -167,7 +167,7 @@ class RtmpStream(
     /**
      * Incoming audio plays on the stream or not.
      */
-    var receiveAudio = true
+    var receiveAudio: Boolean = true
         set(value) {
             field = value
             if (readyState != ReadyState.PLAYING) return
