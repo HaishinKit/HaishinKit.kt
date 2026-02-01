@@ -6,6 +6,7 @@ import android.graphics.Paint
 import android.graphics.Paint.ANTI_ALIAS_FLAG
 import android.graphics.Rect
 import androidx.core.graphics.createBitmap
+import androidx.core.graphics.toColorInt
 import kotlin.math.max
 
 /**
@@ -63,7 +64,7 @@ class TextScreenObject : ImageScreenObject() {
         }
         set(value) {
             this.value = value[Keys.VALUE] ?: ""
-            this.color = Color.parseColor(value[Keys.COLOR] ?: "#FFFFFFFF")
+            this.color = (value[Keys.COLOR] ?: "#FFFFFFFF").toColorInt()
             this.size = value[Keys.SIZE]?.toFloat() ?: 0f
         }
 

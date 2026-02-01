@@ -63,9 +63,11 @@ fun CameraScreen(
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         lifecycleOwner.lifecycle.addObserver(viewModel)
+        viewModel.startRunning()
 
         onDispose {
             lifecycleOwner.lifecycle.removeObserver(viewModel)
+            viewModel.stopRunning()
         }
     }
 

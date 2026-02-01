@@ -59,6 +59,7 @@ internal class Screen(
                     screenObject.id = id
                 }
             }
+
             else -> {
                 GLES20.glGenTextures(1, textureIds, 0)
                 screenObject.id = textureIds[0]
@@ -69,7 +70,9 @@ internal class Screen(
     override fun unbind(screenObject: ScreenObject) {
         when (screenObject) {
             is VideoScreenObject -> {
+                screenObject.id = 0
             }
+
             else -> {
                 textureIds[0] = screenObject.id
                 GLES20.glDeleteTextures(1, textureIds, 0)

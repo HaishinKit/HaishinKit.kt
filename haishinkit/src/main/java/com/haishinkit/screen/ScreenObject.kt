@@ -2,6 +2,7 @@ package com.haishinkit.screen
 
 import android.graphics.Rect
 import android.opengl.GLES20
+import android.util.Log
 import com.haishinkit.graphics.effect.DefaultVideoEffect
 import com.haishinkit.graphics.effect.VideoEffect
 import kotlin.math.max
@@ -118,7 +119,11 @@ abstract class ScreenObject(
      * Draws the screen object.
      */
     open fun draw(renderer: Renderer) {
-        renderer.draw(this)
+        try {
+            renderer.draw(this)
+        } catch (e: RuntimeException) {
+            Log.w(TAG, this.toString(), e)
+        }
     }
 
     protected fun getBounds(rect: Rect) {
@@ -186,6 +191,7 @@ abstract class ScreenObject(
     }
 
     companion object {
+        private val TAG = ScreenObject::class.java.simpleName
         const val HORIZONTAL_ALIGNMENT_LEFT = 0
         const val HORIZONTAL_ALIGNMENT_CENTER = 1
         const val HORIZONTAL_ALIGNMENT_RIGHT = 2

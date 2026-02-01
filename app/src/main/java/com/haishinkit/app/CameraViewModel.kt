@@ -8,6 +8,7 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Rect
 import android.provider.MediaStore
+import android.util.Log
 import androidx.core.net.toUri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.DefaultLifecycleObserver
@@ -102,7 +103,6 @@ class CameraViewModel(
 
         mixer.registerOutput(recorder)
         mixer.registerOutput(session.stream)
-        mixer.startRunning()
     }
 
     fun selectAudioDevice() {
@@ -170,6 +170,14 @@ class CameraViewModel(
         }
     }
 
+    fun startRunning() {
+        mixer.startRunning()
+    }
+
+    fun stopRunning() {
+        mixer.stopRunning()
+    }
+
     override fun onResume(owner: LifecycleOwner) {
         mixer.onResume(owner)
     }
@@ -179,6 +187,7 @@ class CameraViewModel(
     }
 
     override fun onCleared() {
+        Log.d("TAG", "onCleared")
         super.onCleared()
         deviceManager.release()
         mixer.dispose()

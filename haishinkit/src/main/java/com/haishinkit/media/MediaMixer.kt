@@ -172,6 +172,11 @@ class MediaMixer(
         }
         orientationEventListener.enable()
         startAudioCapturing()
+        launch {
+            videoSources.values.forEach {
+                it.open(this@MediaMixer)
+            }
+        }
         isRunning.set(true)
     }
 
@@ -181,24 +186,28 @@ class MediaMixer(
         }
         keepAlive = false
         orientationEventListener.disable()
+        launch {
+            videoSources.values.forEach {
+                it.close()
+            }
+        }
         isRunning.set(false)
     }
 
     /**
-     * Disposes the stream of memory management.
+     * Disposes the mixer of memory management.
      */
     fun dispose() {
         stopRunning()
+        screen.dispose()
         launch {
-            audioSources.values.forEach { it.close() }
-            videoSources.values.forEach {
-                it.surface = null
-                it.close()
+            for (key in audioSources.keys) {
+                attachAudio(key, null)
+            }
+            for (key in videoSources.keys) {
+                attachVideo(key, null)
             }
         }
-        audioSources.clear()
-        videoSources.clear()
-        screen.dispose()
     }
 
     private fun startAudioCapturing() =
