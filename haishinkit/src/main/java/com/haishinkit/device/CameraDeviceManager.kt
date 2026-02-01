@@ -11,8 +11,20 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
+/**
+ * Manages available camera devices on the system.
+ *
+ * This class observes both:
+ * - Camera availability changes reported by [CameraManager]
+ * - USB camera attach / detach events
+ *
+ * and keeps an up-to-date list of [CameraDevice] instances exposed via [deviceList].
+ *
+ * Call [release] when this manager is no longer needed to unregister callbacks
+ * and receivers.
+ */
 @Suppress("UNUSED")
-class DeviceManager(
+class CameraDeviceManager(
     private val context: Context,
 ) {
     private val cameraManager =
@@ -34,8 +46,12 @@ class DeviceManager(
             refresh()
         }
 
-    private val _cameraList = MutableStateFlow<List<CameraDevice>>(emptyList())
-    val cameraList: StateFlow<List<CameraDevice>> = _cameraList.asStateFlow()
+    private val _deviceList = MutableStateFlow<List<CameraDevice>>(emptyList())
+
+    /**
+     * A read-only [StateFlow] that emits the current list of available camera devices.
+     */
+    val deviceList: StateFlow<List<CameraDevice>> = _deviceList.asStateFlow()
 
     init {
         val filter =
@@ -51,7 +67,13 @@ class DeviceManager(
         refresh()
     }
 
-    fun getCameraList(): List<CameraDevice> {
+    /**
+     * Returns the current list of camera devices detected by the system.
+     *
+     * Each camera is mapped to a [CameraDevice] using its ID and lens facing
+     * information obtained from [CameraCharacteristics].
+     */
+    fun getDeviceList(): List<CameraDevice> {
         return cameraManager.cameraIdList.map { cameraId ->
             val chars = cameraManager.getCameraCharacteristics(cameraId)
             val position =
@@ -75,12 +97,17 @@ class DeviceManager(
         }
     }
 
+    /**
+     * Releases all registered callbacks and receivers.
+     *
+     * This method should be called to avoid memory leaks when the manager is no longer in use.
+     */
     fun release() {
         cameraManager.unregisterAvailabilityCallback(availabilityCallback)
         context.unregisterReceiver(usbReceiver)
     }
 
     private fun refresh() {
-        _cameraList.value = getCameraList()
+        _deviceList.value = getDeviceList()
     }
 }

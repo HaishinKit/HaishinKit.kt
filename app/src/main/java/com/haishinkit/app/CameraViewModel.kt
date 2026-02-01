@@ -16,7 +16,7 @@ import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.application
 import androidx.lifecycle.viewModelScope
 import com.haishinkit.device.CameraDevice
-import com.haishinkit.device.DeviceManager
+import com.haishinkit.device.CameraDeviceManager
 import com.haishinkit.graphics.effect.MonochromeVideoEffect
 import com.haishinkit.graphics.effect.MosaicVideoEffect
 import com.haishinkit.graphics.effect.SepiaVideoEffect
@@ -41,8 +41,8 @@ import java.io.ByteArrayOutputStream
 class CameraViewModel(
     application: Application,
 ) : AndroidViewModel(application), DefaultLifecycleObserver {
-    private var deviceManager: DeviceManager =
-        DeviceManager(context = application.applicationContext)
+    private var cameraDeviceManager: CameraDeviceManager =
+        CameraDeviceManager(context = application.applicationContext)
     private var mixer: MediaMixer = MediaMixer(application.applicationContext)
     val session: StreamSession =
         StreamSession
@@ -50,7 +50,7 @@ class CameraViewModel(
             .build()
     val cameraList: StateFlow<List<CameraDevice>>
         get() {
-            return deviceManager.cameraList
+            return cameraDeviceManager.deviceList
         }
 
     val recorder: MediaRecorder = MediaRecorder(application.applicationContext)
@@ -73,7 +73,7 @@ class CameraViewModel(
         _videoEffectItems.add(VideoEffectItem("Mosaic", MosaicVideoEffect()))
         _videoEffectItems.add(VideoEffectItem("Sepia", SepiaVideoEffect()))
         this.videoEffectItems = _videoEffectItems
-        _selectedCamera.value = deviceManager.getCameraList().first()
+        _selectedCamera.value = cameraDeviceManager.getDeviceList().first()
 
         val text = TextScreenObject()
         text.size = 60f
@@ -187,9 +187,8 @@ class CameraViewModel(
     }
 
     override fun onCleared() {
-        Log.d("TAG", "onCleared")
         super.onCleared()
-        deviceManager.release()
+        cameraDeviceManager.release()
         mixer.dispose()
     }
 }

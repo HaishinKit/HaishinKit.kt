@@ -5,7 +5,6 @@ import android.content.Context
 import android.content.Intent
 import android.hardware.usb.UsbManager
 
-@Suppress("UNUSED")
 internal class UsbCameraReceiver(
     private val onChanged: () -> Unit,
 ) : BroadcastReceiver() {
