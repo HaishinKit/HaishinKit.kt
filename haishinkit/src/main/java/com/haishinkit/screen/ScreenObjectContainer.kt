@@ -88,6 +88,19 @@ open class ScreenObjectContainer(
         invalidateLayout()
     }
 
+    override fun findById(id: String): ScreenObject? {
+        if (this.id == id) {
+            return this
+        }
+        for (child in children) {
+            val result = child.findById(id)
+            if (result != null) {
+                return result
+            }
+        }
+        return null
+    }
+
     open fun transition(screenObjectContainer: ScreenObjectContainer) {
         for (i in children.size - 1 downTo 0) {
             children[i].parent = null
@@ -140,7 +153,7 @@ open class ScreenObjectContainer(
         return children
     }
 
-    internal open fun <T : ScreenObject> getScreenObjects(clazz: Class<T>): List<T> {
+    internal open fun <T : ScreenObject> findByClass(clazz: Class<T>): List<T> {
         val objects =
             children
                 .mapNotNull {
@@ -154,7 +167,7 @@ open class ScreenObjectContainer(
         return objects +
             children
                 .filterIsInstance<ScreenObjectContainer>()
-                .flatMap { it.getScreenObjects(clazz) }
+                .flatMap { it.findByClass(clazz) }
     }
 
     companion object {

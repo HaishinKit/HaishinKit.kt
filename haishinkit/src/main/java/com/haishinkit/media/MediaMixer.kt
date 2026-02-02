@@ -89,7 +89,7 @@ class MediaMixer(
                 val windowManager =
                     context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
                 windowManager.defaultDisplay?.orientation?.let { orientation ->
-                    screen.getScreenObjects(VideoScreenObject::class.java).forEach {
+                    screen.findByClass(VideoScreenObject::class.java).forEach {
                         it.deviceOrientation = orientation
                     }
                 }
@@ -145,7 +145,7 @@ class MediaMixer(
         track: Int,
         videoEffect: VideoEffect,
     ) {
-        screen.getScreenObjects(VideoScreenObject::class.java).forEach {
+        screen.findByClass(VideoScreenObject::class.java).forEach {
             if (it.track == track) {
                 it.videoEffect = videoEffect
             }

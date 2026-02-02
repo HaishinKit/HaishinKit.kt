@@ -215,6 +215,13 @@ abstract class ScreenObject(
         }
     }
 
+    open fun findById(id: String): ScreenObject? {
+        if (this.id == id) {
+            return this
+        }
+        return null
+    }
+
     companion object {
         private val TAG = ScreenObject::class.java.simpleName
         const val HORIZONTAL_ALIGNMENT_LEFT = 0

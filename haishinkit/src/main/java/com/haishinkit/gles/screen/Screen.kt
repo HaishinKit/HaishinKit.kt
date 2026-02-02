@@ -90,7 +90,7 @@ internal class Screen(
         } else {
             videoTextureRegistry.register(track, video)
             videoTextureRegistry.getTextureIdByTrack(track)?.let { id ->
-                getScreenObjects(VideoScreenObject::class.java).forEach {
+                findByClass(VideoScreenObject::class.java).forEach {
                     if (it.track == track) {
                         it.textureId = id
                         it.videoSize = video.videoSize
