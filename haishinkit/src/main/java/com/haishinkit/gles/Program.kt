@@ -89,7 +89,7 @@ internal class Program(
         GLES20.glUniformMatrix4fv(mvpMatrixHandle, 1, false, screenObject.matrix, 0)
         Utils.checkGlError("glUniformMatrix4fv")
 
-        GLES20.glBindTexture(screenObject.target, screenObject.id)
+        GLES20.glBindTexture(screenObject.target, screenObject.textureId)
         Utils.checkGlError("glBindTexture")
 
         GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4)

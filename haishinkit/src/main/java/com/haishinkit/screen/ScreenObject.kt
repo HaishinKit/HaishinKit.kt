@@ -5,6 +5,7 @@ import android.opengl.GLES20
 import android.util.Log
 import com.haishinkit.graphics.effect.DefaultVideoEffect
 import com.haishinkit.graphics.effect.VideoEffect
+import java.util.UUID
 import kotlin.math.max
 
 /**
@@ -12,10 +13,34 @@ import kotlin.math.max
  */
 @Suppress("MemberVisibilityCanBePrivate")
 abstract class ScreenObject(
+    id: String?,
     val target: Int = GLES20.GL_TEXTURE_2D,
 ) {
+    /**
+     * Logical type of this screen object.
+     *
+     * This value is typically used for serialization, debugging,
+     * or distinguishing between different kinds of screen objects.
+     */
     abstract val type: String
-    open var id: Int = -1
+
+    /**
+     * Unique identifier of this screen object.
+     *
+     * The identifier must be unique within the owning scene or document
+     * and is commonly used for lookup and state management.
+     */
+    val id: String = id ?: UUID.randomUUID().toString()
+
+    /**
+     * OpenGL ES texture ID associated with this screen object.
+     *
+     * A value of `-1` indicates that no texture has been assigned yet.
+     *
+     * The setter is restricted to internal use to prevent external
+     * modification of the OpenGL resource state.
+     */
+    open var textureId: Int = -1
         internal set
 
     /**
@@ -188,6 +213,13 @@ abstract class ScreenObject(
                 }
             rect.set(x, y, x + width, y + height)
         }
+    }
+
+    open fun findById(id: String): ScreenObject? {
+        if (this.id == id) {
+            return this
+        }
+        return null
     }
 
     companion object {

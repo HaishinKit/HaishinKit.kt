@@ -13,7 +13,9 @@ import kotlin.math.max
  * An object that manages offscreen rendering a text source.
  */
 @Suppress("MemberVisibilityCanBePrivate")
-class TextScreenObject : ImageScreenObject() {
+class TextScreenObject(
+    id: String? = null,
+) : ImageScreenObject(id) {
     private interface Keys {
         companion object {
             const val VALUE = "value"

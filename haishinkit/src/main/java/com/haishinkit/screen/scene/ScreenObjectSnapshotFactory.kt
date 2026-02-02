@@ -9,6 +9,7 @@ class ScreenObjectSnapshotFactory {
             is ScreenObjectContainer -> {
                 ScreenObjectSnapshot(
                     type = screenObject.type,
+                    id = screenObject.id,
                     frame =
                         ScreenObjectSnapshot.Rect(
                             screenObject.frame.top,
@@ -30,6 +31,7 @@ class ScreenObjectSnapshotFactory {
             else -> {
                 ScreenObjectSnapshot(
                     type = screenObject.type,
+                    id = screenObject.id,
                     frame =
                         ScreenObjectSnapshot.Rect(
                             screenObject.frame.top,

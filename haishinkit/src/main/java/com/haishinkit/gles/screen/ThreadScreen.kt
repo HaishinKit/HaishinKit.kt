@@ -21,8 +21,8 @@ internal class ThreadScreen(
             return screen.graphicsContext
         }
 
-    override var id: Int
-        get() = screen.id
+    override var textureId: Int
+        get() = screen.textureId
         set(value) {
         }
 
@@ -138,9 +138,15 @@ internal class ThreadScreen(
         }
     }
 
-    override fun <T : ScreenObject> getScreenObjects(clazz: Class<T>): List<T> {
+    override fun <T : ScreenObject> findByClass(clazz: Class<T>): List<T> {
         return handler.run {
-            screen.getScreenObjects(clazz)
+            screen.findByClass(clazz)
+        }
+    }
+
+    override fun findById(targetId: String): ScreenObject? {
+        return handler.run {
+            screen.findById(targetId)
         }
     }
 

@@ -4,7 +4,9 @@ package com.haishinkit.screen
  *  A ScreenObjectContainer represents a collection of screen objects.
  */
 @Suppress("UNUSED")
-open class ScreenObjectContainer : ScreenObject() {
+open class ScreenObjectContainer(
+    id: String? = null,
+) : ScreenObject(id) {
     override val type: String = TYPE
 
     /**
@@ -86,6 +88,19 @@ open class ScreenObjectContainer : ScreenObject() {
         invalidateLayout()
     }
 
+    override fun findById(id: String): ScreenObject? {
+        if (this.id == id) {
+            return this
+        }
+        for (child in children) {
+            val result = child.findById(id)
+            if (result != null) {
+                return result
+            }
+        }
+        return null
+    }
+
     open fun transition(screenObjectContainer: ScreenObjectContainer) {
         for (i in children.size - 1 downTo 0) {
             children[i].parent = null
@@ -138,7 +153,7 @@ open class ScreenObjectContainer : ScreenObject() {
         return children
     }
 
-    internal open fun <T : ScreenObject> getScreenObjects(clazz: Class<T>): List<T> {
+    internal open fun <T : ScreenObject> findByClass(clazz: Class<T>): List<T> {
         val objects =
             children
                 .mapNotNull {
@@ -152,7 +167,7 @@ open class ScreenObjectContainer : ScreenObject() {
         return objects +
             children
                 .filterIsInstance<ScreenObjectContainer>()
-                .flatMap { it.getScreenObjects(clazz) }
+                .flatMap { it.findByClass(clazz) }
     }
 
     companion object {

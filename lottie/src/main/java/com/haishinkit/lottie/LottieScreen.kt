@@ -29,7 +29,8 @@ import kotlin.math.min
 @Suppress("MemberVisibilityCanBePrivate", "UNUSED")
 class LottieScreen(
     val context: Context,
-) : ImageScreenObject() {
+    id: String? = null,
+) : ImageScreenObject(id) {
     private interface Keys {
         companion object {
             const val ANIMATION_RES_ID = "animationResId"
