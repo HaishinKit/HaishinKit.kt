@@ -16,8 +16,9 @@ import com.haishinkit.util.swap
  */
 @Suppress("MemberVisibilityCanBePrivate")
 open class VideoScreenObject(
+    id: String? = null,
     target: Int = GLES11Ext.GL_TEXTURE_EXTERNAL_OES,
-) : ScreenObject(target) {
+) : ScreenObject(id, target) {
     private interface Keys {
         companion object {
             const val TRACK = "track"

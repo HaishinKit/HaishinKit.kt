@@ -8,7 +8,9 @@ import java.io.ByteArrayOutputStream
 /**
  * An object that manages offscreen rendering an image source.
  */
-open class ImageScreenObject : ScreenObject() {
+open class ImageScreenObject(
+    id: String? = null,
+) : ScreenObject(id) {
     private interface Keys {
         companion object {
             const val BITMAP: String = "bitmap"

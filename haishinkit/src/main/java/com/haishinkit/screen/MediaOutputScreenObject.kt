@@ -29,7 +29,8 @@ import java.lang.ref.WeakReference
 @Suppress("UNUSED")
 class MediaOutputScreenObject(
     context: Context,
-) : VideoScreenObject(),
+    id: String? = null
+) : VideoScreenObject(id),
     MediaOutput {
     override var type: String = "media"
 

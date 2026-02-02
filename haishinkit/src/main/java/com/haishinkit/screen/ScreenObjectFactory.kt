@@ -13,35 +13,35 @@ class ScreenObjectFactory {
         creators[type] = creator
     }
 
-    fun create(data: ScreenObjectSnapshot): ScreenObject {
-        return when (data.type) {
+    fun create(snapshot: ScreenObjectSnapshot): ScreenObject {
+        return when (snapshot.type) {
             Screen.TYPE,
             ScreenObjectContainer.TYPE,
             -> {
-                ScreenObjectContainer().apply {
-                    for (child in data.children) {
+                ScreenObjectContainer(snapshot.id).apply {
+                    for (child in snapshot.children) {
                         addChild(create(child))
                     }
                 }
             }
 
-            ImageScreenObject.TYPE -> ImageScreenObject()
-            VideoScreenObject.TYPE -> VideoScreenObject()
-            TextScreenObject.TYPE -> TextScreenObject()
+            ImageScreenObject.TYPE -> ImageScreenObject(snapshot.id)
+            VideoScreenObject.TYPE -> VideoScreenObject(snapshot.id)
+            TextScreenObject.TYPE -> TextScreenObject(snapshot.id)
             else -> {
-                creators[data.type]?.invoke(data) ?: NullScreenObject()
+                creators[snapshot.type]?.invoke(snapshot) ?: NullScreenObject(snapshot.id)
             }
         }.apply {
-            layoutMargins.set(data.layoutMargin)
+            layoutMargins.set(snapshot.layoutMargin)
             frame.set(
-                data.frame.x,
-                data.frame.y,
-                data.frame.x + data.frame.width,
-                data.frame.y + data.frame.height,
+                snapshot.frame.x,
+                snapshot.frame.y,
+                snapshot.frame.x + snapshot.frame.width,
+                snapshot.frame.y + snapshot.frame.height,
             )
-            verticalAlignment = data.verticalAlignment
-            horizontalAlignment = data.horizontalAlignment
-            elements = data.elements
+            verticalAlignment = snapshot.verticalAlignment
+            horizontalAlignment = snapshot.horizontalAlignment
+            elements = snapshot.elements
         }
     }
 }

@@ -4,7 +4,9 @@ package com.haishinkit.screen
  *  A ScreenObjectContainer represents a collection of screen objects.
  */
 @Suppress("UNUSED")
-open class ScreenObjectContainer : ScreenObject() {
+open class ScreenObjectContainer(
+    id: String? = null,
+) : ScreenObject(id) {
     override val type: String = TYPE
 
     /**

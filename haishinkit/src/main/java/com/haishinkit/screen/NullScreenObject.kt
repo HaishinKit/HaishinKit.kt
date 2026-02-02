@@ -1,6 +1,8 @@
 package com.haishinkit.screen
 
-internal class NullScreenObject : ScreenObject() {
+internal class NullScreenObject(
+    id: String? = null,
+) : ScreenObject(id) {
     override val type: String = TYPE
 
     override var elements: Map<String, String>
