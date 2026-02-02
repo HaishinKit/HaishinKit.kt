@@ -27,7 +27,7 @@ internal class Screen(
 
     private var textureIds = intArrayOf(0)
 
-    override var id: Int
+    override var textureId: Int
         get() = framebuffer.textureId
         set(value) {
         }
@@ -56,13 +56,13 @@ internal class Screen(
             is VideoScreenObject -> {
                 val track = screenObject.track
                 videoTextureRegistry.getTextureIdByTrack(track)?.let { id ->
-                    screenObject.id = id
+                    screenObject.textureId = id
                 }
             }
 
             else -> {
                 GLES20.glGenTextures(1, textureIds, 0)
-                screenObject.id = textureIds[0]
+                screenObject.textureId = textureIds[0]
             }
         }
     }
@@ -70,13 +70,13 @@ internal class Screen(
     override fun unbind(screenObject: ScreenObject) {
         when (screenObject) {
             is VideoScreenObject -> {
-                screenObject.id = 0
+                screenObject.textureId = 0
             }
 
             else -> {
-                textureIds[0] = screenObject.id
+                textureIds[0] = screenObject.textureId
                 GLES20.glDeleteTextures(1, textureIds, 0)
-                screenObject.id = 0
+                screenObject.textureId = 0
             }
         }
     }
@@ -92,7 +92,7 @@ internal class Screen(
             videoTextureRegistry.getTextureIdByTrack(track)?.let { id ->
                 getScreenObjects(VideoScreenObject::class.java).forEach {
                     if (it.track == track) {
-                        it.id = id
+                        it.textureId = id
                         it.videoSize = video.videoSize
                         it.imageOrientation = video.imageOrientation
                     }

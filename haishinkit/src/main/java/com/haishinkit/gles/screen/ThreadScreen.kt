@@ -21,8 +21,8 @@ internal class ThreadScreen(
             return screen.graphicsContext
         }
 
-    override var id: Int
-        get() = screen.id
+    override var textureId: Int
+        get() = screen.textureId
         set(value) {
         }
 

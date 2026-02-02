@@ -39,6 +39,7 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class ScreenObjectSnapshot(
     val type: String,
+    val id: String,
     val frame: Rect,
     val layoutMargin: EdgeInsets,
     val horizontalAlignment: Int,

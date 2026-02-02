@@ -45,7 +45,7 @@ internal class Renderer(
 
             is ImageScreenObject -> {
                 val bitmap = screenObject.bitmap ?: return
-                GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, screenObject.id)
+                GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, screenObject.textureId)
                 Utils.checkGlError("glBindTexture")
                 GLES20.glPixelStorei(GLES20.GL_UNPACK_ALIGNMENT, 1)
                 Utils.checkGlError("glPixelStorei")

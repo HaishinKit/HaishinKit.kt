@@ -15,7 +15,7 @@ abstract class ScreenObject(
     val target: Int = GLES20.GL_TEXTURE_2D,
 ) {
     abstract val type: String
-    open var id: Int = -1
+    open var textureId: Int = -1
         internal set
 
     /**
