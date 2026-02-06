@@ -131,6 +131,8 @@ internal class ScheduledFpsController : FpsController {
                 2,
                 3,
             )
+
+        @Suppress("unused")
         private val TAG = ScheduledFpsController::class.java.simpleName
     }
 }

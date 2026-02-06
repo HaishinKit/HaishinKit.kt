@@ -16,140 +16,15 @@ support you need.
 Sponsor: [$50 per month](https://github.com/sponsors/shogo4405): Technical support via GitHub
 Issues/Discussions with priority response.
 
-## 💬 Communication
-
-* GitHub Issues and Discussions are open spaces for communication among users and are available to
-  everyone as long
-  as [the code of conduct](https://github.com/HaishinKit/HaishinKit.swift?tab=coc-ov-file) is
-  followed.
-* Whether someone is a contributor to HaishinKit is mainly determined by their GitHub profile icon.
-  If you are using the default icon, there is a chance your input might be overlooked, so please
-  consider setting a custom one. It could be a picture of your pet, for example. Personally, I like
-  cats.
-* If you want to support e-mail based communication without GitHub.
-    * Consulting fee is [$50](https://www.paypal.me/shogo4405/50USD)/1 incident. I'm able to
-      response a few days.
-
-## 🌏 Related projects
-
-| Project name                                                                                    | Notes                                                         | License                                                                                                          |
-|-------------------------------------------------------------------------------------------------|---------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------|
-| [HaishinKit for iOS, macOS, tvOS and visionOS.](https://github.com/HaishinKit/HaishinKit.swift) | Camera and Microphone streaming library via RTMP for Android. | [BSD 3-Clause "New" or "Revised" License](https://github.com/HaishinKit/HaishinKit.swift/blob/master/LICENSE.md) |
-| [HaishinKit for Flutter.](https://github.com/HaishinKit/HaishinKit.dart)                        | Camera and Microphone streaming library via RTMP for Flutter. | [BSD 3-Clause "New" or "Revised" License](https://github.com/HaishinKit/HaishinKit.dart/blob/master/LICENSE.md)  |
-
 ## 🎨 Features
-
-### RTMP
-
-- [x] Authentication
-- [x] Publish
-- [x] Playback
-- [ ] Action Message Format
-    - [x] AMF0
-    - [ ] ~~AMF3~~
-- [ ] ~~SharedObject~~
-- [x] RTMPS
-    - [x] Native (RTMP over SSL/TSL)
-- [ ] [Enhanced RTMP (Working in progress)](https://github.com/HaishinKit/HaishinKit.kt/wiki/Supports-Enhanced-RTMP-Status)
-    - [ ] v1
-    - [ ] v2
-- [x] Audio Codecs
-    - [x] AAC
-- [x] Video Codecs
-    - [x] H264, HEVC
-
-### ⏺️ Recording
-
-Now support local recording. Additionally, you can specify separate videoSettings and audioSettings
-from the live stream.
-
-```kt
-var mixer = MediaMixer(context)
-var recorder = MediaRecorder(context)
-mixer.registerOutput(recorder)
-recorder.videoSettings.profileLevel = VideoCodecProfileLevel.HEVC_MAIN_3_1
-recorder.startRecording(
-    File(
-        Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
-        "output.mp4"
-    ).toString(),
-    MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4
-)
-```
-
-### Filter
-
-- [Table Of Filters](https://docs.haishinkit.com/kt/latest/haishinkit/com.haishinkit.graphics.effect/index.html)
-
-### Sources
-
-- [x] Single camera with Camera2 api
-- [x] Multi camera with Camera2 api
-- [x] MediaProjection
-- [x] Microphone with AudioRecord api.
-
-### View rendering
-
-|    -     |     HkSurfaceView      |       HkTextureView       |
-|:--------:|:----------------------:|:-------------------------:|
-|  Engine  |      SurfaceView       |        TextureView        |
-| Playback |          beta          |           beta            |
-| Publish  |        ✅ Stable        |         ✅ Stable          |
-|   Note   | Recommend Android 7.0+ | Recommend Android 5.0-6.0 |
-
-### Others
-
-- [x] Hardware acceleration for H264 video encoding/AAC audio encoding.
-    - [x] Asynchronously processing.
-- [x] Graphics api
-    - [x] ✅ OpenGL
-    - [ ] 🐛 Vulkan
-
-### Settings
-
-```kt
-stream.audioSettings.bitrate = 32 * 1000
-
-stream.videoSettings.width = 640 // The width resolution of video output.
-stream.videoSettings.height = 360 // The height resolution of video output.
-stream.videoSettings.bitrate = 160 * 1000 // The bitRate of video output.
-stream.videoSettings.IFrameInterval = 2 // The keyframe interval
-```
-
-### Offscreen Rendering.
-
-Through off-screen rendering capabilities, it is possible to display any text or bitmap on a video
-during broadcasting or viewing. This allows for various applications such as watermarking and time
-display.
-
-<p align="center">
-  <img width="732" alt="" src="https://github.com/HaishinKit/HaishinKit.kt/assets/810189/f2e189eb-d98a-41b4-9b4c-0b7d70637675">
-</p>
-
-```kt
-mixer.attachVideo(0, cameraSource)
-
-val text = TextScreenObject()
-text.textSize = 60f
-text.textValue = "23:44:56"
-text.layoutMargins.set(0, 0, 16, 16)
-text.horizontalAlignment = ScreenObject.HORIZONTAL_ALIGNMENT_RIGHT
-text.verticalAlignment = ScreenObject.VERTICAL_ALIGNMENT_BOTTOM
-mixer.screen.addChild(text)
-
-val image = ImageScreenObject()
-image.bitmap = BitmapFactory.decodeResource(resources, R.drawable.game_jikkyou)
-image.verticalAlignment = ScreenObject.VERTICAL_ALIGNMENT_BOTTOM
-image.frame.set(0, 0, 180, 180)
-mixer.screen.addChild(image)
-```
+- **Protocols** ✨Publish and playback feature are available RTMP.
+- **Multi Camera access** ✨Support multi camera access.
+- **Multi Streaming** ✨Allowing live streaming to separate services. Views also support this, enabling the verification of raw video data.
+- **Video mixing** ✨Possible to display any text or bitmap on a video during broadcasting or viewing. This allows for various applications such as watermarking and time display.
 
 ## 🐾 Examples
-
-Examples project are available for Android.
-
-- [x] Camera and microphone publish.
-- [x] RTMP Playback
+- Reference implementation app for live streaming `publish` and `playback`.
+- If an issue occurs, please check whether it also happens in the examples app.
 
 ```sh
 git clone https://github.com/HaishinKit/HaishinKit.kt.git
@@ -164,9 +39,9 @@ cd HaishinKit.kt
 
 **JitPack**
 
-- A common mistake is trying to use implementation 'com.github.HaishinKit.**HaishinKit.kt**', which
-  does not work. The correct form is implementation 'com.github.HaishinKit.**HaishinKit~kt**'.
-- In older versions, there may be cases where Jetpack is not supported. If it's not available,
+- A common mistake is trying to use implementation `com.github.HaishinKit.**HaishinKit.kt**`, which
+  does not work. The correct form is implementation `com.github.HaishinKit.**HaishinKit~kt**`.
+- In older versions, there may be cases where JitPack is not supported. If it's not available,
   please give up and use the latest version.
 
 ```gradle
@@ -194,12 +69,10 @@ dependencies {
 | lottie     | 21+    | 5       | Optional     | Beta   | It's a module for embedding Lottie animations into live streaming video. |
 
 ### Android manifest
-
 ```xml
-
-<uses-permission android:name="android.permission.INTERNET" /><uses-permission
-android:name="android.permission.CAMERA" /><uses-permission
-android:name="android.permission.RECORD_AUDIO" />
+<uses-permission android:name="android.permission.INTERNET" />
+<uses-permission android:name="android.permission.CAMERA" />
+<uses-permission android:name="android.permission.RECORD_AUDIO" />
 ```
 
 ### Prerequisites
@@ -213,37 +86,12 @@ ActivityCompat.requestPermissions(
 )
 ```
 
-### RTMP Usage
+## 🌏 Related projects
 
-Real Time Messaging Protocol (RTMP).
-
-### Filter API (v0.1)
-
-```
-- [assets]
-  - [shaders]
-    - custom-shader.vert(optional)
-    - custom-shader.frag
-```
-
-```kt
-package my.custom.filter
-
-import com.haishinkit.graphics.filter.VideoEffect
-
-class Monochrome2VideoEffect(
-    override val name: String = "custom-shader"
-) : VideoEffect
-```
-
-```kt
-mixer.screen.videoEffect = Monochrome2VideoEffect()
-```
-
-### Related Project
-
-* HaishinKit.swift - Camera and Microphone streaming library via RTMP, HLS for iOS, macOS and tvOS.
-    * https://github.com/HaishinKit/HaishinKit.swift
+| Project name                                                                                    | Notes                                                         | License                                                                                                          |
+|-------------------------------------------------------------------------------------------------|---------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------|
+| [HaishinKit for iOS, macOS, tvOS and visionOS.](https://github.com/HaishinKit/HaishinKit.swift) | Camera and Microphone streaming library via RTMP for Android. | [BSD 3-Clause "New" or "Revised" License](https://github.com/HaishinKit/HaishinKit.swift/blob/master/LICENSE.md) |
+| [HaishinKit for Flutter.](https://github.com/HaishinKit/HaishinKit.dart)                        | Camera and Microphone streaming library via RTMP for Flutter. | [BSD 3-Clause "New" or "Revised" License](https://github.com/HaishinKit/HaishinKit.dart/blob/master/LICENSE.md)  |
 
 ## 📜 License
 

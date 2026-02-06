@@ -160,7 +160,7 @@ internal class PixelTransform(
                     video.videoSize = Size(screen.frame.width(), screen.frame.height())
                 }
                 if (video.shouldInvalidateLayout) {
-                    video.id = screen.id
+                    video.textureId = screen.textureId
                     video.layout(renderer)
                 }
                 program?.use()

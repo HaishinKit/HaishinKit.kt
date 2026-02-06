@@ -5,12 +5,13 @@ plugins {
     alias(libs.plugins.androidLibrary) apply false
     alias(libs.plugins.jetbrainsDokka)
     alias(libs.plugins.compose.compiler) apply false
+    alias(libs.plugins.kotlin.serialization)
     id("maven-publish")
     id("org.jlleitschuh.gradle.ktlint") version "12.3.0" apply true
 }
 
 rootProject.ext["PUBLISH_GROUP_ID"] = "com.github.vtn-dev-prithipal"
-rootProject.ext["PUBLISH_VERSION"] = "0.17.0"
+rootProject.ext["PUBLISH_VERSION"] = "0.17.2"
 
 subprojects {
     apply(plugin = "org.jlleitschuh.gradle.ktlint")

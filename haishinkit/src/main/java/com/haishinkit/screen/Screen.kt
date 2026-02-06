@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Color
 import android.graphics.Rect
+import com.haishinkit.media.source.VideoSource
 
 /**
  * An object that manages offscreen rendering a foundation.
@@ -20,6 +21,8 @@ abstract class Screen(
          */
         abstract fun onEnterFrame()
     }
+
+    override val type: String = TYPE
 
     /**
      * Specifies the screen's background color.
@@ -43,6 +46,11 @@ abstract class Screen(
      */
     abstract fun unbind(screenObject: ScreenObject)
 
+    abstract fun attachVideo(
+        track: Int,
+        video: VideoSource?,
+    )
+
     /**
      * Registers a listener to receive notifications about when the Screen.
      */
@@ -64,6 +72,8 @@ abstract class Screen(
     companion object {
         const val DEFAULT_WIDTH = 1280
         const val DEFAULT_HEIGHT = 720
+
+        const val TYPE = "screen"
 
         fun create(context: Context): Screen =
             com.haishinkit.gles.screen.ThreadScreen(context).apply {

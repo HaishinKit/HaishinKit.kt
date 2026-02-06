@@ -76,6 +76,8 @@ internal class RtmpUserControlMessage(
 
     companion object {
         private const val CAPACITY = 6
+
+        @Suppress("unused")
         private val TAG = RtmpUserControlMessage::class.java.simpleName
     }
 }

@@ -9,5 +9,6 @@ interface StreamSessionFactory {
     fun create(
         application: Context,
         uri: Uri,
+        mode: StreamSession.Mode,
     ): StreamSession
 }

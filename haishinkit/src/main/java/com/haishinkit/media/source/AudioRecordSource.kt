@@ -143,15 +143,6 @@ class AudioRecordSource(
             }
         }
 
-        private fun error(result: Int): String =
-            when (result) {
-                AudioRecord.ERROR_INVALID_OPERATION -> "ERROR_INVALID_OPERATION"
-                AudioRecord.ERROR_BAD_VALUE -> "ERROR_BAD_VALUE"
-                AudioRecord.ERROR_DEAD_OBJECT -> "ERROR_DEAD_OBJECT"
-                AudioRecord.ERROR -> "ERROR"
-                else -> "ERROR($result)"
-            }
-
         private val TAG = AudioRecordSource::class.java.simpleName
     }
 }

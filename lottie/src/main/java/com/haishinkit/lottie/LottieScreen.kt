@@ -29,7 +29,16 @@ import kotlin.math.min
 @Suppress("MemberVisibilityCanBePrivate", "UNUSED")
 class LottieScreen(
     val context: Context,
-) : ImageScreenObject() {
+    id: String? = null,
+) : ImageScreenObject(id) {
+    private interface Keys {
+        companion object {
+            const val ANIMATION_RES_ID = "animationResId"
+        }
+    }
+
+    override val type: String = TYPE
+
     /**
      * Wrapper for LottieDrawable#isAnimating.
      */
@@ -115,6 +124,19 @@ class LottieScreen(
         get() = lottieDrawable.speed
         set(value) {
             lottieDrawable.speed = value
+        }
+
+    override var elements: Map<String, String>
+        get() {
+            return buildMap {
+                put(Keys.ANIMATION_RES_ID, animationResId.toString())
+            }
+        }
+        set(value) {
+            value[Keys.ANIMATION_RES_ID]?.let {
+                setAnimation(it.toInt())
+                playAnimation()
+            }
         }
 
     override var shouldInvalidateLayout: Boolean
@@ -334,7 +356,9 @@ class LottieScreen(
         }
     }
 
-    private companion object {
+    companion object {
+        const val TYPE = "lottie"
+
         private val TAG = LottieScreen::class.java.simpleName
 
         private val DEFAULT_FAILURE_LISTENER =

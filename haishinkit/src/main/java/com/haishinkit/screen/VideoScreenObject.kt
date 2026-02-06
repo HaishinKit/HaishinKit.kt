@@ -1,6 +1,5 @@
 package com.haishinkit.screen
 
-import android.graphics.SurfaceTexture
 import android.opengl.GLES11Ext
 import android.opengl.Matrix
 import android.util.Log
@@ -17,23 +16,23 @@ import com.haishinkit.util.swap
  */
 @Suppress("MemberVisibilityCanBePrivate")
 open class VideoScreenObject(
+    id: String? = null,
     target: Int = GLES11Ext.GL_TEXTURE_EXTERNAL_OES,
-) : ScreenObject(target),
-    SurfaceTexture.OnFrameAvailableListener {
-    /**
-     * Specifies the surface that is an input source.
-     */
-    open var surface: Surface? = null
+) : ScreenObject(id, target) {
+    private interface Keys {
+        companion object {
+            const val TRACK = "track"
+        }
+    }
+
+    override val type: String = TYPE
+
+    var track: Int = 0
         set(value) {
             if (field == value) return
             field = value
-            listener?.onSurfaceChanged(value)
+            invalidateLayout()
         }
-
-    /**
-     * Specifies the listener to be invoked when a surface changed.
-     */
-    var listener: OnSurfaceChangedListener? = null
 
     /**
      * Specifies the videoGravity how the displays the visual content.
@@ -85,13 +84,15 @@ open class VideoScreenObject(
             invalidateLayout()
         }
 
-    override var isVisible: Boolean
-        get() = super.isVisible && isFrameAvailable
-        set(value) {
-            super.isVisible = value
+    override var elements: Map<String, String>
+        get() {
+            return buildMap {
+                put(Keys.TRACK, track.toString())
+            }
         }
-
-    private var isFrameAvailable = false
+        set(value) {
+            track = value[Keys.TRACK]?.toInt() ?: 0
+        }
 
     override fun layout(renderer: Renderer) {
         super.layout(renderer)
@@ -128,7 +129,7 @@ open class VideoScreenObject(
         if (target == GLES11Ext.GL_TEXTURE_EXTERNAL_OES) {
             matrix[5] = matrix[5] * -1
             Matrix.rotateM(matrix, 0, -degrees.toFloat(), 0f, 0f, 1f)
-            
+
             if (imageOrientation == ImageOrientation.UP_MIRRORED ||
                 imageOrientation == ImageOrientation.DOWN_MIRRORED ||
                 imageOrientation == ImageOrientation.LEFT_MIRRORED ||
@@ -212,22 +213,8 @@ open class VideoScreenObject(
         }
     }
 
-    override fun onFrameAvailable(surfaceTexture: SurfaceTexture?) {
-        try {
-            surfaceTexture?.updateTexImage()
-            isFrameAvailable = true
-        } catch (e: RuntimeException) {
-            if (BuildConfig.DEBUG) {
-                Log.e(TAG, "", e)
-            }
-        }
-    }
-
-    interface OnSurfaceChangedListener {
-        fun onSurfaceChanged(surface: Surface?)
-    }
-
-    private companion object {
+    companion object {
+        const val TYPE: String = "video"
         private val TAG = VideoScreenObject::class.java.simpleName
     }
 }

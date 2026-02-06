@@ -83,6 +83,7 @@ class HkSurfaceView
         }
 
         private companion object {
+            @Suppress("unused")
             private val TAG = HkSurfaceView::class.java.simpleName
         }
     }

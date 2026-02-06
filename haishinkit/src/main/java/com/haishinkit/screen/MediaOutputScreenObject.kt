@@ -29,13 +29,17 @@ import java.lang.ref.WeakReference
 @Suppress("UNUSED")
 class MediaOutputScreenObject(
     context: Context,
-) : VideoScreenObject(),
+    id: String? = null,
+) : VideoScreenObject(id),
     MediaOutput {
-    override var surface: Surface?
-        get() = super.surface
+    override var type: String = "media"
+
+    var surface: Surface?
+        get() {
+            return pixelTransform.surface
+        }
         set(value) {
             pixelTransform.surface = value
-            super.surface = value
         }
 
     override var dataSource: WeakReference<MediaOutputDataSource>? = null
@@ -43,6 +47,10 @@ class MediaOutputScreenObject(
             field = value
             pixelTransform.screen = value?.get()?.screen
         }
+
+    override var elements: Map<String, String>
+        get() = emptyMap()
+        set(value) {}
 
     init {
         videoGravity = VideoGravity.RESIZE_ASPECT

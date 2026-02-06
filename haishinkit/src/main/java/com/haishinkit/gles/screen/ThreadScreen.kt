@@ -7,8 +7,10 @@ import android.os.HandlerThread
 import android.os.Looper
 import android.os.Message
 import com.haishinkit.gles.GraphicsContext
+import com.haishinkit.media.source.VideoSource
 import com.haishinkit.screen.Screen
 import com.haishinkit.screen.ScreenObject
+import com.haishinkit.screen.ScreenObjectContainer
 import java.lang.ref.WeakReference
 
 internal class ThreadScreen(
@@ -19,8 +21,8 @@ internal class ThreadScreen(
             return screen.graphicsContext
         }
 
-    override var id: Int
-        get() = screen.id
+    override var textureId: Int
+        get() = screen.textureId
         set(value) {
         }
 
@@ -115,6 +117,39 @@ internal class ThreadScreen(
         }
     }
 
+    override fun transition(screenObjectContainer: ScreenObjectContainer) {
+        handler.apply {
+            sendMessage(obtainMessage(MSG_TRANSITION, screenObjectContainer))
+        }
+    }
+
+    override fun attachVideo(
+        track: Int,
+        video: VideoSource?,
+    ) {
+        handler.apply {
+            sendMessage(obtainMessage(MSG_ATTACH_VIDEO, track, 0, video))
+        }
+    }
+
+    override fun getChildren(): List<ScreenObject> {
+        return handler.run {
+            screen.getChildren()
+        }
+    }
+
+    override fun <T : ScreenObject> findByClass(clazz: Class<T>): List<T> {
+        return handler.run {
+            screen.findByClass(clazz)
+        }
+    }
+
+    override fun findById(targetId: String): ScreenObject? {
+        return handler.run {
+            screen.findById(targetId)
+        }
+    }
+
     override fun dispose() {
         handler.apply {
             sendMessage(obtainMessage(MSG_DISPOSE))
@@ -182,6 +217,14 @@ internal class ThreadScreen(
                     transform.readPixels(message.obj as (bitmap: Bitmap?) -> Unit)
                 }
 
+                MSG_TRANSITION -> {
+                    transform.transition(message.obj as ScreenObjectContainer)
+                }
+
+                MSG_ATTACH_VIDEO -> {
+                    transform.attachVideo(message.arg1, message.obj as? VideoSource)
+                }
+
                 MSG_DISPOSE -> {
                     transform.dispose()
                 }
@@ -207,5 +250,7 @@ internal class ThreadScreen(
         private const val MSG_BIND = 10
         private const val MSG_READ_PIXELS = 11
         private const val MSG_UNBIND = 12
+        private const val MSG_TRANSITION = 13
+        private const val MSG_ATTACH_VIDEO = 14
     }
 }

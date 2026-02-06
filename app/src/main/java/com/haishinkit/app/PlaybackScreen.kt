@@ -7,41 +7,28 @@ import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.material3.Button
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.core.net.toUri
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.haishinkit.compose.HaishinKitView
 import com.haishinkit.compose.rememberStreamSessionState
-import com.haishinkit.stream.StreamSession
 import kotlinx.coroutines.launch
 
+@Suppress("unused")
 private const val TAG = "PlaybackScreen"
 
 @Suppress("ktlint:standard:function-naming")
 @Composable
-fun PlaybackScreen(modifier: Modifier = Modifier) {
-    val context = LocalContext.current
+fun PlaybackScreen(
+    viewModel: PlaybackViewModel = viewModel(),
+    modifier: Modifier = Modifier,
+) {
     val scope = rememberCoroutineScope()
-
     val session =
-        rememberStreamSessionState(
-            StreamSession
-                .Builder(
-                    context,
-                    Preference.shared.rtmpURL.toUri(),
-                ).build(),
-        )
-
-    DisposableEffect(Unit) {
-        onDispose {
-            // session.dispose()
-        }
-    }
+        rememberStreamSessionState(viewModel.session)
 
     HaishinKitView(
         stream = session.stream,
@@ -63,7 +50,7 @@ fun PlaybackScreen(modifier: Modifier = Modifier) {
                     if (session.isConnected) {
                         session.close()
                     } else {
-                        session.connect(StreamSession.Method.PLAYBACK)
+                        session.connect()
                     }
                 }
             },

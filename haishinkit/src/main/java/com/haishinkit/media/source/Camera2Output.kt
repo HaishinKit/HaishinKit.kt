@@ -8,6 +8,7 @@ import android.hardware.camera2.CameraCaptureSession
 import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraDevice
 import android.hardware.camera2.CameraManager
+import android.hardware.camera2.CaptureRequest
 import android.hardware.camera2.params.OutputConfiguration
 import android.hardware.camera2.params.SessionConfiguration
 import android.os.Build
@@ -18,7 +19,6 @@ import android.util.Size
 import android.view.Surface
 import com.haishinkit.BuildConfig
 import com.haishinkit.graphics.ImageOrientation
-import com.haishinkit.screen.VideoScreenObject
 import kotlinx.coroutines.CancellableContinuation
 import kotlinx.coroutines.suspendCancellableCoroutine
 import java.util.concurrent.Executors
@@ -28,10 +28,13 @@ internal class Camera2Output(
     val context: Context,
     val source: VideoSource,
     private val cameraId: String,
-) : CameraDevice.StateCallback(),
-    VideoScreenObject.OnSurfaceChangedListener {
+) : CameraDevice.StateCallback() {
     var isDisconnected: Boolean = false
         private set
+    val isTouchSupported: Boolean
+        get() {
+            return characteristics?.get(CameraCharacteristics.FLASH_INFO_AVAILABLE) == true
+        }
     val imageOrientation: ImageOrientation
         get() {
             val isFrontCamera = characteristics?.get(CameraCharacteristics.LENS_FACING) == CameraCharacteristics.LENS_FACING_FRONT
@@ -66,6 +69,7 @@ internal class Camera2Output(
     }
 
     private var continuation: CancellableContinuation<Result<Unit>>? = null
+    private var previewRequestBuilder: CaptureRequest.Builder? = null
 
     @SuppressLint("MissingPermission")
     suspend fun open(): Result<Unit> =
@@ -80,19 +84,39 @@ internal class Camera2Output(
         }
 
     fun close(): Result<Unit> {
+        previewRequestBuilder = null
         device = null
         session = null
         return Result.success(Unit)
     }
 
+    fun setTorchEnabled(enable: Boolean) {
+        if (!isTouchSupported) return
+        val builder = previewRequestBuilder ?: return
+        builder.set<Int>(
+            CaptureRequest.FLASH_MODE,
+            if (enable) {
+                CaptureRequest.FLASH_MODE_TORCH
+            } else {
+                CaptureRequest.FLASH_MODE_OFF
+            },
+        )
+        session?.setRepeatingRequest(
+            builder.build(),
+            null,
+            null,
+        )
+    }
+
     fun createCaptureSession(surface: Surface) {
         val device = device ?: return
-        val request =
+        previewRequestBuilder =
             device
                 .createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW)
                 .apply {
                     addTarget(surface)
-                }.build()
+                }
+        val request = previewRequestBuilder?.build() ?: return
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             val outputList =
                 buildList {
@@ -143,12 +167,6 @@ internal class Camera2Output(
                 },
                 handler,
             )
-        }
-    }
-
-    override fun onSurfaceChanged(surface: Surface?) {
-        surface?.let {
-            createCaptureSession(it)
         }
     }
 

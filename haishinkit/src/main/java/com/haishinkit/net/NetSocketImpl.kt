@@ -10,7 +10,6 @@ import java.io.InputStream
 import java.io.OutputStream
 import java.net.Socket
 import java.net.SocketException
-import java.net.SocketTimeoutException
 import java.nio.ByteBuffer
 import java.util.concurrent.LinkedBlockingDeque
 import java.util.concurrent.atomic.AtomicLong
@@ -162,10 +161,16 @@ class NetSocketImpl :
         dstPort: Int,
         isSecure: Boolean,
     ) {
+        outputQueue.clear()
         try {
-            outputQueue.clear()
-            val socket = createSocket(dstName, dstPort, isSecure)
-            this.socket = socket
+            this.socket = createSocket(dstName, dstPort, isSecure)
+        } catch (e: Exception) {
+            Log.w(TAG, "", e)
+            close(true)
+            listener?.onSocketError()
+        }
+        try {
+            val socket = socket ?: return
             if (socket.isConnected) {
                 inputStream = socket.getInputStream()
                 outputStream = socket.getOutputStream()
@@ -182,10 +187,6 @@ class NetSocketImpl :
                     }
                 }
             }
-        } catch (e: SocketTimeoutException) {
-            Log.w(TAG, "", e)
-            close(false)
-            listener?.onTimeout()
         } catch (e: Exception) {
             Log.w(TAG, "", e)
             close(true)

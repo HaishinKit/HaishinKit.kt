@@ -2,9 +2,10 @@ package com.haishinkit.media.source
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.util.Size
 import android.view.Surface
+import com.haishinkit.graphics.ImageOrientation
 import com.haishinkit.media.MediaMixer
-import com.haishinkit.screen.VideoScreenObject
 
 /**
  * A video source that captures a camera by the Camera2 API.
@@ -13,17 +14,27 @@ import com.haishinkit.screen.VideoScreenObject
 class Camera2Source(
     private val context: Context,
     val cameraId: String = DEFAULT_CAMERA_ID,
-) : VideoSource,
-    VideoScreenObject.OnSurfaceChangedListener {
-    /**
-     * The video screen object.
-     */
-    override val video: VideoScreenObject by lazy {
-        VideoScreenObject().apply {
-            isRotatesWithContent = true
-            listener = this@Camera2Source
+) : VideoSource {
+    var isTorchEnabled: Boolean = false
+        set(value) {
+            output?.setTorchEnabled(value)
+            field = value
         }
-    }
+
+    override var surface: Surface? = null
+        set(value) {
+            if (field == value) return
+            field = value
+            value?.let {
+                output?.createCaptureSession(it)
+            }
+        }
+
+    override var videoSize: Size = Size(0, 0)
+        private set
+
+    override val imageOrientation: ImageOrientation
+        get() = output?.imageOrientation ?: ImageOrientation.UP
 
     private var output: Camera2Output? = null
         set(value) {
@@ -40,18 +51,14 @@ class Camera2Source(
         val output = Camera2Output(context, this, cameraId)
         this.output = output
         return output.open().onSuccess {
-            video.imageOrientation = output.imageOrientation
             output.getCameraSize(mixer.screen.frame)?.let {
-                video.videoSize = it
+                videoSize = it
             }
+            output.setTorchEnabled(isTorchEnabled)
         }
     }
 
     override suspend fun close(): Result<Unit> = output?.close() ?: Result.success(Unit)
-
-    override fun onSurfaceChanged(surface: Surface?) {
-        surface?.let { output?.createCaptureSession(it) }
-    }
 
     private companion object {
         private const val DEFAULT_CAMERA_ID = "0"

@@ -50,12 +50,13 @@ internal class RtmpUri(
             }
 
             // Get all segments except the last (which is streamName)
-            val appPath = if (pathSegments.size > 1) {
-                pathSegments.dropLast(1).joinToString("/")
-            } else {
-                // If only one segment, use it as app path
-                pathSegments.first()
-            }
+            val appPath =
+                if (pathSegments.size > 1) {
+                    pathSegments.dropLast(1).joinToString("/")
+                } else {
+                    // If only one segment, use it as app path
+                    pathSegments.first()
+                }
 
             // Build the tcUrl with query parameters included
             val builder = uri.buildUpon().path("/$appPath")

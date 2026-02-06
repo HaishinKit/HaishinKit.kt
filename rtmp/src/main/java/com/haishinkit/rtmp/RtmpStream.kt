@@ -5,6 +5,7 @@ import android.graphics.Rect
 import android.media.MediaFormat
 import android.util.Log
 import com.haishinkit.codec.Codec
+import com.haishinkit.media.source.VideoCodecSource
 import com.haishinkit.rtmp.event.Event
 import com.haishinkit.rtmp.event.EventDispatcher
 import com.haishinkit.rtmp.event.EventUtils
@@ -152,7 +153,7 @@ class RtmpStream(
     /**
      * Incoming video plays on the stream or not.
      */
-    var receiveVideo = true
+    var receiveVideo: Boolean = true
         set(value) {
             field = value
             if (readyState != ReadyState.PLAYING) return
@@ -167,7 +168,7 @@ class RtmpStream(
     /**
      * Incoming audio plays on the stream or not.
      */
-    var receiveAudio = true
+    var receiveAudio: Boolean = true
         set(value) {
             field = value
             if (readyState != ReadyState.PLAYING) return
@@ -434,6 +435,12 @@ class RtmpStream(
             decoderConfigurationRecord.videoSize?.let {
                 screen.frame = Rect(0, 0, it.width, it.height)
                 video.videoSize = it
+                screen.attachVideo(
+                    0,
+                    VideoCodecSource(videoCodec).apply {
+                        videoSize = it
+                    },
+                )
             }
             videoCodec.startRunning()
             hasVideo = true

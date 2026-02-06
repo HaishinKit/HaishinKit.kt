@@ -8,6 +8,8 @@ internal object IsoTypeBufferUtils {
     private const val ZERO: Byte = 0
     private const val ONE: Byte = 1
     private const val THREE: Byte = 3
+
+    @Suppress("unused")
     private val TAG = IsoTypeBufferUtils::class.java.simpleName
 
     fun toNALFile(

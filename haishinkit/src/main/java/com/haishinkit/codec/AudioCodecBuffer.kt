@@ -26,14 +26,16 @@ internal class AudioCodecBuffer {
     fun render(byteBuffer: ByteBuffer): Int {
         val buffer = buffers.take()
         buffer.rewind()
+        val start = byteBuffer.position()
         byteBuffer.put(buffer)
         pool.release(buffer)
+        val result = byteBuffer.position() - start
         if (presentationTimestamp == DEFAULT_PRESENTATION_TIMESTAMP) {
             presentationTimestamp = System.nanoTime() / 1000
         } else {
-            presentationTimestamp += timestamp(byteBuffer.capacity() / 2)
+            presentationTimestamp += timestamp(result / 2)
         }
-        return byteBuffer.capacity()
+        return result
     }
 
     fun clear() {

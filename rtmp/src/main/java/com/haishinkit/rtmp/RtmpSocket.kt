@@ -81,10 +81,10 @@ internal class RtmpSocket(
         isConnected = false
     }
 
-    override fun onTimeout() {
+    override fun onSocketError() {
         close(false)
         connection.dispatchEventWith(Event.IO_ERROR, false)
-        Log.i(TAG, "a connection was timeout")
+        Log.i(TAG, "a connection was failed")
     }
 
     override fun onConnect() {
