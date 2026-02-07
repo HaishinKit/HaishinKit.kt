@@ -17,8 +17,14 @@ import kotlinx.serialization.Serializable
  * The type identifier of the screen object.
  * This value is typically used to determine which screen object to recreate.
  *
+ * @property id
+ * The unique identifier of this screen object.
+ *
  * @property frame
  * The position and size of the screen object within its parent coordinate space.
+ *
+ * @property isVisible
+ * The visibility of the screen object.
  *
  * @property layoutMargin
  * The margin applied to the screen object when performing layout calculations.
@@ -41,6 +47,7 @@ data class ScreenObjectSnapshot(
     val type: String,
     val id: String,
     val frame: Rect,
+    val isVisible: Boolean,
     val layoutMargin: EdgeInsets,
     val horizontalAlignment: Int,
     val verticalAlignment: Int,
