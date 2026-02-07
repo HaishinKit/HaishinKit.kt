@@ -19,7 +19,7 @@ class ScreenObjectSnapshotFactory {
                         ),
                     horizontalAlignment = screenObject.horizontalAlignment,
                     verticalAlignment = screenObject.horizontalAlignment,
-                    layoutMargin = screenObject.layoutMargins,
+                    layoutMargin = screenObject.layoutMargin,
                     elements = screenObject.elements,
                     children =
                         screenObject.getChildren().map {
@@ -41,7 +41,7 @@ class ScreenObjectSnapshotFactory {
                         ),
                     horizontalAlignment = screenObject.horizontalAlignment,
                     verticalAlignment = screenObject.verticalAlignment,
-                    layoutMargin = screenObject.layoutMargins,
+                    layoutMargin = screenObject.layoutMargin,
                     elements = screenObject.elements,
                     children = emptyList(),
                 )

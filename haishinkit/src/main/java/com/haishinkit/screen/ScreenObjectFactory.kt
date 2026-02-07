@@ -32,7 +32,7 @@ class ScreenObjectFactory {
                 creators[snapshot.type]?.invoke(snapshot) ?: NullScreenObject(snapshot.id)
             }
         }.apply {
-            layoutMargins.set(snapshot.layoutMargin)
+            layoutMargin.set(snapshot.layoutMargin)
             frame.set(
                 snapshot.frame.x,
                 snapshot.frame.y,

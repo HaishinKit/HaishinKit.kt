@@ -77,7 +77,7 @@ class CameraViewModel(
         val text = TextScreenObject()
         text.size = 60f
         text.value = "Hello World!!"
-        text.layoutMargins.set(0, 0, 16, 16)
+        text.layoutMargin.set(0, 0, 16, 16)
         text.horizontalAlignment = ScreenObject.HORIZONTAL_ALIGNMENT_RIGHT
         text.verticalAlignment = ScreenObject.VERTICAL_ALIGNMENT_BOTTOM
 

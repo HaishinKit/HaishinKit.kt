@@ -71,7 +71,7 @@ abstract class ScreenObject(
     /**
      * Specifies the default spacing to laying out content in the screen object.
      */
-    val layoutMargins: EdgeInsets = EdgeInsets(0, 0, 0, 0)
+    val layoutMargin: EdgeInsets = EdgeInsets(0, 0, 0, 0)
 
     /**
      * The mvp matrix.
@@ -161,7 +161,7 @@ abstract class ScreenObject(
                         (
                             parent?.bounds?.width()
                                 ?: 0
-                        ) - layoutMargins.left - layoutMargins.right + frame.width(),
+                        ) - layoutMargin.left - layoutMargin.right + frame.width(),
                         0,
                     )
                 } else {
@@ -173,7 +173,7 @@ abstract class ScreenObject(
                         (
                             parent?.bounds?.height()
                                 ?: 0
-                        ) - layoutMargins.top - layoutMargins.bottom + frame.height(),
+                        ) - layoutMargin.top - layoutMargin.bottom + frame.height(),
                         0,
                     )
                 } else {
@@ -188,11 +188,11 @@ abstract class ScreenObject(
                     }
 
                     HORIZONTAL_ALIGNMENT_RIGHT -> {
-                        parentX + (parentWidth - width) - layoutMargins.right
+                        parentX + (parentWidth - width) - layoutMargin.right
                     }
 
                     else -> {
-                        parentX + frame.left + layoutMargins.left
+                        parentX + frame.left + layoutMargin.left
                     }
                 }
             val parentY = parent?.frame?.top ?: 0
@@ -204,11 +204,11 @@ abstract class ScreenObject(
                     }
 
                     VERTICAL_ALIGNMENT_BOTTOM -> {
-                        parentY + (parentHeight - height) - layoutMargins.bottom
+                        parentY + (parentHeight - height) - layoutMargin.bottom
                     }
 
                     else -> {
-                        parentY + frame.top + layoutMargins.top
+                        parentY + frame.top + layoutMargin.top
                     }
                 }
             rect.set(x, y, x + width, y + height)
