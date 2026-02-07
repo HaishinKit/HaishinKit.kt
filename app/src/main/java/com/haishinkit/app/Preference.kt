@@ -15,7 +15,7 @@ data class Preference(
         var shared =
             Preference(
                 "rtmp://192.168.1.16/live",
-                "live2",
+                "live",
             )
     }
 }
