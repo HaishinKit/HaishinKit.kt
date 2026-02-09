@@ -97,6 +97,5 @@ class TextScreenObject(
 
     companion object {
         const val TYPE: String = "text"
-        private val TAG = VideoScreenObject::class.java.simpleName
     }
 }
