@@ -39,6 +39,7 @@ class ScreenObjectFactory {
                 snapshot.size.width,
                 snapshot.size.height,
             )
+            isVisible = snapshot.isVisible
             verticalAlignment = snapshot.verticalAlignment
             horizontalAlignment = snapshot.horizontalAlignment
             elements = snapshot.elements
