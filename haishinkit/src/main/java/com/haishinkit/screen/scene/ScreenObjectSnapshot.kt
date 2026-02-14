@@ -20,7 +20,7 @@ import kotlinx.serialization.Serializable
  * @property id
  * The unique identifier of this screen object.
  *
- * @property frame
+ * @property size
  * The position and size of the screen object within its parent coordinate space.
  *
  * @property isVisible
@@ -46,7 +46,7 @@ import kotlinx.serialization.Serializable
 data class ScreenObjectSnapshot(
     val type: String,
     val id: String,
-    val frame: Rect,
+    val size: Size,
     val isVisible: Boolean,
     val layoutMargin: EdgeInsets,
     val horizontalAlignment: Int,
@@ -54,29 +54,9 @@ data class ScreenObjectSnapshot(
     val elements: Map<String, String>,
     val children: List<ScreenObjectSnapshot>,
 ) {
-    /**
-     * Represents a rectangular frame of a screen object.
-     *
-     * The rectangle is defined using integer coordinates and dimensions
-     * relative to the parent screen object.
-     *
-     * @property x
-     * The x-coordinate of the top-left corner.
-     *
-     * @property y
-     * The y-coordinate of the top-left corner.
-     *
-     * @property width
-     * The width of the rectangle.
-     *
-     * @property height
-     * The height of the rectangle.
-     */
     @Serializable
-    data class Rect(
-        val x: Int,
-        val y: Int,
+    data class Size(
         val width: Int,
-        val height: Int,
+        val height: Int
     )
 }
