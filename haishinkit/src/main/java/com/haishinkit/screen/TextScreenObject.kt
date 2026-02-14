@@ -20,7 +20,7 @@ class TextScreenObject(
         companion object {
             const val VALUE = "value"
             const val COLOR = "color"
-            const val SIZE = "size"
+            const val FONT_SIZE = "fontSize"
         }
     }
 
@@ -61,13 +61,13 @@ class TextScreenObject(
             return buildMap {
                 put(Keys.VALUE, value)
                 put(Keys.COLOR, String.format("#%08X", color))
-                put(Keys.SIZE, this@TextScreenObject.size.toString())
+                put(Keys.FONT_SIZE, this@TextScreenObject.size.toString())
             }
         }
         set(value) {
             this.value = value[Keys.VALUE] ?: ""
             this.color = (value[Keys.COLOR] ?: "#FFFFFFFF").toColorInt()
-            this.size = value[Keys.SIZE]?.toFloat() ?: 0f
+            this.size = value[Keys.FONT_SIZE]?.toFloat() ?: 0f
         }
 
     private val paint by lazy {
