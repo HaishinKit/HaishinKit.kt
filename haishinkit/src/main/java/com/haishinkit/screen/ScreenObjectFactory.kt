@@ -34,10 +34,10 @@ class ScreenObjectFactory {
         }.apply {
             layoutMargin.set(snapshot.layoutMargin)
             frame.set(
-                snapshot.frame.x,
-                snapshot.frame.y,
-                snapshot.frame.x + snapshot.frame.width,
-                snapshot.frame.y + snapshot.frame.height,
+                0,
+                0,
+                snapshot.size.width,
+                snapshot.size.height,
             )
             verticalAlignment = snapshot.verticalAlignment
             horizontalAlignment = snapshot.horizontalAlignment

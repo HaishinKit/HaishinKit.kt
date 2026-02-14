@@ -10,10 +10,8 @@ class ScreenObjectSnapshotFactory {
                 ScreenObjectSnapshot(
                     type = screenObject.type,
                     id = screenObject.id,
-                    frame =
-                        ScreenObjectSnapshot.Rect(
-                            screenObject.frame.top,
-                            screenObject.frame.left,
+                    size =
+                        ScreenObjectSnapshot.Size(
                             screenObject.frame.width(),
                             screenObject.frame.height(),
                         ),
@@ -33,10 +31,8 @@ class ScreenObjectSnapshotFactory {
                 ScreenObjectSnapshot(
                     type = screenObject.type,
                     id = screenObject.id,
-                    frame =
-                        ScreenObjectSnapshot.Rect(
-                            screenObject.frame.top,
-                            screenObject.frame.left,
+                    size =
+                        ScreenObjectSnapshot.Size(
                             screenObject.frame.width(),
                             screenObject.frame.height(),
                         ),
