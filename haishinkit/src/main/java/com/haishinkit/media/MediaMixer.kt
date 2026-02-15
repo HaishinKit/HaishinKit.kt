@@ -126,8 +126,12 @@ class MediaMixer(
             if (video is Camera2Source) {
                 video.isTorchEnabled = isToucheEnabled
             }
-            return video.open(this).onSuccess {
-                screen.attachVideo(track, video)
+            return if (isRunning.get()) {
+                video.open(this).onSuccess {
+                    screen.attachVideo(track, video)
+                }
+            } else {
+                Result.success(Unit)
             }
         }
         videoSources.remove(track)?.let {
@@ -173,8 +177,12 @@ class MediaMixer(
         orientationEventListener.enable()
         startAudioCapturing()
         launch {
-            videoSources.values.forEach {
-                it.open(this@MediaMixer)
+            videoSources.forEach {
+                val track = it.key
+                val source = it.value
+                source.open(this@MediaMixer).onSuccess {
+                    screen.attachVideo(track, source)
+                }
             }
         }
         isRunning.set(true)
@@ -187,8 +195,11 @@ class MediaMixer(
         keepAlive = false
         orientationEventListener.disable()
         launch {
-            videoSources.values.forEach {
-                it.close()
+            videoSources.forEach {
+                val track = it.key
+                val source = it.value
+                source.close()
+                screen.attachVideo(track, null)
             }
         }
         isRunning.set(false)

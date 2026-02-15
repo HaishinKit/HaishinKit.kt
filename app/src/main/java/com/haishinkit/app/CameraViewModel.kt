@@ -146,6 +146,12 @@ class CameraViewModel(
                         Screen.DEFAULT_HEIGHT,
                     )
             }
+
+            Configuration.ORIENTATION_SQUARE -> {
+            }
+
+            Configuration.ORIENTATION_UNDEFINED -> {
+            }
         }
     }
 

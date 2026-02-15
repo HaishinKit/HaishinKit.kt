@@ -57,6 +57,6 @@ data class ScreenObjectSnapshot(
     @Serializable
     data class Size(
         val width: Int,
-        val height: Int
+        val height: Int,
     )
 }
