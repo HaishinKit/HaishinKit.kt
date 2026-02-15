@@ -14,7 +14,7 @@ data class Preference(
     companion object {
         var shared =
             Preference(
-                "rtmp://192.168.1.16/live",
+                "rtmp://192.168.1.7/live",
                 "live",
             )
     }

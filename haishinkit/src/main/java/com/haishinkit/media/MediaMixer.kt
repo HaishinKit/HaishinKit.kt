@@ -175,7 +175,6 @@ class MediaMixer(
             return
         }
         orientationEventListener.enable()
-        startAudioCapturing()
         launch {
             videoSources.forEach {
                 val track = it.key
@@ -184,7 +183,10 @@ class MediaMixer(
                     screen.attachVideo(track, source)
                 }
             }
+            audioSources.values.forEach { it.open(this@MediaMixer) }
         }
+        keepAlive = true
+        startAudioCapturing()
         isRunning.set(true)
     }
 
@@ -201,6 +203,7 @@ class MediaMixer(
                 source.close()
                 screen.attachVideo(track, null)
             }
+            audioSources.values.forEach { it.close() }
         }
         isRunning.set(false)
     }
@@ -211,14 +214,8 @@ class MediaMixer(
     fun dispose() {
         stopRunning()
         screen.dispose()
-        launch {
-            for (key in audioSources.keys) {
-                attachAudio(key, null)
-            }
-            for (key in videoSources.keys) {
-                attachVideo(key, null)
-            }
-        }
+        audioSources.clear()
+        videoSources.clear()
     }
 
     private fun startAudioCapturing() =
