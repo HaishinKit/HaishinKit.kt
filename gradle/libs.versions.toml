@@ -18,7 +18,7 @@ composeBom = "2025.06.00"
 androidxNavigation = "2.9.0"
 appcompat = "1.7.1"
 lottie = "6.4.1"
-material = "1.12.0"
+material = "1.13.0"
 robolectric = "4.16"
 dokkaPlugin = "2.1.0"
 
