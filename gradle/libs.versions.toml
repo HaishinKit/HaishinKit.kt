@@ -1,7 +1,7 @@
 [versions]
 accompanistPermissions = "0.37.3"
 accompanistPagerIndicators = "0.36.0"
-agp = "8.13.2"
+agp = "9.0.0"
 annotationJvm = "1.9.1"
 foundation = "1.9.4"
 kotlin = "2.2.21"
