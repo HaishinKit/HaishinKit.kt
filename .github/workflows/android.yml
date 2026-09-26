@@ -3,28 +3,28 @@ on:
   pull_request:
     branches: [main]
 permissions:
+  contents: read
   checks: write
   pull-requests: write
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v7
         with:
           submodules: true
       - name: SetUp JDK 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v6
         with:
           java-version: '17'
-          distribution: 'adopt'
-          cache: gradle
-      - uses: gradle/actions/setup-gradle@v3
+          distribution: 'temurin'
+      - uses: gradle/actions/setup-gradle@v6
         with:
           cache-read-only: false
       - name: SetUp Ruby
         uses: ruby/setup-ruby@v1
         with:
-          ruby-version: .ruby-version 
+          ruby-version: .ruby-version
           bundler-cache: true
       - name: fastlane
         env:
