@@ -6,12 +6,12 @@ plugins {
 
 android {
     namespace = "com.haishinkit.app"
-    compileSdk = 36
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "com.haishinkit.app"
         minSdk = 21
-        targetSdk = 36
+        targetSdk = 37
         versionCode = 1
         versionName = "1.0"
 

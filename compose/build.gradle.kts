@@ -8,7 +8,7 @@ plugins {
 
 android {
     namespace = "com.haishinkit.compose"
-    compileSdk = 36
+    compileSdk = 37
 
     defaultConfig {
         minSdk = 21
