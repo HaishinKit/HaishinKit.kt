@@ -7,7 +7,7 @@ plugins {
 
 android {
     namespace = "com.haishinkit.rtmp"
-    compileSdk = 36
+    compileSdk = 37
     defaultConfig {
         minSdk = 21
 
