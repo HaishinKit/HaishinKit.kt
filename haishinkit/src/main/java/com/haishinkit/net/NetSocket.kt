@@ -4,49 +4,65 @@ import java.nio.ByteBuffer
 import java.util.concurrent.atomic.AtomicLong
 
 /**
- * The NetSocket interface establish a two-way TCP/IP socket connections.
+ * A two-way TCP transport with optional TLS and asynchronous input callbacks.
  */
 interface NetSocket {
     /**
-     * The Listener interface is the primary method for handling events.
+     * Receives connection, input, and error notifications from the transport.
      */
     interface Listener {
+        /**
+         * Receives incoming bytes. The transport may reuse the buffer after the callback returns.
+         */
         fun onInput(buffer: ByteBuffer)
 
+        /**
+         * Reports a socket connection error.
+         */
         fun onSocketError()
 
+        /**
+         * Reports that the socket connection has been established.
+         */
         fun onConnect()
 
+        /**
+         * Reports socket closure with the disconnection flag supplied by the transport.
+         */
         fun onClose(disconnected: Boolean)
     }
 
     /**
-     * Specifies the timeout indicates time to wait for TCP/IP Handshake done.
+     * The transport timeout setting. [NetSocketImpl] currently stores this value without applying it to the socket.
      */
     var timeout: Int
 
     /**
-     * Specifies the listener indicates the [NetSocket.Listener] are currently being evaluated.
+     * The listener for socket events, or `null`.
      */
     var listener: Listener?
 
     /**
-     * The totalBytesIn indicates statistics of total incoming bytes.
+     * The total number of bytes received during the current connection.
      */
     val totalBytesIn: AtomicLong
 
     /**
-     * The totalBytesOut indicates statistics of total outgoing bytes.
+     * The total number of bytes sent during the current connection.
      */
     val totalBytesOut: AtomicLong
 
     /**
-     * The queueBytesOut indicates statistics of total current queueing bytes.
+     * The number of outgoing bytes currently queued for transmission.
      */
     val queueBytesOut: AtomicLong
 
     /**
-     * Creates a two-way connection to an application server.
+     * Starts a connection to the destination.
+     *
+     * @param dstName The destination host name.
+     * @param dstPort The destination port.
+     * @param isSecure Whether to use TLS.
      */
     fun connect(
         dstName: String,
@@ -55,17 +71,17 @@ interface NetSocket {
     )
 
     /**
-     * Do output a butter to an application server.
+     * Queues a buffer for transmission. [NetSocketImpl] flips the buffer before sending its contents.
      */
     fun doOutput(buffer: ByteBuffer)
 
     /**
-     * Closes a two-way connection to an application server.
+     * Closes the socket and forwards [disconnected] to [Listener.onClose].
      */
     fun close(disconnected: Boolean)
 
     /**
-     * Creates a [ByteBuffer] for memory management.
+     * Obtains a writable buffer with the requested capacity in bytes, potentially reusing pooled storage.
      */
     fun createByteBuffer(capacity: Int): ByteBuffer
 }

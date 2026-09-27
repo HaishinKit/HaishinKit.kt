@@ -4,6 +4,9 @@ import com.haishinkit.graphics.VideoGravity
 import com.haishinkit.graphics.effect.VideoEffect
 import com.haishinkit.media.MediaOutput
 
+/**
+ * A video preview output that can be registered with a mixer or stream.
+ */
 interface StreamView : MediaOutput {
     /**
      * How the video is scaled to fit its bounds.

@@ -10,9 +10,9 @@ import com.haishinkit.stream.Stream
 import com.haishinkit.stream.StreamSession
 import kotlinx.coroutines.flow.StateFlow
 
-/*
-* Create and [remember] a [StreamSessionState] instance.
-*/
+/**
+ * Creates and remembers a [StreamSessionState] for [session]. A different session creates new state.
+ */
 @Composable
 fun rememberStreamSessionState(session: StreamSession): StreamSessionState =
     remember(session) {
@@ -21,6 +21,14 @@ fun rememberStreamSessionState(session: StreamSession): StreamSessionState =
         )
     }
 
+/**
+ * Wraps a stream session with Compose-observable connection state.
+ *
+ * [isConnected] is refreshed after a successful [connect] and after [close] returns.
+ * Observe [readyState] for asynchronous state changes from the underlying session.
+ *
+ * @property session The underlying session. Use this wrapper's controls to refresh its Compose state.
+ */
 @Stable
 class StreamSessionState(
     val session: StreamSession,

@@ -46,6 +46,12 @@ abstract class Screen(
      */
     abstract fun unbind(screenObject: ScreenObject)
 
+    /**
+     * Attaches a video source to a rendering track.
+     *
+     * @param track The track identifier used by [VideoScreenObject.track].
+     * @param video The source to attach, or `null` to detach the track.
+     */
     abstract fun attachVideo(
         track: Int,
         video: VideoSource?,
@@ -75,6 +81,9 @@ abstract class Screen(
 
         const val TYPE = "screen"
 
+        /**
+         * Creates a screen with a dedicated rendering thread and a default size of 1280 × 720 pixels.
+         */
         fun create(context: Context): Screen =
             com.haishinkit.gles.screen.ThreadScreen(context).apply {
                 frame = Rect(0, 0, DEFAULT_WIDTH, DEFAULT_HEIGHT)

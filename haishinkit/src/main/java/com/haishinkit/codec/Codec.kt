@@ -13,41 +13,63 @@ import java.nio.ByteBuffer
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.properties.Delegates
 
+/**
+ * Base class for asynchronous Android media encoding and decoding.
+ */
 @Suppress("UNUSED")
 abstract class Codec :
     MediaCodec.Callback(),
     Running {
+    /**
+     * Common codec configuration forwarded to the associated codec.
+     */
     @Suppress("UNUSED")
     open class Setting(
         private var codec: Codec?,
     ) {
         /**
-         * Specifies the [MediaCodec]'s [MediaFormat] options if necessary.
+         * Additional [MediaFormat] options applied when the codec is configured.
          *
          * ```kotlin
-         * var options = mutableListOf<CodecOption>()
-         * options.add(CodecOption(KEY_LOW_LATENCY, 0))
-         * options.add(CodecOption(KEY_TEMPORAL_LAYERING, "android.generic.N, android.generic.N+M"))
-         * netStream.videoSettings.options = options
+         * stream.videoSetting.options = listOf(
+         *     CodecOption(MediaFormat.KEY_BITRATE_MODE, MediaCodecInfo.EncoderCapabilities.BITRATE_MODE_CBR),
+         * )
          * ```
+         *
+         * Option support depends on the selected Android codec. Set options before starting the stream.
          */
         var options: List<CodecOption> by Delegates.observable(listOf()) { _, _, newValue ->
             codec?.options = newValue
         }
     }
 
+    /**
+     * Receives input, format, and output callbacks from the codec.
+     */
     interface Listener {
+        /**
+         * Notifies the listener that the codec input buffer at [index] is available.
+         */
         fun onInputBufferAvailable(
             mime: String,
             codec: MediaCodec,
             index: Int,
         )
 
+        /**
+         * Notifies the listener of the output format for [mime].
+         */
         fun onFormatChanged(
             mime: String,
             mediaFormat: MediaFormat,
         )
 
+        /**
+         * Receives an output sample and its timing and flag information.
+         *
+         * @return `true` to release the codec buffer immediately after this callback, or `false` if
+         * its release is managed by the listener.
+         */
         fun onSampleOutput(
             mime: String,
             index: Int,
@@ -57,7 +79,7 @@ abstract class Codec :
     }
 
     /**
-     * The listener of which callback method.
+     * The listener for codec buffer and format callbacks, or `null`.
      */
     var listener: Listener? = null
 
@@ -84,12 +106,12 @@ abstract class Codec :
         }
 
     /**
-     * Specifies the mode of encoding or decoding.
+     * The processing mode: [MODE_ENCODE] or [MODE_DECODE]. Set before starting the codec.
      */
     var mode = MODE_ENCODE
 
     /**
-     * Specifies the external android.media.MediaCodec options.
+     * Additional media format options applied during [configure].
      */
     var options = listOf<CodecOption>()
 
@@ -192,12 +214,18 @@ abstract class Codec :
         }
     }
 
+    /**
+     * Releases the Android codec, callback thread, and cached output format.
+     */
     open fun dispose() {
         codec = null
         backgroundHandler = null
         outputFormat = null
     }
 
+    /**
+     * Installs callbacks and configures the codec with its media format, options, surface, and processing mode.
+     */
     open fun configure(codec: MediaCodec) {
         if (Build.VERSION_CODES.M <= Build.VERSION.SDK_INT) {
             codec.setCallback(this, backgroundHandler)

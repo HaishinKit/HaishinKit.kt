@@ -19,7 +19,9 @@ import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.coroutines.CoroutineContext
 
 /**
- * The MediaLink class can be used to synchronously play audio and video streams.
+ * Schedules decoded audio and video for synchronized playback.
+ *
+ * @property stream The stream whose codec output buffers are queued and released.
  */
 class MediaLink(
     val stream: Stream,
@@ -27,7 +29,7 @@ class MediaLink(
     CoroutineScope,
     Choreographer.FrameCallback {
     /**
-     * Specifies the paused indicates the playback of a media pause(TRUE) or not(FALSE).
+     * Whether the audio playback track is paused. Setting this has no effect if no track exists.
      */
     var paused: Boolean
         get() = audioTrack?.playState == AudioTrack.PLAYSTATE_PAUSED
@@ -54,6 +56,9 @@ class MediaLink(
     override val coroutineContext: CoroutineContext
         get() = Dispatchers.Default
 
+    /**
+     * The playback audio track. Setting it to `null` releases the existing track and switches to clock synchronization.
+     */
     var audioTrack: AudioTrack? = null
         set(value) {
             syncMode =

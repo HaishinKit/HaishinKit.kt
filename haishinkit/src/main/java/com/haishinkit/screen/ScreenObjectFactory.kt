@@ -2,10 +2,18 @@ package com.haishinkit.screen
 
 import com.haishinkit.screen.scene.ScreenObjectSnapshot
 
+/**
+ * Recreates screen objects from snapshots using built-in types and registered custom creators.
+ */
 class ScreenObjectFactory {
     private val creators =
         mutableMapOf<String, (ScreenObjectSnapshot) -> ScreenObject>()
 
+    /**
+     * Registers a creator for a custom type, replacing any previous creator for that type.
+     *
+     * Built-in types are handled directly and cannot be overridden by this registration.
+     */
     fun register(
         type: String,
         creator: (ScreenObjectSnapshot) -> ScreenObject,
@@ -13,6 +21,12 @@ class ScreenObjectFactory {
         creators[type] = creator
     }
 
+    /**
+     * Recreates an object and applies the snapshot's layout and element properties.
+     *
+     * Screen snapshots become containers. Unknown types without a registered creator become
+     * [NullScreenObject] instances.
+     */
     fun create(snapshot: ScreenObjectSnapshot): ScreenObject {
         return when (snapshot.type) {
             Screen.TYPE,

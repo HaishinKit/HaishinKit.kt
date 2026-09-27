@@ -63,7 +63,9 @@ open class ScreenObjectContainer(
     }
 
     /**
-     * Adds the specified screen object as a child of the current screen object container.
+     * Adds a child and invalidates the layout. A `null` child is ignored.
+     *
+     * @throws IllegalArgumentException If the child already has a parent or is this container.
      */
     open fun addChild(child: ScreenObject?) {
         val child = child ?: return
@@ -76,7 +78,7 @@ open class ScreenObjectContainer(
     }
 
     /**
-     * Removes the specified screen object as a child of the current screen object container.
+     * Removes a direct child and invalidates the layout. Ignores `null` and objects owned by other containers.
      */
     open fun removeChild(child: ScreenObject?) {
         val child = child ?: return
@@ -101,6 +103,9 @@ open class ScreenObjectContainer(
         return null
     }
 
+    /**
+     * Replaces this container's children with the supplied container's children and invalidates the layout.
+     */
     open fun transition(screenObjectContainer: ScreenObjectContainer) {
         for (i in children.size - 1 downTo 0) {
             children[i].parent = null
@@ -140,7 +145,7 @@ open class ScreenObjectContainer(
     }
 
     /**
-     * Disposes all resources of the screen object.
+     * Removes all children and detaches their screen bindings.
      */
     open fun dispose() {
         for (i in children.size - 1 downTo 0) {

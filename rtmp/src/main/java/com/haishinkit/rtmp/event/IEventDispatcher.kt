@@ -1,11 +1,15 @@
 package com.haishinkit.rtmp.event
 
 /**
- * The IEventDispatcher interface is in implementation which supports the DOM Event Model.
+ * Registers listeners and dispatches events.
  */
 interface IEventDispatcher {
     /**
-     * Registers the event listeners on the event target.
+     * Registers a listener for an event name and capture flag.
+     *
+     * @param type The event name.
+     * @param listener The listener to register.
+     * @param useCapture Whether to register for the capture phase.
      */
     fun addEventListener(
         type: String,
@@ -13,6 +17,9 @@ interface IEventDispatcher {
         useCapture: Boolean,
     )
 
+    /**
+     * Registers a listener with capture disabled.
+     */
     fun addEventListener(
         type: String,
         listener: IEventListener,
@@ -21,16 +28,22 @@ interface IEventDispatcher {
     }
 
     /**
-     * Dispatches the events into the implementations event model.
+     * Delivers an event to the matching listeners.
      */
     fun dispatchEvent(event: Event)
 
+    /**
+     * Creates and dispatches an event with the given name, bubbling flag, and payload.
+     */
     fun dispatchEventWith(
         type: String,
         bubbles: Boolean,
         data: Any?,
     )
 
+    /**
+     * Creates and dispatches an event without a payload.
+     */
     fun dispatchEventWith(
         type: String,
         bubbles: Boolean,
@@ -39,14 +52,14 @@ interface IEventDispatcher {
     }
 
     /**
-     * Dispatches the events into the implementations event model.
+     * Creates and dispatches a non-bubbling event without a payload.
      */
     fun dispatchEventWith(type: String) {
         dispatchEventWith(type, false, null)
     }
 
     /**
-     * Unregister the event listeners on the event target.
+     * Unregisters a listener using the event name and capture flag supplied during registration.
      */
     fun removeEventListener(
         type: String,
@@ -54,6 +67,9 @@ interface IEventDispatcher {
         useCapture: Boolean,
     )
 
+    /**
+     * Unregisters a listener registered with capture disabled.
+     */
     fun removeEventListener(
         type: String,
         listener: IEventListener,

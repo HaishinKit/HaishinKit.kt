@@ -1,11 +1,13 @@
 package com.haishinkit.rtmp.event
 
 /**
- * The IEventListener interface is the primary method for handling events.
+ * Handles events delivered by an [IEventDispatcher].
  */
 interface IEventListener {
     /**
-     * Tell the receiver to handle an event.
+     * Handles an event synchronously during dispatch.
+     *
+     * Events may be pooled and reused. Copy any data needed after this callback returns.
      */
     fun handleEvent(event: Event)
 }

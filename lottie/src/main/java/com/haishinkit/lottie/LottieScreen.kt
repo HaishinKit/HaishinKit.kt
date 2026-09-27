@@ -24,7 +24,13 @@ import java.util.zip.ZipInputStream
 import kotlin.math.min
 
 /**
- * An object that manages offscreen rendering a lottie source.
+ * Renders a Lottie animation as an image in an offscreen video composition.
+ *
+ * Load an animation with [setAnimation] or [setAnimationFromJson], add this object to a screen,
+ * and call [playAnimation]. Animations repeat indefinitely by default.
+ *
+ * @property context The Android context used to load animation resources.
+ * @param id The screen object identifier, or `null` to generate one.
  */
 @Suppress("MemberVisibilityCanBePrivate", "UNUSED")
 class LottieScreen(
@@ -40,13 +46,13 @@ class LottieScreen(
     override val type: String = TYPE
 
     /**
-     * Wrapper for LottieDrawable#isAnimating.
+     * Whether the underlying Lottie drawable is currently animating.
      */
     val isAnimating: Boolean
         get() = lottieDrawable.isAnimating
 
     /**
-     * Wrapper for LottieDrawable#enableMergePaths.
+     * Whether merge paths are enabled in the Lottie drawable.
      */
     var enableMergePaths: Boolean
         get() = lottieDrawable.enableMergePathsForKitKatAndAbove()
@@ -55,7 +61,7 @@ class LottieScreen(
         }
 
     /**
-     * Wrapper for LottieDrawable#asyncUpdates.
+     * The update mode forwarded to the Lottie drawable.
      */
     var asyncUpdates: AsyncUpdates
         get() = lottieDrawable.asyncUpdates
@@ -64,7 +70,7 @@ class LottieScreen(
         }
 
     /**
-     * Wrapper for LottieDrawable#isApplyingOpacityToLayersEnabled.
+     * Whether opacity is applied to layers by the Lottie drawable.
      */
     var isApplyingOpacityToLayersEnabled: Boolean
         get() = lottieDrawable.isApplyingOpacityToLayersEnabled
@@ -73,7 +79,7 @@ class LottieScreen(
         }
 
     /**
-     * Wrapper for LottieDrawable#maintainOriginalImageBounds.
+     * Whether the drawable preserves the original bounds of image assets.
      */
     var maintainOriginalImageBounds: Boolean
         get() = lottieDrawable.maintainOriginalImageBounds
@@ -82,7 +88,7 @@ class LottieScreen(
         }
 
     /**
-     * Wrapper for LottieDrawable#clipToCompositionBounds.
+     * Whether rendering is clipped to the composition bounds.
      */
     var clipToCompositionBounds: Boolean
         get() = lottieDrawable.clipToCompositionBounds
@@ -91,7 +97,9 @@ class LottieScreen(
         }
 
     /**
-     * Wrapper for LottieDrawable#clipTextToBoundingBox.
+     * Reads the drawable's text clipping setting.
+     *
+     * The current setter updates composition clipping, the same setting as [clipToCompositionBounds].
      */
     var clipTextToBoundingBox: Boolean
         get() = lottieDrawable.clipTextToBoundingBox
@@ -100,7 +108,7 @@ class LottieScreen(
         }
 
     /**
-     * Wrapper for LottieDrawable#repeatCount.
+     * The repeat count forwarded to the drawable; defaults to `LottieDrawable.INFINITE`.
      */
     var repeatCount: Int
         get() = lottieDrawable.repeatCount
@@ -109,7 +117,7 @@ class LottieScreen(
         }
 
     /**
-     * Wrapper for LottieDrawable#imageAssetsFolder.
+     * The asset folder used by the drawable to resolve animation images.
      */
     var imageAssetsFolder: String?
         get() = lottieDrawable.imageAssetsFolder
@@ -118,7 +126,7 @@ class LottieScreen(
         }
 
     /**
-     * Wrapper for LottieDrawable#speed.
+     * The playback speed multiplier forwarded to the Lottie drawable.
      */
     var speed: Float
         get() = lottieDrawable.speed
@@ -178,7 +186,7 @@ class LottieScreen(
     private val lottieToBitmapMatrix = Matrix()
 
     /**
-     * Setter for animation from a file in the raw directory.
+     * Loads an animation from an Android raw resource.
      */
     fun setAnimation(
         @RawRes rawRes: Int,
@@ -188,12 +196,22 @@ class LottieScreen(
         compositionTask = fromRawRes(rawRes)
     }
 
+    /**
+     * Loads an animation from the application assets using the supplied asset name.
+     */
     fun setAnimation(assetName: String) {
         animationName = assetName
         animationResId = 0
         compositionTask = fromAssets(assetName)
     }
 
+    /**
+     * Loads an animation from a URL using the Lottie composition loader.
+     *
+     * @param url The animation URL.
+     * @param cacheKey A cache key for uncached-loading mode. Ignored while composition caching is enabled,
+     * which is the default for this class.
+     */
     fun setAnimationFromUrl(
         url: String?,
         cacheKey: String? = null,
@@ -214,6 +232,12 @@ class LottieScreen(
         compositionTask = task
     }
 
+    /**
+     * Loads a JSON animation from an input stream.
+     *
+     * @param stream The JSON input stream passed to the Lottie loader.
+     * @param cacheKey The composition cache key, or `null` to load without a cache key.
+     */
     fun setAnimation(
         stream: InputStream?,
         cacheKey: String? = null,
@@ -221,6 +245,12 @@ class LottieScreen(
         compositionTask = LottieCompositionFactory.fromJsonInputStream(stream, cacheKey)
     }
 
+    /**
+     * Loads an animation and its assets from a ZIP stream.
+     *
+     * @param stream The ZIP input stream passed to the Lottie loader.
+     * @param cacheKey The composition cache key, or `null` to load without a cache key.
+     */
     fun setAnimation(
         stream: ZipInputStream?,
         cacheKey: String? = null,
@@ -228,6 +258,12 @@ class LottieScreen(
         compositionTask = LottieCompositionFactory.fromZipStream(stream, cacheKey)
     }
 
+    /**
+     * Loads an animation from a JSON string.
+     *
+     * @param jsonString The animation JSON.
+     * @param cacheKey The composition cache key, or `null` to load without a cache key.
+     */
     fun setAnimationFromJson(
         jsonString: String,
         cacheKey: String? = null,
@@ -236,7 +272,7 @@ class LottieScreen(
     }
 
     /**
-     * Wrapper for LottieDrawable#playAnimation().
+     * Starts the Lottie animation and invalidates the screen layout.
      */
     fun playAnimation() {
         lottieDrawable.playAnimation()
@@ -244,30 +280,36 @@ class LottieScreen(
     }
 
     /**
-     * Wrapper for LottieDrawable#cancelAnimation().
+     * Cancels animation playback through the Lottie drawable.
      */
     fun cancelAnimation() {
         lottieDrawable.cancelAnimation()
     }
 
     /**
-     * Wrapper for LottieDrawable#pauseAnimation().
+     * Pauses animation playback through the Lottie drawable.
      */
     fun pauseAnimation() {
         lottieDrawable.pauseAnimation()
     }
 
     /**
-     * Wrapper for LottieDrawable#setImageAssetDelegate.
+     * Sets the delegate used by the Lottie drawable to resolve image assets.
      */
     fun setImageAssetDelegate(assetDelegate: ImageAssetDelegate) {
         lottieDrawable.setImageAssetDelegate(assetDelegate)
     }
 
+    /**
+     * Sets the underlying Lottie drawable's safe mode flag.
+     */
     fun setSafeMode(safeMode: Boolean) {
         lottieDrawable.setSafeMode(safeMode)
     }
 
+    /**
+     * Sets the font-name-to-typeface mapping used by the Lottie drawable.
+     */
     fun setFontMap(fontMap: Map<String, Typeface>) {
         lottieDrawable.setFontMap(fontMap)
     }
@@ -357,6 +399,9 @@ class LottieScreen(
     }
 
     companion object {
+        /**
+         * The type identifier used for Lottie screen objects in scene snapshots.
+         */
         const val TYPE = "lottie"
 
         private val TAG = LottieScreen::class.java.simpleName

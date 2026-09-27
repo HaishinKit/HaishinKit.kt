@@ -11,7 +11,7 @@ import kotlinx.serialization.Serializable
  *
  * @property version
  * The format version of the scene document.
- * Used for compatibility checks and migration when loading.
+ * The current writer emits version 1; the reader does not validate or migrate this value.
  *
  * @property scenes
  * A list of scenes included in this document.

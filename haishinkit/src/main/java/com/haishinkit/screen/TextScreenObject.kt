@@ -37,7 +37,7 @@ class TextScreenObject(
         }
 
     /**
-     * Specifies the text color.
+     * The text color as an Android ARGB color integer; defaults to white.
      */
     var color: Int = Color.WHITE
         set(value) {
@@ -47,7 +47,7 @@ class TextScreenObject(
         }
 
     /**
-     * Specifies the text size.
+     * The text size, in pixels; defaults to 15.
      */
     var size: Float = 15f
         set(value) {

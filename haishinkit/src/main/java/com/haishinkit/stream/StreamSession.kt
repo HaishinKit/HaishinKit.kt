@@ -111,7 +111,7 @@ interface StreamSession {
     val readyState: StateFlow<ReadyState>
 
     /**
-     * The stream used to configure codecs and register media inputs or outputs.
+     * The stream used to configure codecs and register media outputs.
      */
     val stream: Stream
 

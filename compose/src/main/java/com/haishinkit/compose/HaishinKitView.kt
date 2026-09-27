@@ -16,7 +16,18 @@ import com.haishinkit.view.HkSurfaceView
 import com.haishinkit.view.HkTextureView
 
 /**
- * The main view renders a [Stream] object.
+ * Displays a stream using an Android video view hosted in Compose.
+ *
+ * The view is registered as a stream output when created and unregistered when disposed.
+ * Keep [stream] and [viewType] stable for this composable's lifetime; use a Compose `key` to
+ * recreate the view when changing them or [videoGravity].
+ *
+ * @param stream The stream to display.
+ * @param modifier Layout and appearance modifiers for the hosted view.
+ * @param backgroundColor The Android ARGB background color; defaults to black.
+ * @param isOpaque Whether the texture view is opaque. Applies only to [HaishinKitViewType.TextureView].
+ * @param videoGravity The initial scaling mode for the video.
+ * @param viewType The Android view implementation to create.
  */
 @Suppress("ktlint:standard:function-naming")
 @Composable

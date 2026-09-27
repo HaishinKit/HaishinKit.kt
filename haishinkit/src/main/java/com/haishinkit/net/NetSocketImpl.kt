@@ -17,6 +17,9 @@ import javax.net.ssl.SSLSocket
 import javax.net.ssl.SSLSocketFactory
 import kotlin.coroutines.CoroutineContext
 
+/**
+ * A coroutine-based TCP/TLS transport with pooled output buffers.
+ */
 class NetSocketImpl :
     NetSocket,
     CoroutineScope {

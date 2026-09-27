@@ -68,3 +68,11 @@ dependencies {
     testImplementation(libs.junit)
     testImplementation(libs.robolectric)
 }
+
+dokka {
+    dokkaSourceSets.configureEach {
+        if (name == "main") {
+            includes.from(project.layout.projectDirectory.file("module-docs.md"))
+        }
+    }
+}

@@ -26,18 +26,22 @@ class AudioRecordSource(
     private val context: Context,
 ) : AudioSource {
     override var isMuted = false
+
     /**
      * The input channel mask, such as `AudioFormat.CHANNEL_IN_MONO`.
      */
     var channel = DEFAULT_CHANNEL
+
     /**
      * The Android audio capture source; defaults to `MediaRecorder.AudioSource.CAMCORDER`.
      */
     var audioSource = DEFAULT_AUDIO_SOURCE
+
     /**
      * The capture sample rate, in hertz.
      */
     var sampleRate = DEFAULT_SAMPLE_RATE
+
     /**
      * The capture buffer size, in bytes; computed on first access unless explicitly assigned.
      */
@@ -48,6 +52,7 @@ class AudioRecordSource(
             }
             return field
         }
+
     /**
      * The lazily created recorder, or `null` if audio recording permission has not been granted.
      */

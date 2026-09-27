@@ -11,6 +11,9 @@ import kotlin.properties.Delegates
  * Encodes and decodes audio using Android media codecs.
  */
 class AudioCodec : Codec() {
+    /**
+     * Audio encoder settings. Changes are forwarded to the associated codec when one is supplied.
+     */
     @Suppress("UNUSED")
     data class Setting(
         private var codec: AudioCodec? = null,

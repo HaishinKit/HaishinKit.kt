@@ -14,7 +14,7 @@ import com.haishinkit.media.MediaOutputDataSource
 import java.lang.ref.WeakReference
 
 /**
- * Displays video from a registered media source using a [SurfaceView].
+ * Displays video from a [MediaMixer] or stream using a [SurfaceView].
  */
 class HkSurfaceView
     @JvmOverloads

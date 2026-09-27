@@ -43,6 +43,13 @@ open class ImageScreenObject(
     }
 
     override val type: String = TYPE
+
+    /**
+     * The bitmap rendered by this object, or `null` when no image is set.
+     *
+     * Replacing the bitmap recycles the previous one and invalidates the layout. Do not share a
+     * bitmap that must remain usable after replacement.
+     */
     var bitmap: Bitmap? = null
         set(value) {
             if (field == value) return

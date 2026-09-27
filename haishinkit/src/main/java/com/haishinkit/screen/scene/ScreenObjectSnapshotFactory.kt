@@ -3,7 +3,13 @@ package com.haishinkit.screen.scene
 import com.haishinkit.screen.ScreenObject
 import com.haishinkit.screen.ScreenObjectContainer
 
+/**
+ * Captures screen object properties and descendant hierarchies for serialization.
+ */
 class ScreenObjectSnapshotFactory {
+    /**
+     * Creates a snapshot of the object, recursively including children for containers.
+     */
     fun create(screenObject: ScreenObject): ScreenObjectSnapshot {
         return when (screenObject) {
             is ScreenObjectContainer -> {

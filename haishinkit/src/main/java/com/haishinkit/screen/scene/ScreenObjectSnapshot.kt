@@ -21,7 +21,7 @@ import kotlinx.serialization.Serializable
  * The unique identifier of this screen object.
  *
  * @property size
- * The position and size of the screen object within its parent coordinate space.
+ * The width and height of the screen object, in pixels. Position is not stored.
  *
  * @property isVisible
  * The visibility of the screen object.

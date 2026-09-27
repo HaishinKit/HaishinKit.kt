@@ -11,20 +11,25 @@ import com.haishinkit.media.MediaOutputDataSource
 import java.lang.ref.WeakReference
 
 /**
- * An object that manages offscreen rendering a streaming video source.
+ * Renders another media source's video composition inside a screen.
  *
- * ### Usage
+ * For RTMP playback, register the RTMP session factory first. Run the suspending `session.connect()`
+ * call from a coroutine. The example assumes an existing mixer and Android context.
+ *
  * ```kotlin
- * val session = StreamSession.Builder(context, Preference.shared.rtmpURL.toUri()).build()
- *
- * val screenSessionObject = MediaOutputScreenObject(context)
- * screenSessionObject.frame.set(0, 0, 160, 90)
- * screenSessionObject.videoSize = Size(1600, 900)
- * playback.stream.registerOutput(screenSessionObject)
- * mixer.screen.addChild(screenSessionObject)
- *
- * session.connect(StreamSession.Method.PLAYBACK)
+ * StreamSession.Builder.registerFactory(RtmpStreamSessionFactory)
+ * val session = StreamSession.Builder(context, Uri.parse("rtmps://example.com/live/stream"))
+ *     .setMode(StreamSession.Mode.PLAYBACK)
+ *     .build()
+ * val video = MediaOutputScreenObject(context)
+ * video.frame = Rect(0, 0, 160, 90)
+ * video.videoSize = Size(1600, 900)
+ * session.stream.registerOutput(video)
+ * mixer.screen.addChild(video)
+ * session.connect().getOrThrow()
  * ```
+ *
+ * When finished, close the session, unregister the output, and remove the object from the screen.
  */
 @Suppress("UNUSED")
 class MediaOutputScreenObject(
@@ -34,6 +39,9 @@ class MediaOutputScreenObject(
     MediaOutput {
     override var type: String = "media"
 
+    /**
+     * The destination surface for rendering the registered source's screen.
+     */
     var surface: Surface?
         get() {
             return pixelTransform.surface

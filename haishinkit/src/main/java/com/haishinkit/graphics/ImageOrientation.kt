@@ -1,5 +1,10 @@
 package com.haishinkit.graphics
 
+/**
+ * Rotation and mirroring applied to a source image.
+ *
+ * @property rawValue The library's numeric orientation identifier.
+ */
 enum class ImageOrientation(
     val rawValue: Int,
 ) {

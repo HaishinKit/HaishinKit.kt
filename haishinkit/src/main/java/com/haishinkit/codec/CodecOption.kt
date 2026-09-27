@@ -3,6 +3,13 @@ package com.haishinkit.codec
 import android.media.MediaFormat
 import java.nio.ByteBuffer
 
+/**
+ * An additional key-value option applied to an Android [MediaFormat].
+ *
+ * @property key The media format key.
+ * @property value An `Int`, `Long`, `Float`, `String`, or [ByteBuffer]. Other types cause an
+ * `IllegalArgumentException` when the option is applied.
+ */
 data class CodecOption(
     val key: String,
     val value: Any,

@@ -67,3 +67,11 @@ dependencies {
     implementation(libs.androidx.annotation.jvm)
     testImplementation(libs.junit)
 }
+
+dokka {
+    dokkaSourceSets.configureEach {
+        if (name == "main") {
+            includes.from(project.layout.projectDirectory.file("module-docs.md"))
+        }
+    }
+}

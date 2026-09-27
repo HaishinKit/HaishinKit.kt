@@ -1,7 +1,11 @@
 package com.haishinkit.rtmp.event
 
 /**
- * The Event interface is used to provide information.
+ * Carries an event name, payload, and dispatch metadata.
+ *
+ * @param type The event name.
+ * @param bubbles Whether the event is marked as bubbling.
+ * @param data The event payload, or `null`.
  */
 open class Event(
     type: String,
@@ -9,31 +13,31 @@ open class Event(
     data: Any?,
 ) {
     /**
-     * The type represents the event name.
+     * The event name, such as [RTMP_STATUS] or [IO_ERROR].
      */
     var type: String? = null
         internal set
 
     /**
-     * The target indicates the [IEventDispatcher].
+     * The originating dispatcher, when assigned.
      */
     var target: IEventDispatcher? = null
         internal set
 
     /**
-     * The currentTarget indicates the [IEventDispatcher]s are currently being evaluated.
+     * The dispatcher currently delivering the event.
      */
     var currentTarget: IEventDispatcher? = null
         internal set
 
     /**
-     * The data indicates the to provide information.
+     * The event payload, or `null` if no payload is supplied.
      */
     var data: Any? = null
         internal set
 
     /**
-     * The isBubbles indicates whether ot not an event is a bubbling event.
+     * Whether this event is marked as bubbling.
      */
     var isBubbles = false
         internal set
@@ -47,6 +51,9 @@ open class Event(
         this.isBubbles = bubbles
     }
 
+    /**
+     * Marks propagation as stopped after the current target's listeners finish.
+     */
     fun stopPropagation() {
         propagationStopped = true
     }

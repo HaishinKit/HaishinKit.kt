@@ -4,14 +4,17 @@ import com.haishinkit.graphics.glsl.Uniform
 import java.lang.reflect.Method
 
 /**
- * The VideoEffect interface provides to create a custom video effect.
+ * Defines a shader-based video effect and its uniform bindings.
  */
 interface VideoEffect {
     /**
-     * The name of shader.
+     * The shader resource name used to load this effect.
      */
     val name: String
 
+    /**
+     * Uniform annotations discovered on the effect, sorted by binding index.
+     */
     val uniforms: Array<Uniform>
         get() {
             val values = mutableListOf<Uniform>()
@@ -23,6 +26,9 @@ interface VideoEffect {
             return values.toTypedArray()
         }
 
+    /**
+     * Uniform value accessors ordered by binding index. Binding indices must be contiguous and start at zero.
+     */
     val methods: Array<Method>
         get() {
             val values = mutableMapOf<Int, Method>()

@@ -4,6 +4,11 @@ import androidx.core.util.Pools
 import java.util.Collections
 import java.util.concurrent.ConcurrentHashMap
 
+/**
+ * Dispatches events to listeners registered by event name and capture flag.
+ *
+ * @param target The dispatcher exposed as the current event target, or `null` to use this instance.
+ */
 open class EventDispatcher(
     private val target: IEventDispatcher?,
 ) : IEventDispatcher {

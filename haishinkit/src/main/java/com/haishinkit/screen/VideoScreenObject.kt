@@ -27,6 +27,9 @@ open class VideoScreenObject(
 
     override val type: String = TYPE
 
+    /**
+     * The video track to render, matching the track passed to `MediaMixer.attachVideo`. Defaults to 0.
+     */
     var track: Int = 0
         set(value) {
             if (field == value) return

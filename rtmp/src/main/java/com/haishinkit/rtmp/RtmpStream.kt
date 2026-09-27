@@ -20,7 +20,13 @@ import com.haishinkit.stream.Stream
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
- * An object that provides the interface to control a one-way channel over a [RtmpConnection].
+ * Publishes or plays a one-way media stream over an [RtmpConnection].
+ *
+ * For publishing, register this stream as an output of a media mixer. For playback, register
+ * an output view on this stream. Listen for `Event.RTMP_STATUS` to observe stream status changes.
+ *
+ * @param context The Android context used for codecs and rendering.
+ * @param connection The connection that owns this stream.
  */
 @Suppress("UNUSED", "MemberVisibilityCanBePrivate")
 class RtmpStream(
@@ -28,10 +34,22 @@ class RtmpStream(
     internal var connection: RtmpConnection,
 ) : Stream(context),
     IEventDispatcher {
+    /**
+     * Information about the publishing resource.
+     *
+     * @property resourceName The name most recently passed to [publish], or `null` before publishing.
+     */
     data class Info(
         var resourceName: String? = null,
     )
 
+    /**
+     * The server-side publishing mode sent with the publish command.
+     *
+     * Support for recording and append modes depends on the server.
+     *
+     * @property rawValue The mode string sent to the server.
+     */
     enum class HowToPublish(
         val rawValue: String,
     ) {
@@ -41,6 +59,11 @@ class RtmpStream(
         LIVE("live"),
     }
 
+    /**
+     * RTMP stream status codes included in status event data.
+     *
+     * @property rawValue The protocol status code string.
+     */
     @Suppress("UNUSED")
     enum class Code(
         val rawValue: String,
@@ -87,6 +110,9 @@ class RtmpStream(
         VIDEO_DIMENSION_CHANGE("NetStream.Video.DimensionChange", "status"),
         ;
 
+        /**
+         * Builds status event data, omitting the description when it is empty.
+         */
         fun data(description: String): Map<String, Any> {
             val data = HashMap<String, Any>()
             data["code"] = rawValue
@@ -98,7 +124,16 @@ class RtmpStream(
         }
     }
 
+    /**
+     * Receives periodic stream statistics callbacks.
+     */
     interface Listener {
+        /**
+         * Called by the connection statistics timer, approximately once per second while connected.
+         *
+         * @param stream The stream whose statistics were updated.
+         * @param connection The connection providing byte counters.
+         */
         fun onStatics(
             stream: RtmpStream,
             connection: RtmpConnection,
@@ -145,13 +180,19 @@ class RtmpStream(
         CLOSED(0x06),
     }
 
+    /**
+     * Information about this stream's publishing resource.
+     */
     var info: Info = Info()
         private set
 
+    /**
+     * The statistics listener, or `null` to disable callbacks.
+     */
     var listener: Listener? = null
 
     /**
-     * Incoming video plays on the stream or not.
+     * Whether to request video during playback. Changes are sent to the server while playing.
      */
     var receiveVideo: Boolean = true
         set(value) {
@@ -166,7 +207,7 @@ class RtmpStream(
         }
 
     /**
-     * Incoming audio plays on the stream or not.
+     * Whether to request audio during playback. Changes are sent to the server while playing.
      */
     var receiveAudio: Boolean = true
         set(value) {
@@ -185,6 +226,9 @@ class RtmpStream(
      */
     var fcPublishName: String? = null
 
+    /**
+     * The number of video frames counted during the most recent statistics interval.
+     */
     @Volatile
     var currentFPS: Int = 0
         private set
@@ -270,7 +314,10 @@ class RtmpStream(
     }
 
     /**
-     * Sends streaming audio, video and data messages from a client to server.
+     * Requests publishing to the server. The request is queued until the server stream is created.
+     *
+     * @param name The stream name, or `null` to send a close-stream request while publishing.
+     * @param howToPublish The publishing mode; defaults to [HowToPublish.LIVE].
      */
     fun publish(
         name: String?,
@@ -313,7 +360,12 @@ class RtmpStream(
     }
 
     /**
-     * Plays a media file or a live stream from server.
+     * Requests playback of a server stream or recording.
+     *
+     * The request is queued until the server stream is created. Status events report the outcome.
+     *
+     * @param arguments The stream name followed by any server-supported play arguments. An empty
+     * argument list sends a close-stream request if the stream is currently playing.
      */
     fun play(vararg arguments: Any) {
         val streamName = if (arguments.isEmpty()) null else arguments[0]
@@ -350,7 +402,12 @@ class RtmpStream(
     }
 
     /**
-     * Sends a message on a published stream.
+     * Sends an RTMP data message on this stream.
+     *
+     * Does nothing while the stream is initialized or closed.
+     *
+     * @param handlerName The data message handler name, such as `onMetaData`.
+     * @param arguments The values to include in the message.
      */
     fun send(
         handlerName: String,
@@ -369,6 +426,9 @@ class RtmpStream(
         connection.doOutput(RtmpChunk.ZERO, message)
     }
 
+    /**
+     * Deletes the server stream and stops local media processing. Leaves the connection open.
+     */
     override fun close() {
         if (readyState == ReadyState.CLOSED) {
             return
@@ -382,6 +442,9 @@ class RtmpStream(
         readyState = ReadyState.CLOSED
     }
 
+    /**
+     * Removes the connection listener, stops media processing, and releases local stream resources.
+     */
     override fun dispose() {
         connection.removeEventListener(Event.RTMP_STATUS, eventListener)
         stopRunning()

@@ -9,8 +9,8 @@ import java.nio.ByteBuffer
 
 /**
  * The Audio Specific Config is the global header for MPEG-4 Audio
- * @see http://wiki.multimedia.cx/index.php?title=MPEG-4_Audio.Audio_Specific_Config
- * @see http://wiki.multimedia.cx/?title=Understanding_AAC
+ * @see [MPEG-4 audio configuration](http://wiki.multimedia.cx/index.php?title=MPEG-4_Audio.Audio_Specific_Config)
+ * @see [Understanding AAC](http://wiki.multimedia.cx/?title=Understanding_AAC)
  */
 internal data class AudioSpecificConfig(
     val type: AudioObjectType = AudioObjectType.UNKNOWN,

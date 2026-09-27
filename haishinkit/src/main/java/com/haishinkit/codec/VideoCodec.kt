@@ -18,6 +18,9 @@ import kotlin.properties.Delegates
 class VideoCodec(
     context: Context,
 ) : Codec() {
+    /**
+     * Video encoder settings. Configure dimensions and profile before starting encoding.
+     */
     @Suppress("UNUSED")
     data class Setting(
         private val codec: VideoCodec? = null,
@@ -37,7 +40,7 @@ class VideoCodec(
         }
 
         /**
-         * The output video width, in pixels.
+         * The requested output width, in pixels. Odd values are rounded down for the associated codec.
          */
         var width: Int by Delegates.observable(DEFAULT_WIDTH) { _, oldValue, newValue ->
             if (oldValue != newValue) {
@@ -46,7 +49,7 @@ class VideoCodec(
         }
 
         /**
-         * The output video height, in pixels.
+         * The requested output height, in pixels. Odd values are rounded down for the associated codec.
          */
         var height: Int by Delegates.observable(DEFAULT_HEIGHT) { _, oldValue, newValue ->
             if (oldValue != newValue) {

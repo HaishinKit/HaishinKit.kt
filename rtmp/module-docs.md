@@ -1,8 +1,14 @@
-# Module rtmp.
+# Module rtmp
 
-This is a module for RTMP communication.
+RTMP and RTMPS publishing and playback for HaishinKit.
 
-## Supports Enhanced RTMP Status
+Use [RtmpConnection][com.haishinkit.rtmp.RtmpConnection] and
+[RtmpStream][com.haishinkit.rtmp.RtmpStream] for direct connection and stream control.
+For a single-stream session, register
+[RtmpStreamSessionFactory][com.haishinkit.rtmp.RtmpStreamSessionFactory] with
+[StreamSession.Builder][com.haishinkit.stream.StreamSession.Builder].
+
+## Enhanced RTMP support
 
 An extended RTMP standard called Enhanced RTMP is being developed by the Veovera Software
 Organization.

@@ -54,7 +54,11 @@ abstract class ScreenObject(
         }
 
     /**
-     * Specifies the frame rectangle.
+     * The requested layout rectangle, in pixels.
+     *
+     * For children, a non-positive width or height uses the available parent dimension minus
+     * margins, adjusted by that value. Assign a new rectangle or call [invalidateLayout] after
+     * mutating the existing rectangle.
      */
     open var frame = Rect(0, 0, 0, 0)
         set(value) {
@@ -64,7 +68,7 @@ abstract class ScreenObject(
         }
 
     /**
-     * The bounds rectangle.
+     * The rectangle computed by the most recent layout pass, in pixels.
      */
     val bounds = Rect(0, 0, 0, 0)
 
@@ -112,6 +116,9 @@ abstract class ScreenObject(
      */
     open var isVisible = true
 
+    /**
+     * Whether the object needs another layout pass.
+     */
     open var shouldInvalidateLayout = false
         protected set
 
@@ -215,6 +222,9 @@ abstract class ScreenObject(
         }
     }
 
+    /**
+     * Returns this object if its identifier matches, or `null`. Containers also search their descendants.
+     */
     open fun findById(id: String): ScreenObject? {
         if (this.id == id) {
             return this

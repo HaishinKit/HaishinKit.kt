@@ -18,12 +18,18 @@ import java.util.concurrent.ConcurrentHashMap
 import kotlin.concurrent.schedule
 
 /**
- * An object that creates a two-way RTMP connection.
+ * Manages a two-way RTMP or RTMPS connection to a server application.
+ *
+ * [connect] starts an asynchronous connection attempt. Listen for `Event.RTMP_STATUS` and
+ * `Event.IO_ERROR` to observe the result. A connection can own multiple [RtmpStream] instances.
  */
 @Suppress("UNUSED", "MemberVisibilityCanBePrivate")
 class RtmpConnection : EventDispatcher(null) {
     /**
-     * NetStatusEvent#info.code for [RtmpConnection]
+     * RTMP connection status codes included in status event data.
+     *
+     * @property rawValue The protocol status code string.
+     * @property level The status severity sent with the code.
      */
     @Suppress("UNUSED")
     enum class Code(
@@ -43,6 +49,9 @@ class RtmpConnection : EventDispatcher(null) {
         CONNECT_SUCCESS("NetConnection.Connect.Success", "status"),
         ;
 
+        /**
+         * Builds status event data, omitting the description when it is empty.
+         */
         fun data(description: String): Map<String, Any> {
             val data = HashMap<String, Any>()
             data["code"] = rawValue
@@ -79,28 +88,28 @@ class RtmpConnection : EventDispatcher(null) {
     }
 
     /**
-     * The URI passed to the RTMPConnection.connect() method.
+     * The URI most recently passed to [connect], or `null` before the first connection attempt.
      */
     var uri: URI? = null
         private set
 
     /**
-     * Specifies the URL of .swf.
+     * The SWF URL sent in the RTMP connect command, if required by the server.
      */
     var swfUrl: String? = null
 
     /**
-     * Specifies the URL of an HTTP referer.
+     * The referring page URL sent in the RTMP connect command.
      */
     var pageUrl: String? = null
 
     /**
-     * Specifies the name of application.
+     * The client version string sent as `flashVer` in the RTMP connect command.
      */
     var flashVer = DEFAULT_FLASH_VER_SWF
 
     /**
-     * Specifies the outgoing RTMPChunkSize.
+     * The outgoing RTMP chunk size, in bytes.
      */
     var chunkSize: Int
         get() = socket.chunkSizeS
@@ -109,13 +118,15 @@ class RtmpConnection : EventDispatcher(null) {
         }
 
     /**
-     * This instance connected to server(true) or not(false).
+     * Whether the RTMP handshake has completed and the connection has not been closed.
      */
     val isConnected: Boolean
         get() = socket.isConnected
 
     /**
-     * Specifies the time to wait for TCP/IP Handshake done.
+     * The timeout setting forwarded to the active transport.
+     *
+     * The default `NetSocketImpl` stores this setting but does not apply it to socket operations.
      */
     var timeout: Int
         get() = socket.timeout
@@ -124,13 +135,13 @@ class RtmpConnection : EventDispatcher(null) {
         }
 
     /**
-     * The statistics of total incoming bytes.
+     * The total number of bytes received by the underlying socket.
      */
     val totalBytesIn: Long
         get() = socket.totalBytesIn
 
     /**
-     * The statistics of total outgoing bytes.
+     * The total number of bytes sent by the underlying socket.
      */
     val totalBytesOut: Long
         get() = socket.totalBytesOut
@@ -162,7 +173,11 @@ class RtmpConnection : EventDispatcher(null) {
     }
 
     /**
-     * Calls a command or method on RTMP Server.
+     * Invokes a command on the server. Does nothing if the connection is not connected.
+     *
+     * @param commandName The remote command or method name.
+     * @param responder Receives the server response, or `null` if no response handler is needed.
+     * @param arguments Values sent as arguments to the command.
      */
     fun call(
         commandName: String,
@@ -189,7 +204,14 @@ class RtmpConnection : EventDispatcher(null) {
     }
 
     /**
-     * Creates a two-way connection to an application on RTMP Server.
+     * Starts connecting to an RTMP server application.
+     *
+     * Observe status events to determine whether the connection succeeds. Calls made while connected,
+     * or with an unsupported URI scheme, do not start a new connection.
+     *
+     * @param command The application URI, such as `rtmps://example.com/live`, without the stream name.
+     * @param arguments Additional values sent in the RTMP connect command.
+     * @throws IllegalArgumentException If [command] is not a valid URI.
      */
     fun connect(
         command: String,
@@ -212,7 +234,7 @@ class RtmpConnection : EventDispatcher(null) {
     }
 
     /**
-     * Closes the connection from the server.
+     * Closes all streams owned by this connection and disconnects from the server.
      */
     fun close() {
         if (!isConnected) {
@@ -227,7 +249,9 @@ class RtmpConnection : EventDispatcher(null) {
     }
 
     /**
-     * Dispose the connection for a memory management.
+     * Cancels statistics callbacks and releases the resources of all owned streams.
+     *
+     * Call [close] to disconnect the socket before disposing of the connection.
      */
     fun dispose() {
         timerTask = null
@@ -399,10 +423,29 @@ class RtmpConnection : EventDispatcher(null) {
     }
 
     companion object {
+        /**
+         * Supported URI schemes and their default port numbers.
+         */
         val SUPPORTED_PROTOCOLS = mapOf("rtmp" to 1935, "rtmps" to 443)
+
+        /**
+         * Supported Enhanced RTMP video codec identifiers. Not currently advertised in the connect command.
+         */
         val SUPPORTED_FOURCC_LIST = listOf("hvc1")
+
+        /**
+         * The default port for unencrypted RTMP connections.
+         */
         const val DEFAULT_PORT = 1935
+
+        /**
+         * The default Flash-compatible client version string.
+         */
         const val DEFAULT_FLASH_VER_SWF = "LNX 9,0,124,2"
+
+        /**
+         * An FMLE-compatible client version string that can be assigned to [flashVer].
+         */
         const val DEFAULT_FLASH_VER_FMLE = "FMLE/3.0 (compatible; FMSc/1.0)"
 
         private const val TAG = "RtmpConnection"
