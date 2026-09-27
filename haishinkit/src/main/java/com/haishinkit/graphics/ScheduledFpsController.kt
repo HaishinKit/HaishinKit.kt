@@ -114,13 +114,20 @@ internal class ScheduledFpsController : FpsController {
 
         private val UPDATE_PATTERNS =
             arrayOf(
-                "4", // 15 fps
-                "32", // 24 fps
-                "32322", // 25 fps
-                "2", // 30 fps
-                "2111", // 48 fps
-                "1", // 60 fps
-                "15", // erratic, useful for examination with systrace
+                // 15 fps
+                "4",
+                // 24 fps
+                "32",
+                // 25 fps
+                "32322",
+                // 30 fps
+                "2",
+                // 48 fps
+                "2111",
+                // 60 fps
+                "1",
+                // erratic, useful for examination with systrace
+                "15",
             )
         private const val ONE_MILLISECOND_NS: Long = 1000000
         private val FRAME_AHEAD =

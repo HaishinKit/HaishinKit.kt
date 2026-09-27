@@ -122,16 +122,20 @@ internal class Program(
             floatArrayOf(
                 -1.0f,
                 1.0f,
-                0.0f, // top-left
+                // top-left
+                0.0f,
                 -1.0f,
                 -1.0f,
-                0.0f, // bottom-left
+                // bottom-left
+                0.0f,
                 1.0f,
                 1.0f,
-                0.0f, // bottom-right
+                // bottom-right
+                0.0f,
                 1.0f,
                 -1.0f,
-                0.0f, // top-right
+                // top-right
+                0.0f,
             )
 
         private val TEX_COORDS_ROTATION_0 =
