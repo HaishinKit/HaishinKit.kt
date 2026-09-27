@@ -3,16 +3,16 @@ package com.haishinkit.media
 import java.lang.ref.WeakReference
 
 /**
- * Callbacks for the media data.
+ * Receives media buffers from a [MediaOutputDataSource].
  */
 interface MediaOutput {
     /**
-     * The source of the media data object.
+     * A weak reference to the registered media source, or `null` when detached.
      */
     var dataSource: WeakReference<MediaOutputDataSource>?
 
     /**
-     * Invoked immediately after capture data.
+     * Receives a media buffer from the source. Consume or copy its payload before it is reused.
      */
     fun append(buffer: MediaBuffer)
 }

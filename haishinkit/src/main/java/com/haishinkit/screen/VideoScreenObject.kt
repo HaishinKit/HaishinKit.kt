@@ -12,7 +12,7 @@ import com.haishinkit.util.aspectRatio
 import com.haishinkit.util.swap
 
 /**
- * An object that manages offscreen rendering a video source.
+ * Renders a video track as part of an offscreen composition.
  */
 @Suppress("MemberVisibilityCanBePrivate")
 open class VideoScreenObject(
@@ -35,7 +35,7 @@ open class VideoScreenObject(
         }
 
     /**
-     * Specifies the videoGravity how the displays the visual content.
+     * How the video is scaled to fit its bounds.
      */
     var videoGravity: VideoGravity = VideoGravity.RESIZE_ASPECT_FILL
         set(value) {
@@ -45,7 +45,7 @@ open class VideoScreenObject(
         }
 
     /**
-     * Specifies the imageOrientation that describe the image orientation.
+     * The rotation and mirroring of the source image.
      */
     var imageOrientation: ImageOrientation = ImageOrientation.UP
         set(value) {
@@ -55,7 +55,7 @@ open class VideoScreenObject(
         }
 
     /**
-     * Specifies the videoSize that describe the video source.
+     * The source video dimensions, in pixels.
      */
     open var videoSize = Size(0, 0)
         set(value) {
@@ -65,7 +65,7 @@ open class VideoScreenObject(
         }
 
     /**
-     * Specifies whether displayed images rotates(true), or not(false).
+     * Whether to apply [deviceOrientation] when rotating the video.
      */
     var isRotatesWithContent: Boolean = false
         set(value) {
@@ -75,7 +75,7 @@ open class VideoScreenObject(
         }
 
     /**
-     * Specifies the deviceOrientation that describe the physical orientation of the device.
+     * The display rotation, expressed as a `Surface.ROTATION_*` constant.
      */
     var deviceOrientation: Int = Surface.ROTATION_0
         set(value) {

@@ -19,7 +19,7 @@ import java.nio.ByteBuffer
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
- * The Stream class is the foundation of a [com.haishinkit.rtmp.RtmpStream].
+ * Base class for streams that encode captured media or decode incoming media.
  */
 @Suppress("UNUSED")
 abstract class Stream(
@@ -73,6 +73,9 @@ abstract class Stream(
             return field
         }
 
+    /**
+     * Coordinates audio and video playback timing for decoded media.
+     */
     val mediaLink: MediaLink by lazy {
         MediaLink(this)
     }
@@ -116,12 +119,12 @@ abstract class Stream(
     }
 
     /**
-     * Closes the stream from the server.
+     * Closes the stream and stops media processing.
      */
     abstract fun close()
 
     /**
-     * Disposes the stream of memory management.
+     * Detaches registered outputs and releases audio and video codec resources.
      */
     open fun dispose() {
         outputs.forEach {
@@ -148,6 +151,15 @@ abstract class Stream(
         }
     }
 
+    /**
+     * Queues a decoded codec output buffer for playback.
+     *
+     * @param type Whether the buffer contains audio or video.
+     * @param index The codec output buffer index.
+     * @param payload The decoded payload, or `null` for surface-backed video.
+     * @param timestamp The presentation timestamp, in microseconds.
+     * @param sync Whether the buffer is a synchronization frame.
+     */
     fun queueOutputBuffer(
         type: MediaType,
         index: Int,

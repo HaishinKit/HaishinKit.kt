@@ -7,7 +7,7 @@ import android.os.Build
 import androidx.annotation.RequiresApi
 
 /**
- * A value that specifies how the [VideoCodec] supports an profile-level.
+ * A video codec profile and level used to configure [VideoCodec].
  */
 @Suppress("UNUSED")
 enum class VideoCodecProfileLevel(

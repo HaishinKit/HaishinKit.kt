@@ -1,7 +1,7 @@
 package com.haishinkit.screen
 
 /**
- *  A ScreenObjectContainer represents a collection of screen objects.
+ * A container that lays out and draws child screen objects.
  */
 @Suppress("UNUSED")
 open class ScreenObjectContainer(
@@ -10,7 +10,7 @@ open class ScreenObjectContainer(
     override val type: String = TYPE
 
     /**
-     * The total of child counts.
+     * The number of direct children in this container.
      */
     val childCounts: Int
         get() = children.size

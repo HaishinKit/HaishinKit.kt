@@ -31,7 +31,7 @@ private sealed interface ImageSource {
 }
 
 /**
- * An object that manages offscreen rendering an image source.
+ * Renders an image as part of an offscreen composition.
  */
 open class ImageScreenObject(
     id: String? = null,

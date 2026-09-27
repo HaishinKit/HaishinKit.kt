@@ -13,7 +13,7 @@ import com.haishinkit.util.FeatureUtil
 import kotlin.properties.Delegates
 
 /**
- * The VideoCodec class provides methods for encode or decode for video.
+ * Encodes and decodes video using Android media codecs.
  */
 class VideoCodec(
     context: Context,
@@ -25,7 +25,7 @@ class VideoCodec(
         /**
          * Specifies the video codec profile level.
          *
-         * @throws IllegalArgumentException When system is not supported profile level.
+         * @throws IllegalArgumentException If no encoder supports the selected MIME type.
          */
         var profileLevel: VideoCodecProfileLevel by Delegates.observable(DEFAULT_PROFILE_LEVEL) { _, oldValue, newValue ->
             if (oldValue == newValue) return@observable
@@ -37,7 +37,7 @@ class VideoCodec(
         }
 
         /**
-         * Specifies the width resolution for a video output.
+         * The output video width, in pixels.
          */
         var width: Int by Delegates.observable(DEFAULT_WIDTH) { _, oldValue, newValue ->
             if (oldValue != newValue) {
@@ -46,7 +46,7 @@ class VideoCodec(
         }
 
         /**
-         * Specifies the height resolution for a video output.
+         * The output video height, in pixels.
          */
         var height: Int by Delegates.observable(DEFAULT_HEIGHT) { _, oldValue, newValue ->
             if (oldValue != newValue) {
@@ -55,7 +55,7 @@ class VideoCodec(
         }
 
         /**
-         * Specifies the bitrate for a video output.
+         * The target video bit rate, in bits per second.
          */
         var bitRate: Int by Delegates.observable(DEFAULT_BIT_RATE) { _, oldValue, newValue ->
             if (oldValue != newValue) {
@@ -64,7 +64,7 @@ class VideoCodec(
         }
 
         /**
-         * Specifies the IFrameInterval for a video output.
+         * The interval between keyframes, in seconds.
          */
         var IFrameInterval: Int by Delegates.observable(DEFAULT_I_FRAME_INTERVAL) { _, oldValue, newValue ->
             if (oldValue != newValue) {
@@ -73,7 +73,7 @@ class VideoCodec(
         }
 
         /**
-         * Specifies the frameRate of a video format in frames/sec.
+         * The target video frame rate, in frames per second.
          */
         var frameRate: Int by Delegates.observable(DEFAULT_FRAME_RATE) { _, oldValue, newValue ->
             if (oldValue != newValue) {
@@ -92,7 +92,7 @@ class VideoCodec(
     }
 
     /**
-     * Specifies the bitrate for a video output.
+     * The target video bit rate, in bits per second.
      */
     var bitRate = DEFAULT_BIT_RATE
         set(value) {
@@ -107,7 +107,7 @@ class VideoCodec(
         }
 
     /**
-     * Specifies the frame rate of a video format in frames/sec.
+     * The target video frame rate, in frames per second.
      */
     var frameRate = DEFAULT_FRAME_RATE
         set(value) {
@@ -116,17 +116,17 @@ class VideoCodec(
         }
 
     /**
-     * Specifies the IFrameInterval for a video output.
+     * The interval between keyframes, in seconds.
      */
     var IFrameInterval = DEFAULT_I_FRAME_INTERVAL
 
     /**
-     * Specifies the width resolution for a video output.
+     * The output video width, in pixels.
      */
     var width = DEFAULT_WIDTH
 
     /**
-     * Specifies the height resolution for a video output.
+     * The output video height, in pixels.
      */
     var height = DEFAULT_HEIGHT
 

@@ -3,16 +3,16 @@ package com.haishinkit.media
 import com.haishinkit.screen.Screen
 
 /**
- * Interface for classes whose instances can be output media buffer.
+ * Produces media buffers and a composited video screen for registered outputs.
  */
 interface MediaOutputDataSource {
     /**
-     * Whether audio source is enabled or not.
+     * Whether the source provides audio.
      */
     val hasAudio: Boolean
 
     /**
-     * Whether video source is enabled or not.
+     * Whether the source provides video.
      */
     val hasVideo: Boolean
 

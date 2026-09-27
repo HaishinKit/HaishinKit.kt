@@ -3,7 +3,7 @@ package com.haishinkit.lang
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
- * An interface that methods for running.
+ * Lifecycle controls for a component that can be started and stopped.
  */
 interface Running {
     /**

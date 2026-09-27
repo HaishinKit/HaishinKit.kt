@@ -6,17 +6,17 @@ import com.haishinkit.media.MediaOutput
 
 interface StreamView : MediaOutput {
     /**
-     * Specifies the videoGravity how the displays the visual content.
+     * How the video is scaled to fit its bounds.
      */
     var videoGravity: VideoGravity
 
     /**
-     * Specifies the videoEffect such as a monochrome, a sepia.
+     * The effect applied to rendered video, such as monochrome or sepia.
      */
     var videoEffect: VideoEffect
 
     /**
-     * Specifies the frameRate for an output source in frames/sec.
+     * The target output frame rate, in frames per second.
      */
     var frameRate: Int
 }

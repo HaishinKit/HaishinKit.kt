@@ -8,7 +8,7 @@ import com.haishinkit.graphics.effect.VideoEffect
 import com.haishinkit.screen.Screen
 
 /**
- * The PixelTransform interface provides some graphics operations.
+ * Renders a composited [Screen] to an output [Surface].
  */
 interface PixelTransform {
     /**
@@ -17,32 +17,32 @@ interface PixelTransform {
     val context: Context
 
     /**
-     * Specifies the off screen object.
+     * The screen to render, or `null` when no screen is attached.
      */
     var screen: Screen?
 
     /**
-     * Specifies the surface that is an output source.
+     * The destination surface, or `null` when no output is attached.
      */
     var surface: Surface?
 
     /**
-     * Specifies the current width and height of the output surface.
+     * The output dimensions, in pixels.
      */
     var imageExtent: Size
 
     /**
-     * Specifies the videoEffect such as a monochrome, a sepia.
+     * The effect applied to rendered video, such as monochrome or sepia.
      */
     var videoEffect: VideoEffect
 
     /**
-     * Specifies the videoGravity how the displays the inputSurface's visual content.
+     * How the video is scaled to fit the output surface.
      */
     var videoGravity: VideoGravity
 
     /**
-     * Specifies the frameRate for an output source in frames/sec.
+     * The target output frame rate, in frames per second.
      */
     var frameRate: Int
 

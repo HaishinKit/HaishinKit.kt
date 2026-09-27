@@ -7,7 +7,7 @@ import android.graphics.Rect
 import com.haishinkit.media.source.VideoSource
 
 /**
- * An object that manages offscreen rendering a foundation.
+ * The root container for an offscreen video composition.
  */
 abstract class Screen(
     val context: Context,
@@ -17,7 +17,7 @@ abstract class Screen(
      */
     abstract class Callback {
         /**
-         * Invoked immediately after layout frame.
+         * Called after a frame has been laid out.
          */
         abstract fun onEnterFrame()
     }
@@ -37,12 +37,12 @@ abstract class Screen(
     abstract fun readPixels(lambda: ((bitmap: Bitmap?) -> Unit))
 
     /**
-     * Binds the gpu texture.
+     * Binds GPU resources for the screen object.
      */
     abstract fun bind(screenObject: ScreenObject)
 
     /***
-     * Unbinds the gpu texture.
+     * Releases the GPU binding for the screen object.
      */
     abstract fun unbind(screenObject: ScreenObject)
 
@@ -52,7 +52,7 @@ abstract class Screen(
     )
 
     /**
-     * Registers a listener to receive notifications about when the Screen.
+     * Registers a callback for frame layout notifications. Duplicate registrations are ignored.
      */
     open fun registerCallback(callback: Callback) {
         if (!callbacks.contains(callback)) {

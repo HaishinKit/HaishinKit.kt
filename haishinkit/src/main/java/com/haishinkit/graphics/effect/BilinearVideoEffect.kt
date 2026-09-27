@@ -4,7 +4,7 @@ import com.haishinkit.graphics.glsl.RequirementsDirective
 import com.haishinkit.graphics.glsl.VersionCode
 
 /**
- * An object that provides a resampling filter by bilinear algorithm.
+ * Resamples video using bilinear interpolation.
  */
 @RequirementsDirective(VersionCode.ES300)
 class BilinearVideoEffect(

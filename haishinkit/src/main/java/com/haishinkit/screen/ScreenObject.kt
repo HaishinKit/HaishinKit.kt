@@ -9,7 +9,7 @@ import java.util.UUID
 import kotlin.math.max
 
 /**
- * The ScreenObject class is the abstract class for all objects that are rendered on the screen.
+ * Base class for objects rendered in a [Screen].
  */
 @Suppress("MemberVisibilityCanBePrivate")
 abstract class ScreenObject(
@@ -44,7 +44,7 @@ abstract class ScreenObject(
         internal set
 
     /**
-     * The screen object container that contains this screen object
+     * The container that owns this object, or `null` when detached.
      */
     open var parent: ScreenObjectContainer? = null
         internal set(value) {
@@ -69,12 +69,12 @@ abstract class ScreenObject(
     val bounds = Rect(0, 0, 0, 0)
 
     /**
-     * Specifies the default spacing to laying out content in the screen object.
+     * Margins used to position and size this object, in pixels.
      */
     val layoutMargin: EdgeInsets = EdgeInsets(0, 0, 0, 0)
 
     /**
-     * The mvp matrix.
+     * The 4 × 4 model-view-projection matrix used for rendering.
      */
     val matrix =
         FloatArray(16).apply {
@@ -95,7 +95,7 @@ abstract class ScreenObject(
     var verticalAlignment: Int = VERTICAL_ALIGNMENT_TOP
 
     /**
-     * Specifies the video effect such as a monochrome, a sepia.
+     * The effect applied when rendering this object.
      */
     var videoEffect: VideoEffect = DefaultVideoEffect.shared
 
@@ -132,7 +132,7 @@ abstract class ScreenObject(
     }
 
     /**
-     * Layouts the screen object.
+     * Calculates the object bounds and updates its rendering layout.
      */
     open fun layout(renderer: Renderer) {
         getBounds(bounds)

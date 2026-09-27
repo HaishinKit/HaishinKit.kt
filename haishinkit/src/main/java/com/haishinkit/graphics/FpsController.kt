@@ -2,7 +2,7 @@ package com.haishinkit.graphics
 
 internal interface FpsController {
     /**
-     * Specifies the frameRate for an output source in frames/sec.
+     * The target output frame rate, in frames per second.
      */
     var frameRate: Int
 

@@ -19,7 +19,10 @@ import com.haishinkit.graphics.ImageOrientation
 import com.haishinkit.media.MediaMixer
 
 /**
- * A video source that captures a display by the MediaProjection API.
+ * Captures display video using an authorized [MediaProjection].
+ *
+ * Attach this source with `MediaMixer.attachVideo`. Closing the source stops the supplied
+ * projection and releases its virtual display.
  */
 @Suppress("UNUSED", "MemberVisibilityCanBePrivate")
 class MediaProjectionSource(
@@ -62,6 +65,9 @@ class MediaProjectionSource(
         }
     }
 
+    /**
+     * Whether captured-content resize callbacks update the image orientation; defaults to `true`.
+     */
     var isRotatesWithContent = true
 
     override var imageOrientation: ImageOrientation = ImageOrientation.UP
@@ -112,7 +118,10 @@ class MediaProjectionSource(
     private val displaySize: Size by lazy { getDisplaySize(context) }
 
     /**
-     * Register a listener to receive notifications about when the MediaProjection changes state.
+     * Registers a listener for projection state changes.
+     *
+     * @param callback The listener to register.
+     * @param handler The handler passed to [MediaProjection.registerCallback].
      */
     fun registerCallback(
         callback: MediaProjection.Callback,
@@ -122,7 +131,7 @@ class MediaProjectionSource(
     }
 
     /**
-     * Unregister a MediaProjection listener.
+     * Unregisters a projection state listener.
      */
     fun unregisterCallback(callback: MediaProjection.Callback) {
         mediaProjection.unregisterCallback(callback)

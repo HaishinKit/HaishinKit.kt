@@ -11,27 +11,19 @@ import java.io.FileDescriptor
 import java.lang.ref.WeakReference
 
 /**
- * An object that writes media data to a file.
+ * Encodes media from a registered source and writes it to a file.
  *
- * ## Usages.
- * ### AndroidManifest.xml
- * ```xml
- * <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>
- * ```
+ * Register the recorder with a mixer before recording. Attach capture sources and start the
+ * mixer before using this example. The output path must be writable by the application.
  *
- * ### Code
  * ```kotlin
- * var mixer = MediaMixer(context)
- * var recorder = [MediaRecorder](context)
+ * val recorder = MediaRecorder(context)
  * mixer.registerOutput(recorder)
- * if (recorder.isRecording) {
- *   recorder.stopRecording()
- * } else {
- *   recorder.startRecording(
- *     File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "output.mp4").toString(),
- *     MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4
- *   )
- * }
+ * val output = java.io.File(context.filesDir, "output.mp4")
+ * recorder.startRecording(output.absolutePath, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
+ * // After capturing the desired media:
+ * recorder.stopRecording()
+ * mixer.unregisterOutput(recorder)
  * ```
  */
 @Suppress("UNUSED", "MemberVisibilityCanBePrivate")
@@ -39,7 +31,7 @@ class MediaRecorder(
     context: Context,
 ) : MediaOutput {
     /**
-     * The isRecording value indicates whether the audio recorder is recording.
+     * Whether this recorder is currently recording audio and video.
      */
     var isRecording = false
         private set
@@ -69,7 +61,11 @@ class MediaRecorder(
     private val videoCodec by lazy { VideoCodec(context) }
 
     /**
-     * Starts recording.
+     * Starts recording to a file path.
+     *
+     * @param path A writable destination file path.
+     * @param format An Android [MediaMuxer.OutputFormat] value.
+     * @throws IllegalStateException If recording has already started or no data source is registered.
      */
     fun startRecording(
         path: String,
@@ -84,7 +80,11 @@ class MediaRecorder(
     }
 
     /**
-     * Starts recording.
+     * Starts recording to a file descriptor. Requires Android 8.0 (API 26) or later.
+     *
+     * @param fd A writable file descriptor accepted by [MediaMuxer].
+     * @param format An Android [MediaMuxer.OutputFormat] value.
+     * @throws IllegalStateException If recording has already started or no data source is registered.
      */
     @RequiresApi(Build.VERSION_CODES.O)
     fun startRecording(
@@ -99,7 +99,9 @@ class MediaRecorder(
     }
 
     /**
-     * Stops recording.
+     * Stops recording and finalizes the output file.
+     *
+     * @throws IllegalStateException If recording has not started.
      */
     fun stopRecording() {
         if (muxer == null) {

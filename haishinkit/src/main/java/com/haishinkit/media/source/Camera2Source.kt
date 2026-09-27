@@ -8,13 +8,20 @@ import com.haishinkit.graphics.ImageOrientation
 import com.haishinkit.media.MediaMixer
 
 /**
- * A video source that captures a camera by the Camera2 API.
+ * Captures video from an Android Camera2 device.
+ *
+ * Grant camera permission before opening the source. Attach it with `MediaMixer.attachVideo`.
+ *
+ * @property cameraId The Camera2 device identifier; defaults to `"0"`.
  */
 @Suppress("UNUSED")
 class Camera2Source(
     private val context: Context,
     val cameraId: String = DEFAULT_CAMERA_ID,
 ) : VideoSource {
+    /**
+     * Whether to enable the camera torch when supported by the device.
+     */
     var isTorchEnabled: Boolean = false
         set(value) {
             output?.setTorchEnabled(value)
@@ -44,7 +51,11 @@ class Camera2Source(
         }
 
     /**
-     * Opens the camera with camera2 api.
+     * Opens the camera and selects a capture size using the mixer screen dimensions.
+     *
+     * The caller must already have camera permission.
+     *
+     * @return The result of opening the camera.
      */
     @SuppressLint("MissingPermission")
     override suspend fun open(mixer: MediaMixer): Result<Unit> {

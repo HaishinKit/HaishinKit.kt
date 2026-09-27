@@ -4,7 +4,7 @@ import com.haishinkit.graphics.glsl.RequirementsDirective
 import com.haishinkit.graphics.glsl.VersionCode
 
 /**
- * An object that provides a resampling filter by bicubic algorithm.
+ * Resamples video using bicubic interpolation.
  */
 @RequirementsDirective(VersionCode.ES300)
 class BicubicVideoEffect(

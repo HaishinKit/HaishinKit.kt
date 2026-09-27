@@ -22,7 +22,11 @@ import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.coroutines.CoroutineContext
 
 /**
- * Mixing audio and video for streaming.
+ * Routes captured audio and composited video to registered outputs.
+ *
+ * Attach capture sources to numbered tracks, register streams or recorders with [registerOutput],
+ * and call [startRunning] to start capture. Call [stopRunning] to stop capture and [dispose]
+ * when the mixer is no longer needed.
  */
 @Suppress("UNUSED")
 class MediaMixer(
@@ -33,7 +37,7 @@ class MediaMixer(
     DefaultLifecycleObserver,
     Running {
     /**
-     * Specifies the device torch indicating whether the turn on(TRUE) or not(FALSE).
+     * Whether the torch is enabled for attached camera sources; defaults to `false`.
      */
     var isToucheEnabled: Boolean = false
         set(value) {
@@ -98,7 +102,13 @@ class MediaMixer(
     }
 
     /**
-     * Attaches a audio source.
+     * Replaces the audio source on a track, closing the previous source first.
+     *
+     * The new source is opened immediately, even if the mixer has not started.
+     *
+     * @param track The audio track identifier.
+     * @param audio The source to attach, or `null` to detach the current source.
+     * @return The result of opening the new source, or success when detaching.
      */
     suspend fun attachAudio(
         track: Int,
@@ -114,7 +124,14 @@ class MediaMixer(
     }
 
     /**
-     * Attaches a video source.
+     * Replaces the video source on a track, closing the previous source first.
+     *
+     * If the mixer is running, the new source is opened and attached to the screen immediately.
+     * Otherwise, it is opened when [startRunning] is called.
+     *
+     * @param track The video track identifier, matched by `VideoScreenObject.track`.
+     * @param video The source to attach, or `null` to detach the current source.
+     * @return The result of opening the source, or success when opening is deferred or the source is detached.
      */
     suspend fun attachVideo(
         track: Int,
@@ -143,7 +160,10 @@ class MediaMixer(
     }
 
     /**
-     * Sets a video effect.
+     * Applies an effect to the video screen objects currently assigned to [track].
+     *
+     * @param track The video track identifier.
+     * @param videoEffect The effect to apply.
      */
     fun setVideoEffect(
         track: Int,
@@ -170,6 +190,9 @@ class MediaMixer(
         }
     }
 
+    /**
+     * Starts capture and schedules attached sources to open asynchronously. Does nothing if already running.
+     */
     override fun startRunning() {
         if (isRunning.get()) {
             return
@@ -190,6 +213,9 @@ class MediaMixer(
         isRunning.set(true)
     }
 
+    /**
+     * Stops capture and schedules attached sources to close asynchronously. Does nothing if already stopped.
+     */
     override fun stopRunning() {
         if (!isRunning.get()) {
             return
@@ -209,7 +235,7 @@ class MediaMixer(
     }
 
     /**
-     * Disposes the mixer of memory management.
+     * Stops capture, removes screen children, and clears the attached source lists.
      */
     fun dispose() {
         stopRunning()

@@ -8,7 +8,7 @@ import java.nio.ByteBuffer
 import kotlin.properties.Delegates
 
 /**
- * The AudioCodec translate audio data to another format.
+ * Encodes and decodes audio using Android media codecs.
  */
 class AudioCodec : Codec() {
     @Suppress("UNUSED")
@@ -16,7 +16,7 @@ class AudioCodec : Codec() {
         private var codec: AudioCodec? = null,
     ) : Codec.Setting(codec) {
         /**
-         * The channel of audio output.
+         * The number of output audio channels; defaults to 1 (mono).
          */
         var channelCount: Int by Delegates.observable(DEFAULT_CHANNEL_COUNT) { _, oldValue, newValue ->
             if (oldValue != newValue) {
@@ -25,7 +25,7 @@ class AudioCodec : Codec() {
         }
 
         /**
-         * The bitRate of audio output.
+         * The target audio bit rate, in bits per second; defaults to 64,000.
          */
         var bitRate: Int by Delegates.observable(DEFAULT_BIT_RATE) { _, oldValue, newValue ->
             if (oldValue != newValue) {
@@ -34,7 +34,7 @@ class AudioCodec : Codec() {
         }
 
         /**
-         * The sampleRate of audio output.
+         * The audio sample rate, in hertz; defaults to 44,100.
          */
         var sampleRate: Int by Delegates.observable(DEFAULT_SAMPLE_RATE) { _, oldValue, newValue ->
             if (oldValue != newValue) {

@@ -5,7 +5,7 @@ import android.view.Surface
 import com.haishinkit.graphics.ImageOrientation
 
 /**
- * An interface that captures a video source.
+ * Produces video frames on a surface for a media mixer.
  *
  * Use this for creating video sources that depend on the device, such as Camera or MediaProjection.
  * For static images and similar sources, please use the Screen object.

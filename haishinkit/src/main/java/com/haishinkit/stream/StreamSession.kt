@@ -5,10 +5,10 @@ import android.net.Uri
 import kotlinx.coroutines.flow.StateFlow
 
 /**
- * [StreamSession] is a session for live streaming.
+ * Manages a single connection and stream for publishing or playback.
  *
- * Streaming with [com.haishinkit.rtmp.RtmpConnection] is difficult to use because it requires many idioms.
- * This is a helper class specialized for a one-connection, one-stream setup.
+ * Register a protocol-specific [StreamSessionFactory] with [Builder.registerFactory], then
+ * create a session with [Builder]. Observe [readyState] for connection state changes.
  */
 interface StreamSession {
     /**
@@ -52,7 +52,10 @@ interface StreamSession {
     }
 
     /**
-     * Helper class for building new [StreamSession].
+     * Builds a session using a factory registered for the URI scheme.
+     *
+     * @param context The Android context used to create the session.
+     * @param uri The complete stream URI, including the stream name.
      */
     class Builder(
         private val context: Context,
@@ -62,7 +65,7 @@ interface StreamSession {
             private var factoryMap = mutableMapOf<String, StreamSessionFactory>()
 
             /**
-             * Registers a stream session factory.
+             * Registers a factory for its supported URI schemes, replacing any previous factory for those schemes.
              */
             fun registerFactory(factory: StreamSessionFactory) {
                 factory.protocols.forEach {
@@ -74,13 +77,18 @@ interface StreamSession {
         private var mode: Mode = Mode.PUBLISH
 
         /**
-         * Sets a publish or playback mode.
+         * Sets the session mode and returns this builder. The default is [Mode.PUBLISH].
          */
         fun setMode(mode: Mode): Builder {
             this.mode = mode
             return this
         }
 
+        /**
+         * Creates a session without connecting it.
+         *
+         * @throws NullPointerException If no factory is registered for the URI scheme.
+         */
         fun build(): StreamSession {
             val scheme = uri.scheme
             for (factory in factoryMap) {
@@ -93,27 +101,31 @@ interface StreamSession {
     }
 
     /**
-     * This instance connected to server(true) or not(false).
+     * Whether the underlying connection is connected to the server.
      */
     val isConnected: Boolean
 
     /**
-     * The current readyState.
+     * Observable connection state for this session.
      */
     val readyState: StateFlow<ReadyState>
 
     /**
-     * The stream instance.
+     * The stream used to configure codecs and register media inputs or outputs.
      */
     val stream: Stream
 
     /**
-     * Creates a connection to an application on server.
+     * Connects to the server and starts publishing or playback in the configured mode.
+     *
+     * @return Success when the session starts, or a failure describing the connection error.
      */
     suspend fun connect(): Result<Unit>
 
     /**
-     * Closes the connection from the server.
+     * Closes the connection and its stream.
+     *
+     * @return The result of closing the session.
      */
     suspend fun close(): Result<Unit>
 }

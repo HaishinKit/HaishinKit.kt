@@ -10,7 +10,7 @@ import androidx.core.graphics.toColorInt
 import kotlin.math.max
 
 /**
- * An object that manages offscreen rendering a text source.
+ * Renders text as a bitmap in an offscreen composition.
  */
 @Suppress("MemberVisibilityCanBePrivate")
 class TextScreenObject(

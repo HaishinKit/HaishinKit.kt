@@ -3,16 +3,16 @@ package com.haishinkit.media.source
 import com.haishinkit.media.MediaMixer
 
 /**
- * An interface that captures a source.
+ * A media capture source managed by a [MediaMixer].
  */
 interface Source {
     /**
-     * Open a source.
+     * Opens the source for the given mixer and returns the result of initialization.
      */
     suspend fun open(mixer: MediaMixer): Result<Unit>
 
     /**
-     * Closes a source.
+     * Closes the source and returns the result of releasing its capture resources.
      */
     suspend fun close(): Result<Unit>
 }

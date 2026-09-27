@@ -16,16 +16,31 @@ import com.haishinkit.media.MediaType
 import java.nio.ByteBuffer
 
 /**
- * An audio source that captures a microphone by the AudioRecord api.
+ * Captures PCM audio using [AudioRecord].
+ *
+ * Grant `RECORD_AUDIO` permission and configure capture settings before attaching this source
+ * with `MediaMixer.attachAudio`. The default format is 16-bit mono PCM at 44,100 Hz.
  */
 @Suppress("MemberVisibilityCanBePrivate")
 class AudioRecordSource(
     private val context: Context,
 ) : AudioSource {
     override var isMuted = false
+    /**
+     * The input channel mask, such as `AudioFormat.CHANNEL_IN_MONO`.
+     */
     var channel = DEFAULT_CHANNEL
+    /**
+     * The Android audio capture source; defaults to `MediaRecorder.AudioSource.CAMCORDER`.
+     */
     var audioSource = DEFAULT_AUDIO_SOURCE
+    /**
+     * The capture sample rate, in hertz.
+     */
     var sampleRate = DEFAULT_SAMPLE_RATE
+    /**
+     * The capture buffer size, in bytes; computed on first access unless explicitly assigned.
+     */
     var minBufferSize = -1
         get() {
             if (field == -1) {
@@ -33,6 +48,9 @@ class AudioRecordSource(
             }
             return field
         }
+    /**
+     * The lazily created recorder, or `null` if audio recording permission has not been granted.
+     */
     var audioRecord: AudioRecord? = null
         get() {
             if (ActivityCompat.checkSelfPermission(

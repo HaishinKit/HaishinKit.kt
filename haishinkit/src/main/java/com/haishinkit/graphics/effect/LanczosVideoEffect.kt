@@ -4,7 +4,7 @@ import com.haishinkit.graphics.glsl.ShaderStage
 import com.haishinkit.graphics.glsl.Uniform
 
 /**
- * An object that provides a resampling filter by lanczos algorithm.
+ * Resamples video using the Lanczos filter.
  */
 class LanczosVideoEffect(
     override val name: String = "lanczos",

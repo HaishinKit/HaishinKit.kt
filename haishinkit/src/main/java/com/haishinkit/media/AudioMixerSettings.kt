@@ -3,12 +3,12 @@ package com.haishinkit.media
 import kotlinx.serialization.Serializable
 
 /**
- * Constraints on the audio mixier settings.
+ * Audio capture settings applied by [MediaMixer].
  */
 @Serializable
 data class AudioMixerSettings(
     /**
-     * Specifies the muted that indicates whether the audio output is muted.
+     * Whether captured audio is replaced with silence; defaults to `false`.
      */
     val isMuted: Boolean = false,
 )

@@ -1,7 +1,7 @@
 package com.haishinkit.graphics.effect
 
 /**
- * An object that provides a no effect.
+ * Renders video without applying a visual effect.
  */
 class DefaultVideoEffect private constructor(
     override val name: String = "default",

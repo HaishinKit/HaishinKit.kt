@@ -15,7 +15,7 @@ import com.haishinkit.media.MediaOutputDataSource
 import java.lang.ref.WeakReference
 
 /**
- * A view that displays a video content of a [MediaMixer] object which uses [TextureView].
+ * Displays video from a registered media source using a [TextureView].
  */
 class HkTextureView
     @JvmOverloads
