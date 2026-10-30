@@ -8,6 +8,13 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+  - package-ecosystem: "bundler"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "sunday"
+      time: "09:00"
+      timezone: "Asia/Tokyo"
   - package-ecosystem: "gradle" # See documentation for possible values
     directory: "/" # Location of package manifests
     schedule:
