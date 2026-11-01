@@ -158,35 +158,43 @@ abstract class ScreenObject(
         }
     }
 
-    protected fun getBounds(rect: Rect) {
+    protected open fun getBounds(rect: Rect) {
+        getBounds(rect, frame.width(), frame.height())
+    }
+
+    protected fun getBounds(
+        rect: Rect,
+        requestedWidth: Int,
+        requestedHeight: Int,
+    ) {
         if (parent == null) {
-            rect.set(0, 0, frame.width(), frame.height())
+            rect.set(0, 0, requestedWidth, requestedHeight)
         } else {
             val width =
-                if (frame.width() <= 0) {
+                if (requestedWidth <= 0) {
                     max(
                         (
                             parent?.bounds?.width()
                                 ?: 0
-                        ) - layoutMargin.left - layoutMargin.right + frame.width(),
+                        ) - layoutMargin.left - layoutMargin.right + requestedWidth,
                         0,
                     )
                 } else {
-                    frame.width()
+                    requestedWidth
                 }
             val height =
-                if (frame.height() <= 0) {
+                if (requestedHeight <= 0) {
                     max(
                         (
                             parent?.bounds?.height()
                                 ?: 0
-                        ) - layoutMargin.top - layoutMargin.bottom + frame.height(),
+                        ) - layoutMargin.top - layoutMargin.bottom + requestedHeight,
                         0,
                     )
                 } else {
-                    frame.height()
+                    requestedHeight
                 }
-            val parentX = parent?.frame?.left ?: 0
+            val parentX = parent?.bounds?.left ?: 0
             val parentWidth = parent?.bounds?.width() ?: 0
             val x =
                 when (horizontalAlignment) {
@@ -202,7 +210,7 @@ abstract class ScreenObject(
                         parentX + frame.left + layoutMargin.left
                     }
                 }
-            val parentY = parent?.frame?.top ?: 0
+            val parentY = parent?.bounds?.top ?: 0
             val parentHeight = parent?.bounds?.height() ?: 0
             val y =
                 when (verticalAlignment) {

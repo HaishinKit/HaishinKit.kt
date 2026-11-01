@@ -10,6 +10,27 @@ import org.robolectric.RuntimeEnvironment
 @RunWith(RobolectricTestRunner::class)
 class ScreenObjectTest {
     @Test
+    fun nestedChildrenUseComputedParentPosition() {
+        val root = ScreenObjectContainer().apply { frame = Rect(0, 0, 400, 300) }
+        val overlay =
+            ScreenObjectContainer().apply {
+                frame = Rect(0, 0, 200, 100)
+                horizontalAlignment = ScreenObject.HORIZONTAL_ALIGNMENT_CENTER
+                verticalAlignment = ScreenObject.VERTICAL_ALIGNMENT_MIDDLE
+            }
+        val child =
+            ImageScreenObject().apply {
+                frame = Rect(0, 0, 40, 20)
+                layoutMargin.set(5, 10, 0, 0)
+            }
+        overlay.addChild(child)
+        root.addChild(overlay)
+        root.layout(MockRenderer())
+        assertEquals(Rect(100, 100, 300, 200), overlay.bounds)
+        assertEquals(Rect(110, 105, 150, 125), child.bounds)
+    }
+
+    @Test
     fun testScreenRect() {
         val renderer = MockRenderer()
         val mockScreen = MockScreen(RuntimeEnvironment.getApplication())

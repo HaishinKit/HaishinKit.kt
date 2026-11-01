@@ -23,6 +23,21 @@ class ScreenObjectSnapshotTest {
         )
 
     @Test
+    fun layoutPreservesSharedSnapshotProperties() {
+        val snapshot = fixture()
+        val root = ScreenObjectFactory().create(snapshot)
+        root.layout(com.haishinkit.screen.MockRenderer())
+        assertEquals(snapshot, ScreenObjectSnapshotFactory().create(root))
+    }
+
+    @Test
+    fun unknownAlignmentFallsBackToSwiftDefaults() {
+        val root = ScreenObjectFactory().create(fixture().copy(horizontalAlignment = 99, verticalAlignment = -1))
+        assertEquals(0, root.horizontalAlignment)
+        assertEquals(0, root.verticalAlignment)
+    }
+
+    @Test
     fun sharedWireFormatRoundTrip() {
         val snapshot = fixture()
         assertEquals(snapshot, Json.decodeFromString<ScreenObjectSnapshot>(Json.encodeToString(snapshot)))
