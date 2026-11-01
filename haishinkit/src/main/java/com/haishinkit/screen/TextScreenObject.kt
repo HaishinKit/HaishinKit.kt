@@ -2,12 +2,17 @@ package com.haishinkit.screen
 
 import android.graphics.Canvas
 import android.graphics.Color
-import android.graphics.Paint
 import android.graphics.Paint.ANTI_ALIAS_FLAG
 import android.graphics.Rect
+import android.graphics.Typeface
+import android.text.Layout
+import android.text.StaticLayout
+import android.text.TextPaint
 import androidx.core.graphics.createBitmap
 import androidx.core.graphics.toColorInt
+import kotlin.math.ceil
 import kotlin.math.max
+import kotlin.math.min
 
 /**
  * Renders text as a bitmap in an offscreen composition.
@@ -47,9 +52,9 @@ class TextScreenObject(
         }
 
     /**
-     * The text size, in pixels; defaults to 15.
+     * The text size, in pixels; defaults to 32.
      */
-    var size: Float = 15f
+    var size: Float = 32f
         set(value) {
             if (field == value) return
             field = value
@@ -67,32 +72,54 @@ class TextScreenObject(
         set(value) {
             this.value = value[Keys.VALUE] ?: ""
             this.color = (value[Keys.COLOR] ?: "#FFFFFFFF").toColorInt()
-            this.size = value[Keys.FONT_SIZE]?.toFloat() ?: 0f
+            (value[Keys.FONT_SIZE] ?: "32").toFloatOrNull()?.let { this.size = it }
         }
 
-    private val paint by lazy {
-        Paint(ANTI_ALIAS_FLAG).apply {
-            textSize = this@TextScreenObject.size
-            color = this@TextScreenObject.color
-            textAlign = Paint.Align.LEFT
+    private val paint =
+        TextPaint(ANTI_ALIAS_FLAG).apply {
+            typeface = Typeface.DEFAULT_BOLD
+        }
+    private var textLayout: StaticLayout? = null
+
+    override fun getBounds(rect: Rect) {
+        if (value.isEmpty()) {
+            textLayout = null
+            rect.setEmpty()
+            return
+        }
+        super.getBounds(rect)
+        paint.textSize = size
+        paint.color = color
+        val availableWidth = max(rect.width(), 1)
+        val availableHeight = max(rect.height(), 0)
+        val layout = makeTextLayout(availableWidth)
+        val width = (0 until layout.lineCount).maxOfOrNull { ceil(layout.getLineWidth(it)).toInt() } ?: 0
+        val height = min(layout.height, availableHeight)
+        textLayout = makeTextLayout(max(min(width, availableWidth), 1))
+        if (width <= 0 || height <= 0) {
+            rect.setEmpty()
+        } else {
+            super.getBounds(rect, min(width, availableWidth), height)
         }
     }
 
-    private var canvas: Canvas? = null
-    private var textBounds = Rect()
+    @Suppress("DEPRECATION")
+    private fun makeTextLayout(width: Int): StaticLayout =
+        StaticLayout(value, paint, width, Layout.Alignment.ALIGN_NORMAL, 1f, 0f, false)
 
     override fun layout(renderer: Renderer) {
-        paint.getTextBounds(value, 0, value.length, textBounds)
-        frame.set(textBounds)
-        if (bitmap?.width != textBounds.width() || bitmap?.height != textBounds.height()) {
-            bitmap =
-                createBitmap(max(textBounds.width(), 1), max(textBounds.height(), 1)).apply {
-                    canvas = Canvas(this)
-                }
+        getBounds(bounds)
+        val width = max(bounds.width(), 1)
+        val height = max(bounds.height(), 1)
+        if (bitmap?.width != width || bitmap?.height != height) {
+            bitmap = createBitmap(width, height)
         }
-        bitmap?.eraseColor(Color.TRANSPARENT)
-        canvas?.drawText(value, -textBounds.left.toFloat(), -textBounds.top.toFloat(), paint)
-        super.layout(renderer)
+        bitmap?.let {
+            it.eraseColor(Color.TRANSPARENT)
+            textLayout?.draw(Canvas(it))
+        }
+        renderer.layout(this)
+        shouldInvalidateLayout = false
     }
 
     companion object {
