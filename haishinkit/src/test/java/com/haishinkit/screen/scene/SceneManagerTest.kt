@@ -1,33 +1,39 @@
 package com.haishinkit.screen.scene
 
-import android.graphics.Color
 import com.haishinkit.screen.MockScreen
-import com.haishinkit.screen.TextScreenObject
-import com.haishinkit.screen.VideoScreenObject
+import com.haishinkit.screen.ScreenObjectFactory
+import kotlinx.serialization.json.Json
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotSame
+import org.junit.Assert.assertSame
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
+import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
+@Config(sdk = [28])
 class SceneManagerTest {
     @Test
     fun testReadAndWrite() {
         val screen = MockScreen(RuntimeEnvironment.getApplication())
-        val video = VideoScreenObject()
-        val text = TextScreenObject()
-        text.value = "Hello World!!"
-        text.color = Color.RED
-        screen.addChild(video)
-        screen.addChild(text)
-
-        val data =
-            """{"version":1,"scenes":[{"name":"","screen":{"type":"container","frame":{"x":0,"y":0,"width":0,"height":0},"layout_margin":{"top":0,"left":0,"bottom":0,"right":0},"elements":{},"children":[{"type":"video","frame":{"x":0,"y":0,"width":0,"height":0},"layout_margin":{"top":0,"left":0,"bottom":0,"right":0},"elements":{},"children":[]},{"type":"text","frame":{"x":0,"y":0,"width":0,"height":0},"layout_margin":{"top":0,"left":0,"bottom":0,"right":0},"elements":{"value":"Hello"},"children":[]}]}}]}""".trimIndent()
+        val snapshot =
+            Json.decodeFromString<ScreenObjectSnapshot>(
+                javaClass.getResource("/screen_object_snapshot.json")!!.readText(),
+            )
+        val original = ScreenObjectFactory().create(snapshot)
+        screen.addChild(original)
         val manager = SceneManager(screen)
+        val document = manager.write()
 
-        println("👺" + manager.write())
-
-        manager.read(data)
+        manager.read(document)
         manager.transition(0)
+
+        val restored = screen.findById(snapshot.id)!!
+        assertNotSame(original, restored)
+        assertSame(screen, restored.parent)
+        assertEquals(snapshot, ScreenObjectSnapshotFactory().create(restored))
+        assertEquals(Json.parseToJsonElement(document), Json.parseToJsonElement(manager.write()))
     }
 }

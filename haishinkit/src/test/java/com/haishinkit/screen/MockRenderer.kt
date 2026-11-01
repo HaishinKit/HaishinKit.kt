@@ -6,10 +6,4 @@ class MockRenderer : Renderer {
 
     override fun draw(screenObject: ScreenObject) {
     }
-
-    override fun bind(screenObject: ScreenObject) {
-    }
-
-    override fun unbind(screenObject: ScreenObject) {
-    }
 }

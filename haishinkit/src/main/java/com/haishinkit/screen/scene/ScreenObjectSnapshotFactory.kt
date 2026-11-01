@@ -23,9 +23,9 @@ class ScreenObjectSnapshotFactory {
                         ),
                     isVisible = screenObject.isVisible,
                     horizontalAlignment = screenObject.horizontalAlignment,
-                    verticalAlignment = screenObject.horizontalAlignment,
-                    layoutMargin = screenObject.layoutMargin,
-                    elements = screenObject.elements,
+                    verticalAlignment = screenObject.verticalAlignment,
+                    layoutMargin = screenObject.layoutMargin.copy(),
+                    elements = screenObject.elements.toMap(),
                     children =
                         screenObject.getChildren().map {
                             create(it)
@@ -45,8 +45,8 @@ class ScreenObjectSnapshotFactory {
                     isVisible = screenObject.isVisible,
                     horizontalAlignment = screenObject.horizontalAlignment,
                     verticalAlignment = screenObject.verticalAlignment,
-                    layoutMargin = screenObject.layoutMargin,
-                    elements = screenObject.elements,
+                    layoutMargin = screenObject.layoutMargin.copy(),
+                    elements = screenObject.elements.toMap(),
                     children = emptyList(),
                 )
             }
