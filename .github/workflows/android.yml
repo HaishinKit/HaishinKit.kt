@@ -44,11 +44,10 @@ jobs:
           STEPS_JSON: ${{ toJSON(steps) }}
         shell: bash
         run: |
-          python3 - <<'PYTHON'
-          import json
-          import os
+          /usr/bin/ruby -rjson <<'RUBY'
+          JSON.parse(ENV.fetch('STEPS_JSON')).each do |name, step|
+            next unless step['outcome'] == 'failure'
 
-          for name, step in json.loads(os.environ["STEPS_JSON"]).items():
-              if step["outcome"] == "failure":
-                  print(f"::error title=Failed step: {name}::The {name} step failed. Open its logs for details; Fastlane failures also include an error annotation with the lane and cause.")
-          PYTHON
+            puts "::error title=Failed step: #{name}::The #{name} step failed. Open its logs for details; Fastlane failures also include an error annotation with the lane and cause."
+          end
+          RUBY
