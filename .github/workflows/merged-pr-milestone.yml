@@ -4,7 +4,7 @@ on:
     types: [closed]
     branches: [main]
 permissions:
-  issues: write
+  pull-requests: write
 jobs:
   assign:
     if: ${{ github.event.pull_request.merged == true }}
@@ -19,7 +19,7 @@ jobs:
           /usr/bin/ruby -rjson -ropen3 -rtime <<'RUBY'
           def api(*arguments)
             output, error, status = Open3.capture3('gh', 'api', *arguments)
-            raise "GitHub API request failed: #{error}" unless status.success?
+            raise "GitHub API request failed (#{arguments.join(' ')}): #{error}" unless status.success?
 
             JSON.parse(output)
           end
