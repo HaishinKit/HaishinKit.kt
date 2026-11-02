@@ -10,7 +10,7 @@ android {
 
     defaultConfig {
         applicationId = "com.haishinkit.app"
-        minSdk = 21
+        minSdk = 23
         targetSdk = 37
         versionCode = 1
         versionName = "1.0"

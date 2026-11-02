@@ -63,10 +63,10 @@ dependencies {
 
 | -          | minSdk | Android | Requirements | Status | Description                                                              |
 |:-----------|:-------|:--------|:-------------|:-------|:-------------------------------------------------------------------------|
-| haishinkit | 21+    | 5       | Require      | Stable | It's the base module for HaishinKit.                                     |
-| rtmp       | 21+    | 5       | Require      | Stable | It's support for an rtmp streaming.                                      |
-| compose    | 21+    | 5       | Optional     | Beta   | It's support for a composable component for HaishinKit.                  |
-| lottie     | 21+    | 5       | Optional     | Beta   | It's a module for embedding Lottie animations into live streaming video. |
+| haishinkit | 23+    | 6.0     | Require      | Stable | It's the base module for HaishinKit.                                     |
+| rtmp       | 23+    | 6.0     | Require      | Stable | It's support for an rtmp streaming.                                      |
+| compose    | 23+    | 6.0     | Optional     | Beta   | It's support for a composable component for HaishinKit.                  |
+| lottie     | 23+    | 6.0     | Optional     | Beta   | It's a module for embedding Lottie animations into live streaming video. |
 
 ### Android manifest
 ```xml
