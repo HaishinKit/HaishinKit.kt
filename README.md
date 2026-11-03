@@ -88,9 +88,9 @@ ActivityCompat.requestPermissions(
 
 ### Experimental SRT module
 
-The `:srt` module provides a native libsrt build foundation with encryption
-support. See [Android SRT setup](srt/README.md) for requirements and build
-commands. SRT streaming APIs are not implemented yet.
+The `:srt` module supports encrypted SRT connections and MPEG-TS publishing and
+playback through `SrtConnection`, `SrtStream`, and `SrtStreamSessionFactory`.
+See [Android SRT setup](srt/README.md) for requirements, build commands, and Example usage.
 
 ## 🌏 Related projects
 

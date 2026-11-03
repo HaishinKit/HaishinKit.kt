@@ -125,7 +125,8 @@ or detached jobs: the owner uses `coroutineScope` and `launch` to manage
 send/receive lifetimes. Native sends process at most 32 messages per call to allow
 cancellation checks between bursts.
 
-A shared C++ `SrtEventLoop` waits in `srt_epoll_wait`. Read/accept waits subscribe
+A shared C++ `SrtEventLoop` waits in libsrt's `UDT::epoll_wait` set API, which
+returns every ready socket without the C array API's truncation. Read/accept waits subscribe
 to IN, and connection/send waits subscribe to OUT plus error notifications.
 Wait registrations are one-shot, and callbacks run after their IN/OUT interest
 is disabled. A lifetime epoll subscription preserves readiness across gaps between
@@ -189,7 +190,8 @@ cp "$ANDROID_HOME/ndk/28.2.13676358/toolchains/llvm/prebuilt/darwin-x86_64/sysro
 
 Without a host JNI library, local JVM socket tests are skipped. Android tests
 always use the native libraries packaged in the test APK.
-The host C++ tests verify native log filtering and epoll readiness, cancellation,
+The host C++ tests verify native log filtering and epoll readiness (including 96
+simultaneously readable connections), cancellation,
 close and shutdown. JVM tests exercise the same code through JNI, including
 concurrent connections and cancellation of queued senders.
 

@@ -28,6 +28,7 @@ interface MediaOutputDataSource {
 
     /**
      * Unregisters an output instance.
+     * A buffer delivery already in progress can still include this output.
      */
     fun unregisterOutput(output: MediaOutput)
 }

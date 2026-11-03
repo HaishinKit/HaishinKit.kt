@@ -26,6 +26,55 @@ std::future<void> wait(SrtSocket& socket, int events) {
     return future;
 }
 
+void verifyReadinessBurst(const SrtSocket::Options& options, const sockaddr_storage& local) {
+    std::vector<std::shared_ptr<SrtSocket>> senders, receivers;
+    for (int i = 0; i < 96; ++i) {
+        SrtSocket listener(options);
+        listener.Listen(local);
+        listener.BeginRead(true);
+        auto sender = std::make_shared<SrtSocket>(options);
+        sender->Connect(listener.GetLocalAddress(), nullptr, false);
+        auto connected = wait(*sender, SRT_EPOLL_OUT);
+        await(connected);
+        require(sender->PollConnect(), "Burst sender failed to connect");
+        auto accepted = wait(listener, SRT_EPOLL_IN);
+        await(accepted);
+        auto receiver = listener.Accept();
+        require(receiver != nullptr, "Burst accept failed");
+        receiver->BeginRead(false);
+        senders.push_back(sender);
+        receivers.push_back(receiver);
+    }
+    std::promise<void> entered, release;
+    auto enteredFuture = entered.get_future();
+    auto released = release.get_future().share();
+    const auto gate = receivers.front()->Wait(0, [&entered, released] {
+        entered.set_value();
+        released.wait();
+    });
+    auto unblock = std::shared_ptr<void>(nullptr, [&release](void*) { release.set_value(); });
+    SrtEventLoop::Shared().Signal(gate);
+    await(enteredFuture);
+    std::vector<std::future<void>> notifications;
+    const char payload = 42;
+    for (size_t i = 0; i < receivers.size(); ++i) {
+        notifications.push_back(wait(*receivers[i], SRT_EPOLL_IN));
+        require(senders[i]->TryBeginSend(), "Burst sender ownership failed");
+        require(senders[i]->Send(&payload, 1) == 1, "Burst send failed");
+        senders[i]->EndSend();
+    }
+    // Wait until every socket is readable while the loop is deliberately gated.
+    const auto deadline = std::chrono::steady_clock::now() + 3s;
+    for (auto& receiver : receivers) {
+        while (receiver->GetPerformanceData().byteRcvBuf == 0) {
+            require(std::chrono::steady_clock::now() < deadline, "Burst delivery timed out");
+            std::this_thread::yield();
+        }
+    }
+    unblock.reset();
+    for (auto& notification : notifications) await(notification);
+}
+
 void run() {
     SrtSocket::Options options{0, 3000, {}, {}};
     SrtSocket listener(options), caller(options);
@@ -93,6 +142,8 @@ void run() {
     SrtSocket healthy(options);
     healthy.Listen(local);
     healthy.Close();
+
+    verifyReadinessBurst(options, local);
 
     auto stopping = wait(listener, SRT_EPOLL_IN);
     SrtEventLoop::Shutdown();

@@ -41,6 +41,7 @@ internal data class TSSample(
     val decodeTimeUs: Long = presentationTimeUs,
     val keyframe: Boolean = false,
     val audio: TSAudioConfig? = null,
+    val framing: TSVideo.Framing = TSVideo.Framing.ANNEX_B,
 )
 
 internal object TSBinary {

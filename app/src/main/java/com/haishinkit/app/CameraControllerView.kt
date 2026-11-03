@@ -22,6 +22,7 @@ fun CameraControllerView(
     onClickConnect: () -> Unit,
     onClickRecording: () -> Unit,
     readyState: StreamSession.ReadyState = if (isConnected) StreamSession.ReadyState.OPEN else StreamSession.ReadyState.CLOSED,
+    canCancelConnection: Boolean = false,
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -37,6 +38,7 @@ fun CameraControllerView(
             readyState = readyState,
             startLabel = "GO LIVE",
             onClick = onClickConnect,
+            canCancelConnection = canCancelConnection,
         )
         Spacer(modifier = Modifier.weight(1f))
         Button(onClick = {

@@ -7,10 +7,12 @@ import com.haishinkit.BuildConfig
 import com.haishinkit.codec.AudioCodec
 import com.haishinkit.codec.Codec
 import com.haishinkit.codec.VideoCodec
+import com.haishinkit.media.CodecOutputBuffer
 import com.haishinkit.media.MediaBuffer
 import com.haishinkit.media.MediaLink
 import com.haishinkit.media.MediaOutput
 import com.haishinkit.media.MediaOutputDataSource
+import com.haishinkit.media.MediaOutputRegistry
 import com.haishinkit.media.MediaType
 import com.haishinkit.screen.Screen
 import com.haishinkit.screen.VideoScreenObject
@@ -100,23 +102,13 @@ abstract class Stream(
         }
     }
 
-    private var outputs = mutableListOf<MediaOutput>()
+    private val outputs = MediaOutputRegistry(this)
     private var audioBufferPool = Pools.SynchronizedPool<MediaBuffer>(BUFFER_POOL_COUNTS)
     private var videoBufferPool = Pools.SynchronizedPool<MediaBuffer>(BUFFER_POOL_COUNTS)
 
-    override fun registerOutput(output: MediaOutput) {
-        if (!outputs.contains(output)) {
-            output.dataSource = WeakReference(this)
-            outputs.add(output)
-        }
-    }
+    override fun registerOutput(output: MediaOutput) = outputs.register(output)
 
-    override fun unregisterOutput(output: MediaOutput) {
-        if (outputs.contains(output)) {
-            outputs.remove(output)
-            output.dataSource = null
-        }
-    }
+    override fun unregisterOutput(output: MediaOutput) = outputs.unregister(output)
 
     /**
      * Closes the stream and stops media processing.
@@ -127,9 +119,7 @@ abstract class Stream(
      * Detaches registered outputs and releases audio and video codec resources.
      */
     open fun dispose() {
-        outputs.forEach {
-            unregisterOutput(it)
-        }
+        outputs.clear()
         audioCodec.dispose()
         videoCodec.dispose()
     }
@@ -167,6 +157,16 @@ abstract class Stream(
         timestamp: Long,
         sync: Boolean,
     ) {
+        val owner = if (type == MediaType.AUDIO) audioCodec else videoCodec
+        val decoder = owner.codec
+        val output =
+            CodecOutputBuffer(owner, { owner.isRunning.get() && owner.codec === decoder }) { render, time ->
+                if (render && type == MediaType.VIDEO) {
+                    decoder?.releaseOutputBuffer(index, time * 1000)
+                } else {
+                    decoder?.releaseOutputBuffer(index, false)
+                }
+            }
         when (type) {
             MediaType.AUDIO -> {
                 mediaLink.queueAudio(
@@ -175,6 +175,7 @@ abstract class Stream(
                         this.payload = payload
                         this.timestamp = timestamp
                         this.sync = sync
+                        this.codecOutput = output
                     },
                 )
             }
@@ -186,6 +187,7 @@ abstract class Stream(
                         this.payload = payload
                         this.timestamp = timestamp
                         this.sync = sync
+                        this.codecOutput = output
                     },
                 )
             }
@@ -196,23 +198,15 @@ abstract class Stream(
         buffer: MediaBuffer,
         render: Boolean,
     ) {
+        buffer.codecOutput?.release(render, buffer.timestamp)
+        buffer.codecOutput = null
         when (buffer.type) {
             MediaType.AUDIO -> {
-                if (audioCodec.isRunning.get()) {
-                    audioCodec.codec?.releaseOutputBuffer(buffer.index, false)
-                }
                 buffer.payload = null
                 audioBufferPool.release(buffer)
             }
 
             MediaType.VIDEO -> {
-                if (videoCodec.isRunning.get()) {
-                    if (render) {
-                        videoCodec.codec?.releaseOutputBuffer(buffer.index, buffer.timestamp * 1000)
-                    } else {
-                        videoCodec.codec?.releaseOutputBuffer(buffer.index, false)
-                    }
-                }
                 videoBufferPool.release(buffer)
             }
         }

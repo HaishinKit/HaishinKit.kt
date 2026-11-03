@@ -13,6 +13,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -24,6 +25,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.haishinkit.compose.HaishinKitView
 import com.haishinkit.compose.rememberStreamSessionState
+import com.haishinkit.srt.SrtStream
 import com.haishinkit.stream.StreamSession
 import kotlinx.coroutines.launch
 
@@ -38,19 +40,40 @@ fun PlaybackScreen(
 ) {
     val scope = rememberCoroutineScope()
     var errorMessage by remember(viewModel.session) { mutableStateOf<String?>(null) }
-    LaunchedEffect(Unit) { viewModel.refreshSession() }
-    val session =
-        rememberStreamSessionState(viewModel.session)
+    LaunchedEffect(Unit) { viewModel.refreshSession().onFailure { errorMessage = it.message ?: "Check the stream URL." } }
+    val currentSession = viewModel.session
+    if (currentSession == null) {
+        Text(viewModel.sessionError ?: "Preparing stream...", modifier = modifier.safeDrawingPadding().padding(16.dp))
+        return
+    }
+    val session = rememberStreamSessionState(currentSession)
     val readyState by session.readyState.collectAsState()
-    val active = readyState != StreamSession.ReadyState.CLOSED
+    val toggleConnection: () -> Unit = {
+        errorMessage = null
+        scope.launch {
+            if (session.readyState.value != StreamSession.ReadyState.CLOSED) {
+                session.close()
+            } else {
+                viewModel.sessionError?.let {
+                    errorMessage = it
+                    return@launch
+                }
+                session.connect().onFailure {
+                    errorMessage = it.message ?: "Check the stream URL and your network connection."
+                }
+            }
+        }
+    }
 
     Box(
         modifier = modifier.fillMaxSize().background(Color.Black),
     ) {
-        HaishinKitView(
-            stream = session.stream,
-            modifier = Modifier.fillMaxSize(),
-        )
+        key(session.stream) {
+            HaishinKitView(
+                stream = session.stream,
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
         Box(
             modifier = Modifier.fillMaxSize().safeDrawingPadding().padding(16.dp),
         ) {
@@ -62,25 +85,15 @@ fun PlaybackScreen(
                 ) {
                     Text("Can't connect to stream", color = Color.White)
                     Text(message, color = Color.White)
-                    Button(onClick = { errorMessage = null }) { Text("Try Again") }
+                    Button(onClick = toggleConnection) { Text("Try Again") }
                 }
             }
             Box(modifier = Modifier.align(Alignment.BottomEnd)) {
                 StreamControlButton(
                     readyState = readyState,
                     startLabel = "PLAY",
-                    onClick = {
-                        errorMessage = null
-                        scope.launch {
-                            if (active) {
-                                session.close()
-                            } else {
-                                session.connect().onFailure {
-                                    errorMessage = it.message ?: "Check the stream URL and your network connection."
-                                }
-                            }
-                        }
-                    },
+                    onClick = toggleConnection,
+                    canCancelConnection = session.stream is SrtStream,
                 )
             }
         }

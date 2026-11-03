@@ -5,10 +5,12 @@ import android.graphics.Rect
 import android.media.MediaCodec
 import android.media.MediaFormat
 import android.util.Size
+import android.view.Surface
 import com.haishinkit.codec.Codec
 import com.haishinkit.codec.CodecOption
 import com.haishinkit.media.MediaType
 import com.haishinkit.media.source.VideoCodecSource
+import com.haishinkit.media.source.VideoSource
 import com.haishinkit.srt.ts.TSAudioConfig
 import com.haishinkit.srt.ts.TSCodec
 import com.haishinkit.srt.ts.TSReader
@@ -30,8 +32,10 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import java.io.IOException
 import java.nio.ByteBuffer
+import java.util.concurrent.ConcurrentSkipListSet
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 
@@ -191,14 +195,15 @@ class SrtStream(context: Context, val connection: SrtConnection) : Stream(contex
                 }
                 mode = if (run.target == ReadyState.PUBLISHING) Codec.MODE_ENCODE else Codec.MODE_DECODE
                 if (run.target == ReadyState.PUBLISHING) {
+                    videoCodec.surface = null
                     audioCodec.inputMimeType = MediaFormat.MIMETYPE_AUDIO_RAW
                     audioCodec.outputMimeType = TSCodec.AAC.mime
                     audioCodec.sampleRate = audioSetting.sampleRate
                     audioCodec.channelCount = audioSetting.channelCount
                     videoCodec.inputMimeType = MediaFormat.MIMETYPE_VIDEO_RAW
                     videoCodec.outputMimeType = videoCodec.profileLevel.mime
-                    videoCodec.width = videoSetting.width
-                    videoCodec.height = videoSetting.height
+                    videoCodec.width = videoSetting.width and -2
+                    videoCodec.height = videoSetting.height and -2
                 }
                 val listener = CodecListener(run)
                 audioCodec.listener = listener
@@ -270,7 +275,7 @@ class SrtStream(context: Context, val connection: SrtConnection) : Stream(contex
         var appliedConfiguration = emptyList<ByteArray>()
         for (sample in run.video) {
             run.decodeBytes.addAndGet(-sample.data.size.toLong())
-            val updated = TSVideo.configuration(sample.data, sample.codec)
+            val updated = TSVideo.configuration(sample.data, sample.codec, sample.framing)
             val merged = (configuration.filter { old -> updated.none { TSVideo.type(it, sample.codec) == TSVideo.type(old, sample.codec) } } + updated)
             val changed = configuredCodec != sample.codec || !sameBytes(appliedConfiguration, merged)
             configuration = merged
@@ -281,6 +286,7 @@ class SrtStream(context: Context, val connection: SrtConnection) : Stream(contex
                     videoCodec.stopRunning()
                     drain(run.videoIndices)
                 }
+                run.videoKeyframes.clear()
                 val spsType = if (sample.codec == TSCodec.AVC) 7 else 33
                 val dimensions = TSVideo.dimensions(configuration.first { TSVideo.type(it, sample.codec) == spsType }, sample.codec)
                 videoCodec.inputMimeType = sample.codec.mime
@@ -299,14 +305,34 @@ class SrtStream(context: Context, val connection: SrtConnection) : Stream(contex
                 val size = Size(dimensions.first, dimensions.second)
                 screen.frame = Rect(0, 0, size.width, size.height)
                 video.videoSize = size
-                screen.attachVideo(0, VideoCodecSource(videoCodec).apply { videoSize = size })
+                videoCodec.surface = null
+                val attached = CompletableDeferred<Unit>()
+                val delegate = VideoCodecSource(videoCodec).apply { videoSize = size }
+                val source =
+                    object : VideoSource by delegate {
+                        override var surface: Surface? = null
+                            set(value) {
+                                field = value
+                                if (current === run && !run.finishing.get()) {
+                                    videoCodec.surface = value
+                                    if (value != null) attached.complete(Unit)
+                                }
+                            }
+                    }
+                screen.attachVideo(0, source)
+                withTimeoutOrNull(5000) { attached.await() } ?: throw IOException("Decoder output surface was not attached")
                 videoCodec.startRunning()
                 check(videoCodec.isRunning.get()) { "Video decoder failed to start" }
                 hasVideo = true
                 configuredCodec = sample.codec
                 appliedConfiguration = configuration
             }
-            feed(videoCodec.codec!!, run.videoIndices.receive(), sample)
+            val index = run.videoIndices.receive()
+            if (sample.keyframe) {
+                run.videoKeyframes.add(sample.presentationTimeUs)
+                while (run.videoKeyframes.size > 64) run.videoKeyframes.pollFirst()
+            }
+            feed(videoCodec.codec!!, index, sample)
         }
     }
 
@@ -387,8 +413,19 @@ class SrtStream(context: Context, val connection: SrtConnection) : Stream(contex
             index: Int,
         ) {
             if (current !== run || run.finishing.get()) return
-            val indices = if (mime == MediaFormat.MIMETYPE_AUDIO_RAW) run.audioIndices else run.videoIndices
-            if (indices.trySend(index).isFailure) fail(run, IOException("Decoder input queue is full"))
+            val owner = if (mime == MediaFormat.MIMETYPE_AUDIO_RAW) audioCodec else videoCodec
+            owner.withCurrentCodec(codec) {
+                if (current !== run || run.finishing.get()) return@withCurrentCodec
+                val indices = if (mime == MediaFormat.MIMETYPE_AUDIO_RAW) run.audioIndices else run.videoIndices
+                if (indices.trySend(index).isFailure) fail(run, IOException("Decoder input queue is full"))
+            }
+        }
+
+        override fun onError(
+            mime: String,
+            cause: MediaCodec.CodecException,
+        ) {
+            fail(run, cause)
         }
 
         override fun onFormatChanged(
@@ -399,7 +436,7 @@ class SrtStream(context: Context, val connection: SrtConnection) : Stream(contex
             try {
                 if (run.target == ReadyState.PUBLISHING) {
                     if (mime.startsWith("video/")) {
-                        val config = (0..2).flatMap { index -> mediaFormat.getByteBuffer("csd-$index")?.let { TSVideo.units(copy(it)) } ?: emptyList() }
+                        val config = (0..2).flatMap { index -> mediaFormat.getByteBuffer("csd-$index")?.let { TSVideo.units(copy(it), TSVideo.Framing.ANNEX_B) } ?: emptyList() }
                         enqueue(run, Encoded.Configuration(config))
                     }
                 } else if (mime == MediaFormat.MIMETYPE_AUDIO_RAW) {
@@ -427,7 +464,7 @@ class SrtStream(context: Context, val connection: SrtConnection) : Stream(contex
                     index,
                     buffer,
                     info.presentationTimeUs,
-                    info.flags and MediaCodec.BUFFER_FLAG_KEY_FRAME != 0,
+                    (mime == MediaFormat.MIMETYPE_VIDEO_RAW && run.videoKeyframes.remove(info.presentationTimeUs)) || info.flags and MediaCodec.BUFFER_FLAG_KEY_FRAME != 0,
                 )
                 return false
             }
@@ -439,7 +476,7 @@ class SrtStream(context: Context, val connection: SrtConnection) : Stream(contex
                 val codec = requireNotNull(TSCodec.entries.firstOrNull { it.mime == mime }) { "Unsupported TS encoder codec" }
                 if (codec !in run.codecs) return true
                 val audio = if (codec == TSCodec.AAC) TSAudioConfig(audioCodec.sampleRate, audioCodec.channelCount, audioCodec.aacProfile) else null
-                enqueue(run, Encoded.Sample(TSSample(codec, copy(view), info.presentationTimeUs, keyframe = info.flags and MediaCodec.BUFFER_FLAG_KEY_FRAME != 0, audio = audio)))
+                enqueue(run, Encoded.Sample(TSSample(codec, copy(view), info.presentationTimeUs, keyframe = info.flags and MediaCodec.BUFFER_FLAG_KEY_FRAME != 0, audio = audio, framing = TSVideo.Framing.ANNEX_B)))
             } catch (cause: Exception) {
                 fail(run, cause)
             }
@@ -463,6 +500,7 @@ class SrtStream(context: Context, val connection: SrtConnection) : Stream(contex
         val videoIndices = Channel<Int>(32)
         val encodedBytes = AtomicLong()
         val decodeBytes = AtomicLong()
+        val videoKeyframes = ConcurrentSkipListSet<Long>()
         lateinit var job: Job
     }
 

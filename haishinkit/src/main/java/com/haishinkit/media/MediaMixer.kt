@@ -17,7 +17,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import java.lang.ref.WeakReference
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.coroutines.CoroutineContext
 
@@ -76,7 +75,7 @@ class MediaMixer(
     override val coroutineContext: CoroutineContext
         get() = Dispatchers.IO
 
-    private var outputs = mutableListOf<MediaOutput>()
+    private val outputs = MediaOutputRegistry(this)
 
     @Volatile
     private var keepAlive = true
@@ -176,19 +175,9 @@ class MediaMixer(
         }
     }
 
-    override fun registerOutput(output: MediaOutput) {
-        if (!outputs.contains(output)) {
-            output.dataSource = WeakReference(this)
-            outputs.add(output)
-        }
-    }
+    override fun registerOutput(output: MediaOutput) = outputs.register(output)
 
-    override fun unregisterOutput(output: MediaOutput) {
-        if (outputs.contains(output)) {
-            outputs.remove(output)
-            output.dataSource = null
-        }
-    }
+    override fun unregisterOutput(output: MediaOutput) = outputs.unregister(output)
 
     /**
      * Starts capture and schedules attached sources to open asynchronously. Does nothing if already running.

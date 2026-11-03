@@ -76,6 +76,12 @@ abstract class Codec :
             info: MediaCodec.BufferInfo,
             buffer: ByteBuffer,
         ): Boolean
+
+        /** Reports an asynchronous error from the current codec instance. */
+        fun onError(
+            mime: String,
+            cause: MediaCodec.CodecException,
+        ) {}
     }
 
     /**
@@ -119,6 +125,7 @@ abstract class Codec :
      * The surface for a video media codec.
      */
     var surface: Surface? = null
+        @Synchronized
         set(value) {
             field = value
             if (isRunning.get()) {
@@ -173,6 +180,7 @@ abstract class Codec :
             return field
         }
         set(value) {
+            field?.looper?.thread?.interrupt()
             field?.looper?.quitSafely()
             field = value
         }
@@ -217,7 +225,9 @@ abstract class Codec :
     /**
      * Releases the Android codec, callback thread, and cached output format.
      */
+    @Synchronized
     open fun dispose() {
+        isRunning.set(false)
         codec = null
         backgroundHandler = null
         outputFormat = null
@@ -262,9 +272,13 @@ abstract class Codec :
         codec: MediaCodec,
         index: Int,
     ) {
-        if (!isRunning.get()) return
+        val callback =
+            synchronized(this) {
+                if (!isRunning.get() || codec !== this.codec) return
+                listener to outputMimeType
+            }
         try {
-            listener?.onInputBufferAvailable(outputMimeType, codec, index)
+            callback.first?.onInputBufferAvailable(callback.second, codec, index)
         } catch (e: IllegalStateException) {
             if (BuildConfig.DEBUG) {
                 Log.w(TAG, e)
@@ -272,12 +286,13 @@ abstract class Codec :
         }
     }
 
+    @Synchronized
     override fun onOutputBufferAvailable(
         codec: MediaCodec,
         index: Int,
         info: MediaCodec.BufferInfo,
     ) {
-        if (!isRunning.get()) return
+        if (!isRunning.get() || codec !== this.codec) return
         try {
             val buffer = codec.getOutputBuffer(index) ?: if (mode == MODE_DECODE && surface != null) ByteBuffer.allocate(0) else return
             if (listener?.onSampleOutput(outputMimeType, index, info, buffer) == true) {
@@ -294,15 +309,42 @@ abstract class Codec :
         codec: MediaCodec,
         e: MediaCodec.CodecException,
     ) {
+        val callback =
+            synchronized(this) {
+                if (!isRunning.get() || codec !== this.codec) return
+                listener to outputMimeType
+            }
         if (BuildConfig.DEBUG) {
             Log.w(TAG, e.toString())
         }
+        callback.first?.onError(callback.second, e)
     }
 
+    /**
+     * Runs a short, nonblocking operation only while [instance] is the running codec.
+     * Use after waiting for input outside the codec's lifetime lock.
+     *
+     * @return Whether the operation ran; `false` means the codec was stopped or replaced.
+     */
+    fun withCurrentCodec(
+        instance: MediaCodec,
+        operation: () -> Unit,
+    ): Boolean =
+        synchronized(this) {
+            if (!isRunning.get() || codec !== instance) {
+                false
+            } else {
+                operation()
+                true
+            }
+        }
+
+    @Synchronized
     override fun onOutputFormatChanged(
         codec: MediaCodec,
         format: MediaFormat,
     ) {
+        if (!isRunning.get() || codec !== this.codec) return
         outputFormat = format
     }
 
