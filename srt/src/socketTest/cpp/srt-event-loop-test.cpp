@@ -81,6 +81,19 @@ void run() {
     await(disconnected);
     receiver->EndRead();
 
+    // Simulate libsrt retiring a peer before the wrapper receives its error.
+    // Rearming this stale handle must not poison unrelated sockets' reactor.
+    const auto stale = srt_create_socket();
+    SrtEventLoop::Shared().WatchSocket(stale);
+    srt_close(stale);
+    auto retiredPromise = std::make_shared<std::promise<void>>();
+    auto retired = retiredPromise->get_future();
+    SrtEventLoop::Shared().Wait(stale, SRT_EPOLL_IN, [retiredPromise] { retiredPromise->set_value(); });
+    await(retired);
+    SrtSocket healthy(options);
+    healthy.Listen(local);
+    healthy.Close();
+
     auto stopping = wait(listener, SRT_EPOLL_IN);
     SrtEventLoop::Shutdown();
     await(stopping);

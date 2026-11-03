@@ -56,16 +56,19 @@ class SrtSocketTest {
         }
 
     @Test
-    fun cancellingReceiveClosesOnlyTheReceivingSocket() =
+    fun cancellingReceiveClosesSocketWithoutShuttingDownRuntime() =
         runBlocking {
             withTimeout(10_000) {
-                connectedPair { sender, receiver ->
+                connectedPair { _, receiver ->
                     val pending = launch(start = CoroutineStart.UNDISPATCHED) { receiver.receive() }
                     pending.cancelAndJoin()
                     assertEquals(SrtSocket.Status.CLOSED, receiver.status)
-                    // Closing one socket must not clean up libsrt globally.
-                    assertTrue(sender.status != SrtSocket.Status.CLOSED)
-                    SrtSocket().use { assertEquals(SrtSocket.Status.INIT, it.status) }
+                    // The original peer may already observe the disconnect. Verify
+                    // global runtime health with an independent connection instead.
+                    connectedPair { sender, nextReceiver ->
+                        sender.send(byteArrayOf(42))
+                        assertArrayEquals(byteArrayOf(42), nextReceiver.receive())
+                    }
                 }
             }
         }

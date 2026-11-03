@@ -44,13 +44,13 @@ fun PreferenceScreen(modifier: Modifier = Modifier) {
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         val keyboardController = LocalSoftwareKeyboardController.current
-        var rtmpUrl by remember { mutableStateOf(Preference.shared.rtmpURL) }
+        var streamUrl by remember { mutableStateOf(Preference.shared.streamURL) }
         TextField(
-            label = { Text("RTMP URL") },
-            value = rtmpUrl,
+            label = { Text("Stream URL (RTMP / SRT)") },
+            value = streamUrl,
             onValueChange = {
-                rtmpUrl = it
-                Preference.shared.rtmpURL = it
+                streamUrl = it
+                Preference.shared.streamURL = it
             },
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
             keyboardActions =
@@ -64,6 +64,7 @@ fun PreferenceScreen(modifier: Modifier = Modifier) {
         var streamName by remember { mutableStateOf(Preference.shared.streamName) }
         TextField(
             label = { Text("RTMP StreamName") },
+            enabled = !streamUrl.startsWith("srt:"),
             value = streamName,
             onValueChange = {
                 streamName = it
@@ -81,7 +82,7 @@ fun PreferenceScreen(modifier: Modifier = Modifier) {
         if (Build.VERSION.SDK_INT >= 37) {
             val permission = rememberPermissionState(Manifest.permission.ACCESS_LOCAL_NETWORK)
             val context = LocalContext.current
-            Text("Allow local network access before connecting to an RTMP server on your LAN.")
+            Text("Allow local network access before connecting to a stream on your LAN.")
             Button(
                 onClick = { permission.launchPermissionRequest() },
                 enabled = !permission.status.isGranted,

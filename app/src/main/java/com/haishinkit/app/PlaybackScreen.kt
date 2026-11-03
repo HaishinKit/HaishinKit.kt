@@ -7,6 +7,9 @@ import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.material3.Button
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -15,6 +18,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.haishinkit.compose.HaishinKitView
 import com.haishinkit.compose.rememberStreamSessionState
+import com.haishinkit.stream.StreamSession
 import kotlinx.coroutines.launch
 
 @Suppress("unused")
@@ -27,8 +31,11 @@ fun PlaybackScreen(
     modifier: Modifier = Modifier,
 ) {
     val scope = rememberCoroutineScope()
+    LaunchedEffect(Unit) { viewModel.refreshSession() }
     val session =
         rememberStreamSessionState(viewModel.session)
+    val readyState by session.readyState.collectAsState()
+    val active = readyState != StreamSession.ReadyState.CLOSED
 
     HaishinKitView(
         stream = session.stream,
@@ -47,7 +54,7 @@ fun PlaybackScreen(
                 Modifier.align(Alignment.BottomEnd),
             onClick = {
                 scope.launch {
-                    if (session.isConnected) {
+                    if (active) {
                         session.close()
                     } else {
                         session.connect()
@@ -55,7 +62,7 @@ fun PlaybackScreen(
                 }
             },
         ) {
-            if (session.isConnected) {
+            if (active) {
                 Text("STOP")
             } else {
                 Text("PLAY")

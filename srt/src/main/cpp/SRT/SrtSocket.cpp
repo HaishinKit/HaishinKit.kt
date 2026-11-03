@@ -236,7 +236,9 @@ void SrtSocket::CheckConnected() const {
     CheckOpen();
     const auto state = srt_getsockstate(socket);
     // Broken connections must retain native error/rejection information.
-    if (state == SRTS_BROKEN) throw SrtSocketError("SRT connection lost", SRT_ECONNLOST, srt_getrejectreason(socket));
+    if (state == SRTS_BROKEN || state == SRTS_CLOSING || state == SRTS_CLOSED || state == SRTS_NONEXIST) {
+        throw SrtSocketError("SRT connection lost", SRT_ECONNLOST, srt_getrejectreason(socket));
+    }
     if (state != SRTS_CONNECTED) throw std::logic_error("Socket is not connected");
 }
 

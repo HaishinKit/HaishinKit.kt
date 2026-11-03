@@ -44,7 +44,7 @@ class MediaProjectionService :
         }
     }
     private val session: StreamSession by lazy {
-        StreamSession.Builder(applicationContext, Preference.shared.toRtmpUrl()).build()
+        StreamSession.Builder(applicationContext, Preference.shared.toStreamUri()).build()
     }
     private val notificationManager by lazy { NotificationManagerCompat.from(this) }
     private val mediaProjectionManager by lazy {

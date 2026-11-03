@@ -42,6 +42,7 @@ import com.haishinkit.compose.rememberMediaRecorderState
 import com.haishinkit.compose.rememberStreamSessionState
 import com.haishinkit.graphics.VideoGravity
 import com.haishinkit.graphics.effect.DefaultVideoEffect
+import com.haishinkit.stream.StreamSession
 import kotlinx.coroutines.launch
 import java.io.File
 
@@ -56,6 +57,7 @@ fun CameraScreen(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    LaunchedEffect(Unit) { viewModel.refreshSession() }
 
     val cameraList by viewModel.cameraList.collectAsState()
     val selectedCamera by viewModel.selectedCamera.collectAsState()
@@ -83,6 +85,8 @@ fun CameraScreen(
 
     val sessionState =
         rememberStreamSessionState(viewModel.session)
+    val sessionReadyState by sessionState.readyState.collectAsState()
+    val sessionActive = sessionReadyState != StreamSession.ReadyState.CLOSED
 
     LaunchedEffect(pagerState, 0) {
         snapshotFlow { pagerState.currentPage }.collect { page ->
@@ -176,13 +180,13 @@ fun CameraScreen(
 
             CameraControllerView(
                 isRecording = recorderState.isRecording,
-                isConnected = sessionState.isConnected,
+                isConnected = sessionActive,
                 onClickScreenShot = {
                     viewModel.takeSnapShot(context)
                 },
                 onClickConnect = {
                     scope.launch {
-                        if (sessionState.isConnected) {
+                        if (sessionActive) {
                             sessionState.close()
                         } else {
                             sessionState.connect().onFailure {

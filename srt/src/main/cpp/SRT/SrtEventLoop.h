@@ -34,6 +34,7 @@ private:
 
     SrtEventLoop();
     void Refresh(SRTSOCKET socket, bool rearm = false);
+    void CloseSocketLocked(SRTSOCKET socket);
     void Complete(Token token);
     void Wake();
     void Run();

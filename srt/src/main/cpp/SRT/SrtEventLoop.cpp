@@ -119,7 +119,15 @@ void SrtEventLoop::Refresh(SRTSOCKET socket, bool rearm) {
         if (previous == 0) result = srt_epoll_add_usock(epoll, socket, &events);
         else if (events == 0) result = srt_epoll_remove_usock(epoll, socket);
         else result = srt_epoll_update_usock(epoll, socket, &events);
-        if (result == SRT_ERROR) throw std::runtime_error(std::string("SRT epoll subscription failed: ") + srt_getlasterror_str());
+        if (result == SRT_ERROR) {
+            // libsrt can retire a disconnected handle before its owner closes it.
+            // Wake this socket's waiters without failing the shared reactor.
+            if (srt_getlasterror(nullptr) == SRT_EINVSOCK) {
+                CloseSocketLocked(socket);
+                return;
+            }
+            throw std::runtime_error(std::string("SRT epoll subscription failed: ") + srt_getlasterror_str());
+        }
         watch->second.events = events;
     }
 
@@ -165,6 +173,11 @@ void SrtEventLoop::Cancel(Token token) {
 
 void SrtEventLoop::CloseSocket(SRTSOCKET socket) {
     std::lock_guard<std::mutex> lock(mutex);
+    CloseSocketLocked(socket);
+    Wake();
+}
+
+void SrtEventLoop::CloseSocketLocked(SRTSOCKET socket) {
     const auto watch = watches.find(socket);
     if (watch == watches.end()) return;
     // Remove interest before the native handle can be closed or reused.
@@ -175,7 +188,6 @@ void SrtEventLoop::CloseSocket(SRTSOCKET socket) {
         waiters.erase(waiter);
     }
     watches.erase(watch);
-    Wake();
 }
 
 void SrtEventLoop::Stop() {
@@ -250,7 +262,8 @@ void SrtEventLoop::RunLoop() {
                 if (watch == watches.end()) continue;
                 const auto tokens = watch->second.tokens;
                 for (auto token : tokens) {
-                    if (waiters.at(token).events & delivered) Complete(token);
+                    const auto waiter = waiters.find(token);
+                    if (waiter != waiters.end() && (waiter->second.events & delivered)) Complete(token);
                 }
             }
             stop = stopping;

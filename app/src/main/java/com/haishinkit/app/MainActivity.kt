@@ -6,6 +6,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.material3.MaterialTheme
 import com.haishinkit.rtmp.RtmpStreamSessionFactory
+import com.haishinkit.srt.SrtStreamSessionFactory
 import com.haishinkit.stream.StreamSession
 
 class MainActivity : AppCompatActivity() {
@@ -13,6 +14,7 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         StreamSession.Builder.registerFactory(RtmpStreamSessionFactory)
+        StreamSession.Builder.registerFactory(SrtStreamSessionFactory)
         setContent {
             MaterialTheme {
                 MainScreen()

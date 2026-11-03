@@ -8,6 +8,9 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Rect
 import android.provider.MediaStore
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.core.net.toUri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.DefaultLifecycleObserver
@@ -40,22 +43,27 @@ import java.io.ByteArrayOutputStream
 class CameraViewModel(
     application: Application,
 ) : AndroidViewModel(application), DefaultLifecycleObserver {
-    private var cameraDeviceManager: CameraDeviceManager =
-        CameraDeviceManager(context = application.applicationContext)
-    private var mixer: MediaMixer = MediaMixer(application.applicationContext)
-    val session: StreamSession =
+    var session: StreamSession by mutableStateOf(
         StreamSession
-            .Builder(application.applicationContext, Preference.shared.toRtmpUrl())
-            .build()
+            .Builder(application.applicationContext, Preference.shared.toStreamUri())
+            .build(),
+    )
+        private set
     val cameraList: StateFlow<List<CameraDevice>>
         get() {
             return cameraDeviceManager.deviceList
         }
 
     val recorder: MediaRecorder = MediaRecorder(application.applicationContext)
-    private val _selectedCamera = MutableStateFlow<CameraDevice?>(null)
-    val selectedCamera = _selectedCamera.asStateFlow()
+    val selectedCamera: StateFlow<CameraDevice?>
+        get() = _selectedCamera.asStateFlow()
     var videoEffectItems: List<VideoEffectItem>
+
+    private var cameraDeviceManager: CameraDeviceManager =
+        CameraDeviceManager(context = application.applicationContext)
+    private var mixer: MediaMixer = MediaMixer(application.applicationContext)
+    private val _selectedCamera = MutableStateFlow<CameraDevice?>(null)
+    private var sessionUri = Preference.shared.toStreamUri()
 
     private val sceneManager: SceneManager by lazy {
         val manager = SceneManager(mixer.screen)
@@ -102,6 +110,17 @@ class CameraViewModel(
 
         mixer.registerOutput(recorder)
         mixer.registerOutput(session.stream)
+    }
+
+    suspend fun refreshSession() {
+        val uri = Preference.shared.toStreamUri()
+        if (uri == sessionUri) return
+        session.close()
+        mixer.unregisterOutput(session.stream)
+        session.stream.dispose()
+        session = StreamSession.Builder(application.applicationContext, uri).build()
+        mixer.registerOutput(session.stream)
+        sessionUri = uri
     }
 
     fun selectAudioDevice() {

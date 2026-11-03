@@ -4,11 +4,12 @@ import android.net.Uri
 import androidx.core.net.toUri
 
 data class Preference(
-    var rtmpURL: String,
+    var streamURL: String,
     var streamName: String,
 ) {
-    fun toRtmpUrl(): Uri {
-        return ("$rtmpURL/$streamName").toUri()
+    fun toStreamUri(): Uri {
+        val uri = streamURL.toUri()
+        return if (uri.scheme == "srt") uri else ("$streamURL/$streamName").toUri()
     }
 
     companion object {

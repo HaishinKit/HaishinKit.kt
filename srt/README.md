@@ -36,6 +36,30 @@ symbols when packaging their own APKs.
 
 ## Public connection and stream APIs
 
+For the common session API, register `SrtStreamSessionFactory`:
+
+```kotlin
+StreamSession.Builder.registerFactory(SrtStreamSessionFactory)
+val session = StreamSession.Builder(context, Uri.parse("srt://192.168.1.10:9710"))
+    .setMode(StreamSession.Mode.PUBLISH) // or PLAYBACK
+    .build()
+// Register session.stream as a mixer output for publishing, or attach a view for playback.
+session.connect().onFailure { error -> /* show connection/startup error */ }
+// On shutdown:
+session.close()
+```
+
+The factory owns transport/media monitoring. Closing also cancels pending
+listener setup, and the session can reconnect. Async media failure or peer closure
+returns the session state to CLOSED. Connect cancellation propagates to its caller.
+
+The Example app registers both RTMP and SRT factories. In Settings, enter a complete
+`srt://host:port` URL, including query options; the RTMP stream-name field is ignored.
+For listener mode use `srt://:9710?mode=listener`. Return to Camera to publish or
+Playback to receive. These screens refresh their session after a URL change.
+The sender and receiver must use complementary caller/listener socket modes;
+either socket mode can publish or play. Settings are held in memory for this run.
+
 ```kotlin
 val connection = SrtConnection(scope)
 connection.connect("srt://example.com:9710?streamid=live")
