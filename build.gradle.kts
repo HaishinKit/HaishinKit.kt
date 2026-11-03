@@ -36,4 +36,5 @@ dependencies {
     dokka(project(":lottie:"))
     dokka(project(":rtmp:"))
     dokka(project(":srt:"))
+    dokka(project(":vulkan:"))
 }

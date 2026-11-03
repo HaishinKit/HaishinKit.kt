@@ -1,6 +1,9 @@
 desc 'Runs the PR review.'
 lane :review do
   gradle(task: 'lint')
+  gradle(task: ':vulkan:assembleDebug')
+  gradle(task: ':vulkan:assembleDebugAndroidTest')
+  gradle(task: ':haishinkit:testDebugUnitTest')
   danger(
     danger_id: 'danger',
     dangerfile: 'Dangerfile',

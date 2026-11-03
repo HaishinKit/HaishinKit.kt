@@ -102,3 +102,9 @@ commands. SRT streaming APIs are not implemented yet.
 ## 📜 License
 
 BSD-3-Clause
+
+### Optional Vulkan output
+
+Android API 28+ can select the Vulkan output backend for publishing, recording,
+and preview. See [the Vulkan module guide](vulkan/module-docs.md) for setup,
+capability requirements, and device validation.

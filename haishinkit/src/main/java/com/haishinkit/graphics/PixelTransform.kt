@@ -10,7 +10,7 @@ import com.haishinkit.screen.Screen
 /**
  * Renders a composited [Screen] to an output [Surface].
  */
-interface PixelTransform {
+interface PixelTransform : AutoCloseable {
     /**
      * The current application environment.
      */
@@ -51,10 +51,23 @@ interface PixelTransform {
      */
     var backgroundColor: Int
 
+    /** Releases rendering resources. */
+    override fun close() {
+        surface = null
+        screen = null
+    }
+
     companion object {
+        /** Select before creating streams or views. Existing transforms keep their backend. */
+        @Volatile
+        var factory: (Context) -> PixelTransform = ::createOpenGL
+
+        /** Creates the OpenGL backend, bypassing [factory]. */
+        fun createOpenGL(context: Context): PixelTransform = ThreadPixelTransform(context)
+
         /**
          * Creates a pixel transform instance.
          */
-        fun create(context: Context): PixelTransform = ThreadPixelTransform(context)
+        fun create(context: Context): PixelTransform = factory(context)
     }
 }
