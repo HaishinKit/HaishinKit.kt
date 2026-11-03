@@ -37,6 +37,9 @@ android {
         }
     }
     buildFeatures { buildConfig = true }
+    packaging {
+        jniLibs.keepDebugSymbols += "**/libsrt.so"
+    }
     sourceSets {
         getByName("test").java.srcDir("src/socketTest/java")
         getByName("androidTest").java.srcDir("src/socketTest/java")
@@ -69,6 +72,7 @@ afterEvaluate {
 
 dependencies {
     api(project(":haishinkit"))
+    api(libs.kotlinx.coroutines.core)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
 }

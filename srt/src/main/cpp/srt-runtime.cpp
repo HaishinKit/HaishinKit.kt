@@ -1,5 +1,8 @@
 #include <jni.h>
 #include <srt.h>
+#ifdef HAISHINKIT_SRT_EPOLL
+#include "SRT/SrtEventLoop.h"
+#endif
 
 extern "C" {
 JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM*, void*) {
@@ -7,6 +10,9 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM*, void*) {
 }
 
 JNIEXPORT void JNICALL JNI_OnUnload(JavaVM*, void*) {
+#ifdef HAISHINKIT_SRT_EPOLL
+    haishinkit::SrtEventLoop::Shutdown();
+#endif
     srt_cleanup();
 }
 }

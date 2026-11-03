@@ -279,7 +279,7 @@ abstract class Codec :
     ) {
         if (!isRunning.get()) return
         try {
-            val buffer = codec.getOutputBuffer(index) ?: return
+            val buffer = codec.getOutputBuffer(index) ?: if (mode == MODE_DECODE && surface != null) ByteBuffer.allocate(0) else return
             if (listener?.onSampleOutput(outputMimeType, index, info, buffer) == true) {
                 codec.releaseOutputBuffer(index, false)
             }
