@@ -43,11 +43,17 @@ enum class MainScreenTab(
     val selectedIcon: ImageVector,
     val label: String,
 ) {
+    Preference(
+        id = "main/preference",
+        icon = Icons.Outlined.Settings,
+        selectedIcon = Icons.Filled.Settings,
+        "Preference",
+    ),
     Camera(
         id = "main/camera",
         icon = Icons.Outlined.Face,
         selectedIcon = Icons.Filled.Face,
-        "Camera",
+        "Publish",
     ),
     Playback(
         id = "main/playback",
@@ -60,12 +66,6 @@ enum class MainScreenTab(
         icon = Icons.Outlined.Build,
         selectedIcon = Icons.Filled.Build,
         "MediaProjection",
-    ),
-    Preference(
-        id = "main/preference",
-        icon = Icons.Outlined.Settings,
-        selectedIcon = Icons.Filled.Settings,
-        "Preference",
     ),
 }
 
@@ -118,7 +118,7 @@ fun MainScreen() {
         ) {
             NavHost(
                 navController = navController,
-                startDestination = MainScreenTab.Camera.id,
+                startDestination = MainScreenTab.Preference.id,
                 enterTransition = { EnterTransition.None },
                 exitTransition = { ExitTransition.None },
             ) {

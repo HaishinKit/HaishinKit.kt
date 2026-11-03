@@ -6,8 +6,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.Button
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
+import com.haishinkit.stream.StreamSession
 
 private const val TAG = "CameraControllerView"
 
@@ -19,9 +21,11 @@ fun CameraControllerView(
     onClickScreenShot: () -> Unit,
     onClickConnect: () -> Unit,
     onClickRecording: () -> Unit,
+    readyState: StreamSession.ReadyState = if (isConnected) StreamSession.ReadyState.OPEN else StreamSession.ReadyState.CLOSED,
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         Button(onClick = {
             onClickScreenShot()
@@ -29,15 +33,11 @@ fun CameraControllerView(
             Text("Screenshot")
         }
         Spacer(modifier = Modifier.weight(1f))
-        Button(onClick = {
-            onClickConnect()
-        }) {
-            if (isConnected) {
-                Text("STOP")
-            } else {
-                Text("GO LIVE")
-            }
-        }
+        StreamControlButton(
+            readyState = readyState,
+            startLabel = "GO LIVE",
+            onClick = onClickConnect,
+        )
         Spacer(modifier = Modifier.weight(1f))
         Button(onClick = {
             onClickRecording()

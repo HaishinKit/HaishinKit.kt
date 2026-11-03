@@ -181,6 +181,7 @@ fun CameraScreen(
             CameraControllerView(
                 isRecording = recorderState.isRecording,
                 isConnected = sessionActive,
+                readyState = sessionReadyState,
                 onClickScreenShot = {
                     viewModel.takeSnapShot(context)
                 },
