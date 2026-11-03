@@ -20,7 +20,8 @@ namespace Graphics {
     public:
         static void *OnRunning(void *data);
 
-        static void OnFrame(long frameTimeNanos, void *data);
+        static void OnFrameLegacy(long frameTimeNanos, void *data);
+        static void OnFrame64(int64_t frameTimeNanos, void *data);
 
         PixelTransform();
 
@@ -58,7 +59,7 @@ namespace Graphics {
 
         void OnRunning();
 
-        void OnFrame(long frameTimeNanos);
+        void OnFrame(int64_t frameTimeNanos);
 
     private:
         std::vector<Texture *> textures;
@@ -79,6 +80,7 @@ namespace Graphics {
         int32_t inputWidth = 0, inputHeight = 0, inputFormat = 0;
         void ResetTextures();
         void RecoverSwapChain();
+        void PostFrameCallback();
         void StartRunning();
 
         void StopRunning();

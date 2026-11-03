@@ -14,6 +14,9 @@ namespace Graphics {
         static thread_local vk::DispatchLoaderDynamic bootstrap;
         return activeDispatcher ? *activeDispatcher : bootstrap;
     }
+    inline VkResult WaitIdleForDisposal(vk::Device device, const vk::DispatchLoaderDynamic &dispatcher) noexcept {
+        return device ? dispatcher.vkDeviceWaitIdle(static_cast<VkDevice>(device)) : VK_SUCCESS;
+    }
     // UniqueHandle deleters retain this dispatcher's address, not the thread-local
     // selector. Each Kernel's dispatcher outlives all of that Kernel's handles.
     class DispatcherScope {

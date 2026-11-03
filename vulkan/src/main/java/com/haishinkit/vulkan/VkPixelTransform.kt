@@ -119,12 +119,22 @@ class VkPixelTransform(
     }
 
     private fun release() {
-        producer?.close()
-        producer = null
-        native?.close()
+        val previousNative = native
+        val previousProducer = producer
+        val previousInput = inputSurface
         native = null
-        inputSurface?.release()
+        producer = null
         inputSurface = null
+        // Abandon the reader before joining a producer blocked in eglSwapBuffers.
+        try {
+            previousNative?.close()
+        } finally {
+            try {
+                previousProducer?.close()
+            } finally {
+                previousInput?.release()
+            }
+        }
     }
 
     private fun onWorker(action: () -> Unit) {

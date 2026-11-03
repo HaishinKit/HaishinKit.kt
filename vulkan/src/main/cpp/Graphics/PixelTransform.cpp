@@ -8,6 +8,8 @@
 #include <media/NdkImageReader.h>
 #include "../haishinkit.hpp"
 #include "DynamicLoader.h"
+#include <dlfcn.h>
+#include <time.h>
 
 using namespace Graphics;
 
@@ -16,7 +18,15 @@ void *PixelTransform::OnRunning(void *data) {
     return (void *) nullptr;
 }
 
-void PixelTransform::OnFrame(long frameTimeNanos, void *data) {
+void PixelTransform::OnFrameLegacy(long, void *data) {
+    // API 28's legacy callback truncates timestamps to 32 bits on 32-bit ABIs.
+    timespec now{};
+    clock_gettime(CLOCK_MONOTONIC, &now);
+    OnFrame64(static_cast<int64_t>(now.tv_sec) * 1000000000LL + now.tv_nsec, data);
+}
+
+void PixelTransform::OnFrame64(int64_t frameTimeNanos, void *data) {
+
     auto self = reinterpret_cast<PixelTransform *>(data);
     try { self->OnFrame(frameTimeNanos); }
     catch (const std::exception &error) { self->running = false; LOGE("Vulkan frame failed; renderer stopped: %s", error.what()); }
@@ -34,7 +44,8 @@ PixelTransform::~PixelTransform() {
     DispatcherScope dispatchScope(kernel->dispatcher);
     StopRunning();
     std::lock_guard<std::recursive_mutex> guard(VulkanLock());
-    if (kernel->device) kernel->device->waitIdle();
+    auto idleResult = WaitIdleForDisposal(kernel->device.get(), kernel->dispatcher);
+    if (idleResult != VK_SUCCESS) LOGW("Vulkan disposal wait returned %d", idleResult);
     for (auto texture : textures) delete texture;
     delete videoEffect;
     delete fpsController;
@@ -169,6 +180,13 @@ void PixelTransform::StopRunning() {
     joinable = false;
 }
 
+void PixelTransform::PostFrameCallback() {
+    using Post64 = void (*)(AChoreographer *, AChoreographer_frameCallback64, void *);
+    static const auto post64 = reinterpret_cast<Post64>(dlsym(RTLD_DEFAULT, "AChoreographer_postFrameCallback64"));
+    if (post64) post64(choreographer, OnFrame64, this);
+    else AChoreographer_postFrameCallback(choreographer, OnFrameLegacy, this);
+}
+
 void PixelTransform::OnRunning() {
     looper = ALooper_prepare(ALOOPER_PREPARE_ALLOW_NON_CALLBACKS);
     ALooper_acquire(looper);
@@ -177,20 +195,20 @@ void PixelTransform::OnRunning() {
         LOGI("failed get an AChoreographer instance.");
         return;
     }
-    AChoreographer_postFrameCallback(choreographer, OnFrame, this);
+    PostFrameCallback();
     while (running) ALooper_pollOnce(16, nullptr, nullptr, nullptr);
     ALooper_release(looper);
     looper = nullptr;
     choreographer = nullptr;
 }
 
-void PixelTransform::OnFrame(long frameTimeNanos) {
+void PixelTransform::OnFrame(int64_t frameTimeNanos) {
     if (!running) return;
     DispatcherScope dispatchScope(kernel->dispatcher);
     std::lock_guard<std::recursive_mutex> guard(VulkanLock());
     std::lock_guard<std::mutex> lock(mutex);
     if (choreographer && running) {
-        AChoreographer_postFrameCallback(choreographer, OnFrame, this);
+        PostFrameCallback();
     }
     if (fpsController->Advanced(frameTimeNanos)) {
         if (kernel->device) kernel->device->waitIdle();

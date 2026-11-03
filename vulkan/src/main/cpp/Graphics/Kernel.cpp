@@ -65,9 +65,8 @@ Kernel::Kernel() : validationLayersEnabled(true), assetManager(nullptr),
 Kernel::~Kernel() {
     DispatcherScope dispatchScope(dispatcher);
     std::lock_guard<std::recursive_mutex> guard(VulkanLock());
-    if (device) {
-        device->waitIdle();
-    }
+    auto idleResult = WaitIdleForDisposal(device.get(), dispatcher);
+    if (idleResult != VK_SUCCESS) LOGW("Vulkan disposal wait returned %d", idleResult);
     commandBuffer.TearDown(*this);
     pipeline.TearDown(*this);
     swapChain.TearDown(*this);
