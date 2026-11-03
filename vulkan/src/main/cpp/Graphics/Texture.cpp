@@ -36,7 +36,7 @@ void Texture::SetUp(Kernel &kernel, AHardwareBuffer *buffer) {
         kernel.device->getAndroidHardwareBufferPropertiesANDROID(buffer, &properties);
         auto externalFormat = vk::ExternalFormatANDROID().setExternalFormat(format.externalFormat);
 
-        this->externalFormat = format.externalFormat;
+        this->externalFormat = format.format == vk::Format::eUndefined ? format.externalFormat : 0;
 
         if (format.format == vk::Format::eUndefined) conversion = kernel.device->createSamplerYcbcrConversionUnique(
                 vk::SamplerYcbcrConversionCreateInfo()

@@ -81,3 +81,6 @@ include_directories(
         vendor/Vulkan-Headers/include
         vendor/glm
 )
+
+target_compile_features(hkvulkan PRIVATE cxx_std_17)
+target_compile_options(hkvulkan PRIVATE -include ${CMAKE_CURRENT_SOURCE_DIR}/src/main/cpp/Graphics/VulkanDispatcher.h)

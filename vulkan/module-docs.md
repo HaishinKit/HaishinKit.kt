@@ -51,3 +51,18 @@ rotation/resizing, effects, background colors, repeated publish/stop, and RTMP/S
 A/V synchronization on physical devices before shipping this backend.
 
 Timestamp behavior follows Android's [SurfaceTexture timestamp contract](https://developer.android.com/reference/android/graphics/SurfaceTexture#getTimestamp()).
+
+Host regression tests for fractional display intervals and per-device dispatcher
+ownership can run without an Android device:
+
+```shell
+cmake -S vulkan/src/test/cpp -B build/vulkan-native-tests
+cmake --build build/vulkan-native-tests
+ctest --test-dir build/vulkan-native-tests --output-on-failure
+```
+
+The Fastlane review lane also runs these tests. Each native renderer owns its
+Vulkan dispatcher, including the dispatch references retained by resource deleters.
+Out-of-date swapchains recreate their dependent resources; a recording/submission
+exception stops the affected renderer instead of reusing incomplete synchronization
+state.

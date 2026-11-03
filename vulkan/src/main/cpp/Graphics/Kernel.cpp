@@ -13,17 +13,19 @@
 #include "Util.h"
 #include <android/native_window.h>
 
-VULKAN_HPP_DEFAULT_DISPATCH_LOADER_DYNAMIC_STORAGE
+
 
 using namespace Graphics;
 
 Kernel::Kernel() : validationLayersEnabled(true), assetManager(nullptr),
                    featureManager(new FeatureManager()) {
+    DispatcherScope dispatchScope(dispatcher);
     std::lock_guard<std::recursive_mutex> guard(VulkanLock());
     if (!DynamicLoader::GetInstance().Load()) {
         return;
     }
 
+    dispatcher.init(DynamicLoader::GetInstance().procAddress);
     const auto useValidationLayers = validationLayersEnabled && IsValidationLayersSupported();
     if (useValidationLayers) {
         featureManager->features.emplace_back(new DebugUtilsMessengerFeature());
@@ -61,6 +63,7 @@ Kernel::Kernel() : validationLayersEnabled(true), assetManager(nullptr),
 }
 
 Kernel::~Kernel() {
+    DispatcherScope dispatchScope(dispatcher);
     std::lock_guard<std::recursive_mutex> guard(VulkanLock());
     if (device) {
         device->waitIdle();
@@ -75,14 +78,17 @@ Kernel::~Kernel() {
 }
 
 void Kernel::SetImageExtent(int32_t width, int32_t height) {
+    DispatcherScope dispatchScope(dispatcher);
     swapChain.SetImageExtent(width, height);
 }
 
 void Kernel::SetAssetManager(AAssetManager *newAssetManager) {
+    DispatcherScope dispatchScope(dispatcher);
     assetManager = newAssetManager;
 }
 
 void Kernel::SetNativeWindow(ANativeWindow *newNativeWindow) {
+    DispatcherScope dispatchScope(dispatcher);
     std::lock_guard<std::recursive_mutex> guard(VulkanLock());
     SelectPhysicalDevice();
     ANativeWindow *oldNativeWindow = nativeWindow;
@@ -111,24 +117,29 @@ void Kernel::SetNativeWindow(ANativeWindow *newNativeWindow) {
 }
 
 vk::Result Kernel::DrawFrame(const std::function<void(uint32_t)> &lambda) {
+    DispatcherScope dispatchScope(dispatcher);
     if (!available) {
         return vk::Result::eErrorInitializationFailed;
     }
     if (swapChain.IsInvalidate()) {
         this->OnOrientationChange();
     }
-    return queue.DrawFrame(*this, lambda);
+    try { return queue.DrawFrame(*this, lambda); }
+    catch (const vk::OutOfDateKHRError &) { return vk::Result::eErrorOutOfDateKHR; }
 }
 
 bool Kernel::IsAvailable() const {
+    DispatcherScope dispatchScope(dispatcher);
     return available && nativeWindow != nullptr;
 }
 
 void Kernel::SetDeviceOrientation(SurfaceRotation newSurfaceRotation) {
+    DispatcherScope dispatchScope(dispatcher);
     swapChain.SetSurfaceRotation(newSurfaceRotation);
 }
 
 vk::ShaderModule Kernel::LoadShader(const std::string &fileName) {
+    DispatcherScope dispatchScope(dispatcher);
     const auto code = ReadFile(fileName);
     return device->createShaderModule(
             vk::ShaderModuleCreateInfo()
@@ -138,6 +149,7 @@ vk::ShaderModule Kernel::LoadShader(const std::string &fileName) {
 }
 
 bool Kernel::IsValidationLayersSupported() {
+    DispatcherScope dispatchScope(dispatcher);
     const auto properties = vk::enumerateInstanceLayerProperties();
     for (auto layerName: validationLayers) {
         for (auto layerProperties: properties) {
@@ -150,14 +162,17 @@ bool Kernel::IsValidationLayersSupported() {
 }
 
 bool Kernel::IsRotatesWithContent() const {
+    DispatcherScope dispatchScope(dispatcher);
     return rotatesWithContent;
 }
 
 void Kernel::SetRotatesWithContent(bool newRotatesWithContent) {
+    DispatcherScope dispatchScope(dispatcher);
     rotatesWithContent = newRotatesWithContent;
 }
 
 void Kernel::SelectPhysicalDevice() {
+    DispatcherScope dispatchScope(dispatcher);
     std::lock_guard<std::recursive_mutex> guard(VulkanLock());
     if (0 <= selectedPhysicalDevice) {
         return;
@@ -206,6 +221,7 @@ void Kernel::SelectPhysicalDevice() {
 }
 
 void Kernel::Submit(const std::function<void(vk::CommandBuffer)> &transaction) {
+    DispatcherScope dispatchScope(dispatcher);
     auto commandBuffers = device->allocateCommandBuffers(
             vk::CommandBufferAllocateInfo()
                     .setCommandBufferCount(1)
@@ -220,6 +236,7 @@ void Kernel::Submit(const std::function<void(vk::CommandBuffer)> &transaction) {
 }
 
 vk::UniqueImageView Kernel::CreateImageView(vk::Image image, vk::Format format) {
+    DispatcherScope dispatchScope(dispatcher);
     return device->createImageViewUnique(
             vk::ImageViewCreateInfo()
                     .setImage(image)
@@ -242,6 +259,7 @@ vk::UniqueImageView Kernel::CreateImageView(vk::Image image, vk::Format format) 
 
 uint32_t
 Kernel::FindMemoryType(uint32_t typeFilter, vk::MemoryPropertyFlags properties) const {
+    DispatcherScope dispatchScope(dispatcher);
     auto memoryProperties = physicalDevice.getMemoryProperties();
     for (uint32_t i = 0; i < VK_MAX_MEMORY_TYPES; ++i) {
         if ((typeFilter & (1 << i)) &&
@@ -253,6 +271,7 @@ Kernel::FindMemoryType(uint32_t typeFilter, vk::MemoryPropertyFlags properties) 
 }
 
 bool Kernel::Supports(vk::PhysicalDevice candidate) {
+    DispatcherScope dispatchScope(dispatcher);
     if (candidate.getProperties().apiVersion < VK_API_VERSION_1_1) return false;
     const auto properties = candidate.enumerateDeviceExtensionProperties();
     for (const auto extension : featureManager->GetExtensions(DEVICE)) {
@@ -275,6 +294,7 @@ bool Kernel::Supports(vk::PhysicalDevice candidate) {
 }
 
 bool Kernel::HasFeatures() {
+    DispatcherScope dispatchScope(dispatcher);
     std::lock_guard<std::recursive_mutex> guard(VulkanLock());
     if (!instance) return false;
     for (const auto candidate : instance->enumeratePhysicalDevices()) {
@@ -284,6 +304,7 @@ bool Kernel::HasFeatures() {
 }
 
 std::string Kernel::InspectDevices() {
+    DispatcherScope dispatchScope(dispatcher);
     picojson::object inspect;
     picojson::array devices;
     for (const auto &device: instance->enumeratePhysicalDevices()) {
@@ -317,6 +338,7 @@ std::string Kernel::InspectDevices() {
 }
 
 std::vector<char> Kernel::ReadFile(const std::string &fileName) {
+    DispatcherScope dispatchScope(dispatcher);
     if (assetManager == nullptr) {
         throw std::runtime_error("java.lang.IllegalStateException");
     }
@@ -340,6 +362,7 @@ std::vector<char> Kernel::ReadFile(const std::string &fileName) {
 }
 
 void Kernel::OnOrientationChange() {
+    DispatcherScope dispatchScope(dispatcher);
     device->waitIdle();
     if (swapChain.SetUp(*this, true)) {
         queue.SetImagesCount(*this, swapChain.GetImagesCount());
@@ -348,10 +371,12 @@ void Kernel::OnOrientationChange() {
 }
 
 vk::SurfaceCapabilitiesKHR Kernel::GetSurfaceCapabilities() {
+    DispatcherScope dispatchScope(dispatcher);
     return physicalDevice.getSurfaceCapabilitiesKHR(surface.get());
 }
 
 vk::SurfaceFormatKHR Kernel::GetSurfaceFormat() {
+    DispatcherScope dispatchScope(dispatcher);
     const auto formats = physicalDevice.getSurfaceFormatsKHR(surface.get());
     for (const auto &format: formats) {
         if (format.format == vk::Format::eR8G8B8A8Unorm) {
@@ -362,6 +387,7 @@ vk::SurfaceFormatKHR Kernel::GetSurfaceFormat() {
 }
 
 void Kernel::ReadPixels(void *buffer) {
+    DispatcherScope dispatchScope(dispatcher);
     if (nativeWindow == nullptr) {
         throw std::runtime_error("java.lang.IllegalStateException");
     }

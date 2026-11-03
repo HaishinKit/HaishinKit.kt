@@ -19,7 +19,7 @@ void *PixelTransform::OnRunning(void *data) {
 void PixelTransform::OnFrame(long frameTimeNanos, void *data) {
     auto self = reinterpret_cast<PixelTransform *>(data);
     try { self->OnFrame(frameTimeNanos); }
-    catch (const std::exception &error) { LOGE("Vulkan frame failed: %s", error.what()); }
+    catch (const std::exception &error) { self->running = false; LOGE("Vulkan frame failed; renderer stopped: %s", error.what()); }
 }
 
 PixelTransform::PixelTransform() :
@@ -31,6 +31,7 @@ PixelTransform::PixelTransform() :
 }
 
 PixelTransform::~PixelTransform() {
+    DispatcherScope dispatchScope(kernel->dispatcher);
     StopRunning();
     std::lock_guard<std::recursive_mutex> guard(VulkanLock());
     if (kernel->device) kernel->device->waitIdle();
@@ -80,18 +81,38 @@ void PixelTransform::SetResampleFilter(ResampleFilter newResampleFilter) {
 }
 
 void PixelTransform::SetImageReader(int32_t width, int32_t height, int32_t format) {
-    auto texture = new Texture(vk::Extent2D(width, height), format);
-    texture->SetVideoGravity(videoGravity);
-    texture->SetResampleFilter(resampleFilter);
-    texture->SetVideoEffect(videoEffect);
-    texture->SetImageOrientation(imageOrientation);
-    for (auto oldTexture : textures) delete oldTexture;
-    textures.clear();
-    textures.push_back(texture);
+    DispatcherScope dispatchScope(kernel->dispatcher);
+    inputWidth = width;
+    inputHeight = height;
+    inputFormat = format;
+    ResetTextures();
     imageReader->SetUp(width, height, format);
     if (kernel->surface) {
         StartRunning();
     }
+}
+
+void PixelTransform::ResetTextures() {
+    for (auto texture : textures) delete texture;
+    textures.clear();
+    auto texture = new Texture(vk::Extent2D(inputWidth, inputHeight), inputFormat);
+    texture->SetVideoGravity(videoGravity);
+    texture->SetResampleFilter(resampleFilter);
+    texture->SetVideoEffect(videoEffect);
+    texture->SetImageOrientation(imageOrientation);
+    textures.push_back(texture);
+}
+
+void PixelTransform::RecoverSwapChain() {
+    kernel->device->waitIdle();
+    ResetTextures();
+    kernel->commandBuffer.TearDown(*kernel);
+    kernel->pipeline.TearDown(*kernel);
+    kernel->swapChain.TearDown(*kernel);
+    kernel->queue.TearDown(*kernel);
+    kernel->queue.SetUp(*kernel, kernel->queue.queueFamilyIndex);
+    kernel->swapChain.SetUp(*kernel, false);
+    kernel->queue.SetImagesCount(*kernel, kernel->swapChain.GetImagesCount());
 }
 
 void PixelTransform::SetDeviceOrientation(SurfaceRotation surfaceRotation) {
@@ -164,9 +185,11 @@ void PixelTransform::OnRunning() {
 }
 
 void PixelTransform::OnFrame(long frameTimeNanos) {
+    if (!running) return;
+    DispatcherScope dispatchScope(kernel->dispatcher);
     std::lock_guard<std::recursive_mutex> guard(VulkanLock());
     std::lock_guard<std::mutex> lock(mutex);
-    if (choreographer) {
+    if (choreographer && running) {
         AChoreographer_postFrameCallback(choreographer, OnFrame, this);
     }
     if (fpsController->Advanced(frameTimeNanos)) {
@@ -179,15 +202,19 @@ void PixelTransform::OnFrame(long frameTimeNanos) {
         kernel->queue.presentationTime = imageReader->timestamp;
         const auto &texture = textures[0];
         texture->SetUp(*kernel, buffer);
-        kernel->DrawFrame([=](uint32_t index) {
+        auto result = kernel->DrawFrame([=](uint32_t index) {
             texture->UpdateAt(*kernel, index, buffer);
             texture->LayoutAt(*kernel, index);
         });
+        if (result == vk::Result::eErrorOutOfDateKHR || result == vk::Result::eSuboptimalKHR) {
+            RecoverSwapChain();
+        }
     }
 
 }
 
 void PixelTransform::SetVideoEffect(VideoEffect *newVideoEffect) {
+    DispatcherScope dispatchScope(kernel->dispatcher);
     std::lock_guard<std::mutex> lock(mutex);
     if (kernel->device) kernel->device->waitIdle();
     auto oldVideoEffect = videoEffect;

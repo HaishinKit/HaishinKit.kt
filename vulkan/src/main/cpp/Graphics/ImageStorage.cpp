@@ -90,7 +90,7 @@ void ImageStorage::Update(Kernel &kernel, AHardwareBuffer *buffer) {
                     .setMemoryTypeIndex(
                             kernel.FindMemoryType(
                                     hardwareBufferProperties.memoryTypeBits,
-                                    vk::MemoryPropertyFlagBits::eHostVisible
+                                    vk::MemoryPropertyFlags()
                             ))
                     .setPNext(&vk::MemoryDedicatedAllocateInfo()
                             .setImage(image.get())

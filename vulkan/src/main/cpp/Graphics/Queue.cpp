@@ -32,6 +32,9 @@ void Queue::TearDown(Kernel &kernel) {
         kernel.device->destroy(fence);
     }
     images.clear();
+    fences.clear();
+    waitSemaphores.clear();
+    signalSemaphores.clear();
 }
 
 void Queue::Submit(Kernel &kernel, vk::CommandBuffer &commandBuffer) {
@@ -66,10 +69,11 @@ Queue::DrawFrame(Kernel &kernel, const std::function<void(uint32_t)> &lambda) {
                                      std::numeric_limits<uint64_t>::max());
     }
     images[nextIndex] = fences[currentFrame];
-    kernel.device->resetFences(fences[currentFrame]);
+
 
     vk::CommandBuffer commandBuffer = kernel.commandBuffer.commandBuffers[nextIndex].get();
     lambda(nextIndex);
+    kernel.device->resetFences(fences[currentFrame]);
 
     queue.submit(
             submitInfo

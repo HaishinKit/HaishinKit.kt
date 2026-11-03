@@ -13,6 +13,7 @@ namespace Graphics {
         DynamicLoader &operator=(DynamicLoader &&) = delete;
 
         bool Load();
+        PFN_vkGetInstanceProcAddr procAddress = nullptr;
 
         static DynamicLoader &GetInstance() {
             static DynamicLoader instance;

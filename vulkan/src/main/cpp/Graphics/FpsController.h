@@ -1,9 +1,7 @@
 #ifndef HAISHINKIT_KT_FPSCONTROLLER_H
 #define HAISHINKIT_KT_FPSCONTROLLER_H
 
-#include "Kernel.h"
-#include <android/choreographer.h>
-#include <android/looper.h>
+#include <cstdint>
 
 namespace Graphics {
     class FpsController {
@@ -12,14 +10,14 @@ namespace Graphics {
 
         void SetFrameRate(int frameRate);
 
-        bool Advanced(long frameTime);
+        bool Advanced(int64_t frameTime);
 
         void Clear();
 
     private:
         int frameRate = 60;
-        long timestamp = 0;
-        long elapsed = 1000000000 / 60;
+        int64_t timestamp = 0;
+        int64_t elapsed = 1000000000 / 60;
     };
 }
 

@@ -14,6 +14,7 @@ bool DynamicLoader::Load() {
         const auto vkGetInstanceProcAddr = dl.getProcAddress<PFN_vkGetInstanceProcAddr>(
                 "vkGetInstanceProcAddr");
         if (!vkGetInstanceProcAddr) return false;
+        procAddress = vkGetInstanceProcAddr;
         VULKAN_HPP_DEFAULT_DISPATCHER.init(vkGetInstanceProcAddr);
         loaded = true;
         return vkGetInstanceProcAddr != nullptr;

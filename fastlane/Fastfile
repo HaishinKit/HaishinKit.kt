@@ -1,6 +1,11 @@
 desc 'Runs the PR review.'
 lane :review do
   gradle(task: 'lint')
+  native_test_source = File.expand_path('../vulkan/src/test/cpp', __dir__)
+  native_test_build = File.expand_path('../build/vulkan-native-tests', __dir__)
+  sh('cmake', '-S', native_test_source, '-B', native_test_build)
+  sh('cmake', '--build', native_test_build)
+  sh('ctest', '--test-dir', native_test_build, '--output-on-failure')
   gradle(task: ':vulkan:assembleDebug')
   gradle(task: ':vulkan:assembleDebugAndroidTest')
   gradle(task: ':haishinkit:testDebugUnitTest')

@@ -90,6 +90,8 @@ void CommandBuffer::TearDown(Kernel &kernel) {
     for (auto &framebuffer: framebuffers) {
         kernel.device->destroy(framebuffer);
     }
+    framebuffers.clear();
+    commandPool.reset();
 }
 
 vk::CommandBuffer CommandBuffer::Allocate(Kernel &kernel) {

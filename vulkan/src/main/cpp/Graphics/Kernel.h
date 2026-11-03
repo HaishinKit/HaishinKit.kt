@@ -20,6 +20,7 @@
 namespace Graphics {
     class Kernel {
     public:
+        mutable vk::DispatchLoaderDynamic dispatcher;
         vk::UniqueInstance instance;
         vk::UniqueDevice device;
         vk::UniqueSurfaceKHR surface;

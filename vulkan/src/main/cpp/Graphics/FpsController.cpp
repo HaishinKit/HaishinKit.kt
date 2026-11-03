@@ -1,4 +1,5 @@
 #include "FpsController.h"
+#include <algorithm>
 
 using namespace Graphics;
 
@@ -10,13 +11,13 @@ void FpsController::SetFrameRate(int newFrameRate) {
     elapsed = 1000000000 / (long) frameRate;
 }
 
-bool FpsController::Advanced(long frameTime) {
+bool FpsController::Advanced(int64_t frameTime) {
     if (timestamp == 0) {
         timestamp = frameTime;
         return true;
     }
     if (elapsed <= (frameTime - timestamp)) {
-        timestamp = frameTime;
+        timestamp += ((frameTime - timestamp) / elapsed) * elapsed;
         return true;
     }
     return false;

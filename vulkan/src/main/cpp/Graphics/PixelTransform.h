@@ -2,6 +2,8 @@
 #define HAISHINKIT_KT_PIXELTRANSFORM_H
 
 #include <jni.h>
+#include <android/choreographer.h>
+#include <android/looper.h>
 #include <atomic>
 #include <android/hardware_buffer_jni.h>
 #include <media/NdkImageReader.h>
@@ -74,6 +76,9 @@ namespace Graphics {
         std::atomic<bool> running{false};
         VideoEffect *videoEffect = nullptr;
 
+        int32_t inputWidth = 0, inputHeight = 0, inputFormat = 0;
+        void ResetTextures();
+        void RecoverSwapChain();
         void StartRunning();
 
         void StopRunning();
