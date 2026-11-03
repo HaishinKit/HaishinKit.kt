@@ -188,13 +188,14 @@ void Texture::LayoutAt(Kernel &kernel, uint32_t currentFrame) {
             .setWidth((float) surface.width)
             .setHeight((float) surface.height);
 
+    const auto displayExtent = kernel.swapChain.GetDisplayExtent();
     switch (videoGravity) {
         case RESIZE: {
             pushConstantsBlock.mvpMatrix = glm::scale(glm::mat4(1.0F), glm::vec3(1.0F, 1.0f, 1.0F));
             break;
         }
         case RESIZE_ASPECT: {
-            const float iRatio = (float) surface.width / (float) surface.height;
+            const float iRatio = (float) displayExtent.width / (float) displayExtent.height;
             const float fRatio = (float) newImageExtent.width / (float) newImageExtent.height;
             if (iRatio < fRatio) {
                 pushConstantsBlock.mvpMatrix = glm::scale(
@@ -219,22 +220,22 @@ void Texture::LayoutAt(Kernel &kernel, uint32_t currentFrame) {
             break;
         }
         case RESIZE_ASPECT_FILL: {
-            const float iRatio = (float) surface.width / (float) surface.height;
+            const float iRatio = (float) displayExtent.width / (float) displayExtent.height;
             const float fRatio = (float) newImageExtent.width / (float) newImageExtent.height;
             if (iRatio < fRatio) {
                 pushConstantsBlock.mvpMatrix = glm::scale(
                         glm::mat4(1.0F),
                         glm::vec3(
-                                (float) surface.height /
-                                (float) surface.width *
+                                (float) displayExtent.height /
+                                (float) displayExtent.width *
                                 fRatio, 1.0f, 1.0F
                         )
                 );
             } else {
                 pushConstantsBlock.mvpMatrix = glm::scale(
                         glm::mat4(1.0F),
-                        glm::vec3(1.0f, (float) surface.width /
-                                        (float) surface.height /
+                        glm::vec3(1.0f, (float) displayExtent.width /
+                                        (float) displayExtent.height /
                                         fRatio,
                                   1.0F
                         )
@@ -244,6 +245,7 @@ void Texture::LayoutAt(Kernel &kernel, uint32_t currentFrame) {
         }
     }
 
+    pushConstantsBlock.mvpMatrix = kernel.swapChain.GetPreTransformMatrix() * pushConstantsBlock.mvpMatrix;
     auto &commandBuffer = kernel.commandBuffer.commandBuffers[currentFrame].get();
     commandBuffer.begin(
             vk::CommandBufferBeginInfo()

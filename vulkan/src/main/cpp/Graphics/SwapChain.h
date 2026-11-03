@@ -6,6 +6,7 @@
 #include <vulkan/vulkan.hpp>
 #include <android/native_window.h>
 #include "SurfaceRotation.hpp"
+#include "SurfacePresentation.h"
 
 namespace Graphics {
     class Kernel;
@@ -17,6 +18,8 @@ namespace Graphics {
         void SetImageExtent(int32_t width, int32_t height);
 
         vk::Extent2D GetImageExtent() const;
+        vk::Extent2D GetDisplayExtent() const;
+        glm::mat4 GetPreTransformMatrix() const { return presentation.matrix; }
 
         int32_t GetImagesCount();
 
@@ -35,6 +38,7 @@ namespace Graphics {
         vk::Framebuffer CreateFramebuffer(Kernel &kernel, int32_t index);
 
     private:
+        SurfacePresentation presentation{};
         bool isCreated = false;
         bool isInvalidate = false;
         vk::Extent2D imageExtent = vk::Extent2D();

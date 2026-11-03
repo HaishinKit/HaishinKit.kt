@@ -31,6 +31,12 @@ vk::Extent2D SwapChain::GetImageExtent() const {
     return info.imageExtent;
 }
 
+vk::Extent2D SwapChain::GetDisplayExtent() const {
+    auto extent = info.imageExtent;
+    if (presentation.swapsAxes) std::swap(extent.width, extent.height);
+    return extent;
+}
+
 bool SwapChain::IsInvalidate() const {
     return isInvalidate;
 }
@@ -43,8 +49,7 @@ bool SwapChain::SetUp(Kernel &kernel, bool requestRecreate) {
     const auto capabilities = kernel.GetSurfaceCapabilities();
     const auto format = kernel.GetSurfaceFormat();
 
-    imageExtent.width = std::max(capabilities.minImageExtent.width, std::min(imageExtent.width, capabilities.maxImageExtent.width));
-    imageExtent.height = std::max(capabilities.minImageExtent.height, std::min(imageExtent.height, capabilities.maxImageExtent.height));
+    presentation = SelectSurfacePresentation(imageExtent, capabilities);
 
     if (swapchain) {
         info.setOldSwapchain(swapchain.get());
@@ -57,14 +62,14 @@ bool SwapChain::SetUp(Kernel &kernel, bool requestRecreate) {
                     .setSurface(kernel.surface.get())
                     .setMinImageCount(capabilities.minImageCount)
                     .setImageFormat(format.format)
-                    .setImageExtent(imageExtent)
+                    .setImageExtent(presentation.extent)
                     .setImageColorSpace(format.colorSpace)
                     .setImageArrayLayers(1)
                     .setImageUsage(vk::ImageUsageFlagBits::eColorAttachment)
                     .setImageSharingMode(vk::SharingMode::eExclusive)
                     .setQueueFamilyIndexCount(1)
                     .setQueueFamilyIndices(kernel.queue.queueFamilyIndex)
-                    .setPreTransform(capabilities.currentTransform)
+                    .setPreTransform(presentation.transform)
                     .setPresentMode(vk::PresentModeKHR::eFifo)
                     .setClipped(true)
                     .setCompositeAlpha(static_cast<vk::CompositeAlphaFlagBitsKHR>(static_cast<uint32_t>(capabilities.supportedCompositeAlpha) & -static_cast<uint32_t>(capabilities.supportedCompositeAlpha))));
@@ -101,14 +106,14 @@ bool SwapChain::SetUp(Kernel &kernel, bool requestRecreate) {
             .setPreserveAttachmentCount(0)
             .setPPreserveAttachments(nullptr);
 
+    const auto acquireDependency = AcquireColorAttachmentDependency();
     renderPass = kernel.device->createRenderPassUnique(
             vk::RenderPassCreateInfo()
                     .setAttachmentCount(1)
                     .setAttachments(attachmentDescription)
                     .setSubpassCount(1)
                     .setPSubpasses(&subpassDescription)
-                    .setDependencyCount(0)
-                    .setDependencies(nullptr)
+                    .setDependencies(acquireDependency)
     );
 
     isCreated = true;

@@ -66,3 +66,9 @@ Vulkan dispatcher, including the dispatch references retained by resource delete
 Out-of-date swapchains recreate their dependent resources; a recording/submission
 exception stops the affected renderer instead of reusing incomplete synchronization
 state.
+
+Surface presentation prefers the identity transform. When unavailable, it applies
+clip-space pre-rotation and adjusts swapchain dimensions using the selected surface
+transform, following [Android's pre-rotation guidance](https://developer.android.com/games/optimize/vulkan-prerotation).
+The host tests cover transform selection, rotated dimensions/corners, and the
+render-pass dependency that orders color-attachment transitions after image acquisition.
