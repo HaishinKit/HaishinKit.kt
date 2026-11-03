@@ -1,0 +1,11 @@
+HaishinKit Android SRT runtime
+
+Includes unmodified libsrt 1.5.7, Copyright Haivision Systems Inc.
+Licensed under MPL-2.0. Source code for the included version is available at:
+https://github.com/Haivision/srt/tree/v1.5.7
+https://codeload.github.com/Haivision/srt/tar.gz/refs/tags/v1.5.7
+See LICENSE-srt.
+
+Includes Mbed TLS 3.6.5 under the Apache-2.0 license option.
+https://github.com/Mbed-TLS/mbedtls/releases/tag/mbedtls-3.6.5
+See LICENSE-mbedtls for upstream copyright and license terms.
