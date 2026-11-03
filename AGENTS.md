@@ -1,3 +1,10 @@
+# Kotlin member ordering
+
+- Apply these ordering rules consistently across Kotlin classes and objects.
+- Group properties before methods, with public properties before private properties.
+- Place `init` blocks at the beginning of the method section, followed by public methods, then private methods.
+- Preserve initialization dependencies when arranging properties and `init` blocks.
+
 # GitHub Actions conventions
 
 - Use Ruby and its standard library for helper scripts in GitHub Actions and Fastlane. Do not introduce Python for workflow helpers.
