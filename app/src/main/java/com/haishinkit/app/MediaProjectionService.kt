@@ -84,11 +84,13 @@ class MediaProjectionService :
 
                     MSG_CLOSE -> {
                         Log.i(TAG, "MSG_CLOSE")
+                        val reply = msg.replyTo
                         shutdownScope.launch {
                             try {
                                 stopForRendererChange()
                             } finally {
                                 stopSelf()
+                                runCatching { reply?.send(Message.obtain(null, MSG_CLOSED)) }
                             }
                         }
                     }
@@ -197,6 +199,7 @@ class MediaProjectionService :
         const val MSG_CLOSE = 1
         const val MSG_SET_VIDEO_EFFECT = 2
         const val MSG_SET_MEDIA_PROJECTION = 3
+        const val MSG_CLOSED = 4
 
         private const val EXTRA_RESULT_CODE = "EXTRA_RESULT_CODE"
         private const val EXTRA_RESULT_DATA = "EXTRA_RESULT_DATA"
