@@ -3,11 +3,14 @@ package com.haishinkit.net
 import android.util.Log
 import androidx.core.util.Pools
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import java.io.IOException
 import java.io.InputStream
 import java.io.OutputStream
+import java.net.InetSocketAddress
 import java.net.Socket
 import java.net.SocketException
 import java.nio.ByteBuffer
@@ -30,6 +33,9 @@ class NetSocketImpl :
     override val queueBytesOut = AtomicLong(0)
     override val coroutineContext: CoroutineContext
         get() = Dispatchers.IO
+    private val connectionGuard = Any()
+    private var connectionJob: Job? = null
+    private var outputJob: Job? = null
     private var inputBuffer = ByteBuffer.allocate(DEFAULT_WINDOW_SIZE_C)
     private var socket: Socket? = null
     private var inputStream: InputStream? = null
@@ -57,28 +63,37 @@ class NetSocketImpl :
         dstPort: Int,
         isSecure: Boolean,
     ) {
-        if (socket?.isConnected == true) {
-            return
-        }
-        keepAlive = true
-        totalBytesIn.set(0)
-        totalBytesOut.set(0)
-        queueBytesOut.set(0)
-        launch(coroutineContext) {
-            doConnection(dstName, dstPort, isSecure)
+        synchronized(connectionGuard) {
+            if (keepAlive) return
+            keepAlive = true
+            totalBytesIn.set(0)
+            totalBytesOut.set(0)
+            queueBytesOut.set(0)
+            connectionJob =
+                launch(coroutineContext, start = CoroutineStart.LAZY) {
+                    doConnection(dstName, dstPort, isSecure)
+                }.also { it.start() }
         }
     }
 
     override fun close(disconnected: Boolean) {
-        if (socket?.isClosed == true) {
-            return
-        }
-        keepAlive = false
-        inputStream = null
-        outputStream = null
-        socket?.close()
-        outputQueue.add(ByteBuffer.allocate(0))
-        listener?.onClose(disconnected)
+        val notify =
+            synchronized(connectionGuard) {
+                val active = keepAlive
+                keepAlive = false
+                runCatching { socket?.close() }
+                runCatching { inputStream = null }
+                runCatching { outputStream = null }
+                outputQueue.add(ByteBuffer.allocate(0))
+                active
+            }
+        if (notify) listener?.onClose(disconnected)
+    }
+
+    /** Waits until connection setup and both I/O loops have exited after [close]. */
+    suspend fun awaitClosed() {
+        connectionJob?.join()
+        outputJob?.join()
     }
 
     override fun doOutput(buffer: ByteBuffer) {
@@ -164,22 +179,26 @@ class NetSocketImpl :
         dstPort: Int,
         isSecure: Boolean,
     ) {
+        if (!keepAlive) return
         outputQueue.clear()
         try {
             this.socket = createSocket(dstName, dstPort, isSecure)
         } catch (e: Exception) {
             Log.w(TAG, "", e)
-            close(true)
-            listener?.onSocketError()
+            if (keepAlive) {
+                close(true)
+                listener?.onSocketError()
+            }
         }
         try {
             val socket = socket ?: return
-            if (socket.isConnected) {
+            if (socket.isConnected && keepAlive) {
                 inputStream = socket.getInputStream()
                 outputStream = socket.getOutputStream()
-                launch(Dispatchers.IO) {
-                    doOutput(socket)
-                }
+                outputJob =
+                    launch(Dispatchers.IO) {
+                        doOutput(socket)
+                    }
                 listener?.onConnect()
                 while (keepAlive) {
                     doInput()
@@ -201,12 +220,27 @@ class NetSocketImpl :
         dstPort: Int,
         isSecure: Boolean,
     ): Socket {
-        if (isSecure) {
-            val socket = SSLSocketFactory.getDefault().createSocket(dstName, dstPort) as SSLSocket
-            socket.startHandshake()
-            return socket
+        val candidate = Socket()
+        synchronized(connectionGuard) {
+            if (!keepAlive) {
+                candidate.close()
+                return candidate
+            }
+            socket = candidate
         }
-        return Socket(dstName, dstPort)
+        // Publish the socket before blocking TCP/TLS setup so close can interrupt it.
+        candidate.connect(InetSocketAddress(dstName, dstPort))
+        if (!isSecure) return candidate
+        val secure = (SSLSocketFactory.getDefault() as SSLSocketFactory).createSocket(candidate, dstName, dstPort, true) as SSLSocket
+        synchronized(connectionGuard) {
+            if (!keepAlive) {
+                secure.close()
+                return secure
+            }
+            socket = secure
+        }
+        secure.startHandshake()
+        return secure
     }
 
     companion object {

@@ -33,6 +33,8 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlin.coroutines.CoroutineContext
 
 class MediaProjectionService :
@@ -43,6 +45,9 @@ class MediaProjectionService :
         get() = Dispatchers.IO + serviceJob
 
     private val serviceJob = SupervisorJob()
+    private val shutdownScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    private val shutdownMutex = Mutex()
+    private var outputsClosed = false
     private val mixer: MediaMixer by lazy {
         MediaMixer(applicationContext).apply {
             registerOutput(session.stream)
@@ -79,10 +84,13 @@ class MediaProjectionService :
 
                     MSG_CLOSE -> {
                         Log.i(TAG, "MSG_CLOSE")
-                        launch {
-                            session.close()
+                        shutdownScope.launch {
+                            try {
+                                stopForRendererChange()
+                            } finally {
+                                stopSelf()
+                            }
                         }
-                        stopSelf()
                     }
                 }
             }
@@ -150,17 +158,30 @@ class MediaProjectionService :
 
     override suspend fun stopForRendererChange() {
         serviceJob.cancelAndJoin()
-        session.close()
-        mixer.unregisterOutput(session.stream)
-        session.stream.dispose()
-        mixer.stopRunning()
+        shutdownMutex.withLock {
+            if (outputsClosed) return@withLock
+            session.close()
+            mixer.attachAudio(0, null)
+            mixer.attachVideo(0, null)
+            mixer.unregisterOutput(session.stream)
+            session.stream.dispose()
+            mixer.stopRunning()
+            outputsClosed = true
+        }
     }
 
     override fun onDestroy() {
         RendererPreference.unregister(this)
         serviceJob.cancel()
         super.onDestroy()
-        mixer.dispose()
+        shutdownScope.launch {
+            try {
+                stopForRendererChange()
+            } finally {
+                mixer.dispose()
+                shutdownScope.cancel()
+            }
+        }
         localBroadcastManager.unregisterReceiver(isRunningReceiver)
     }
 

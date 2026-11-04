@@ -38,6 +38,8 @@ internal class RtmpSocket(
     private val handshake: RtmpHandshake by lazy {
         RtmpHandshake()
     }
+
+    @Volatile
     private var readyState = ReadyState.Uninitialized
         set(value) {
             field = value
@@ -49,6 +51,7 @@ internal class RtmpSocket(
         dstPort: Int,
         isSecure: Boolean,
     ) {
+        readyState = ReadyState.Uninitialized
         socket?.listener = null
         socket = NetSocketImpl()
         socket?.listener = this
@@ -62,7 +65,7 @@ internal class RtmpSocket(
     fun createByteBuffer(capacity: Int): ByteBuffer = socket?.createByteBuffer(capacity) ?: ByteBuffer.allocate(capacity)
 
     fun close(disconnected: Boolean) {
-        if (!isConnected) return
+        if (readyState == ReadyState.Closing || readyState == ReadyState.Closed) return
         var data: Any? = null
         if (disconnected) {
             data =
@@ -73,12 +76,19 @@ internal class RtmpSocket(
                 }
         }
         readyState = ReadyState.Closing
+        socket?.listener = null
         socket?.close(disconnected)
         data?.let {
             connection.dispatchEventWith(Event.RTMP_STATUS, false, it)
         }
         readyState = ReadyState.Closed
         isConnected = false
+    }
+
+    suspend fun closeAndJoin() {
+        val transport = socket as? NetSocketImpl
+        close(false)
+        transport?.awaitClosed()
     }
 
     override fun onSocketError() {
@@ -88,6 +98,7 @@ internal class RtmpSocket(
     }
 
     override fun onConnect() {
+        if (readyState == ReadyState.Closing || readyState == ReadyState.Closed) return
         chunkSizeC = RtmpChunk.DEFAULT_SIZE
         chunkSizeS = RtmpChunk.DEFAULT_SIZE
         handshake.clear()
