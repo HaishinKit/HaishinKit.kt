@@ -25,16 +25,16 @@ internal class RtmpStreamSession(applicationContext: Context, uri: Uri, val mode
     private val state = MutableStateFlow(ReadyState.CLOSED)
     private val uri = RtmpUri(uri)
     private val connection = RtmpConnection()
-    private val rtmpStream: RtmpStream
+    private val rtmpStream: RtmpStream by lazy {
+        RtmpStream(applicationContext, connection).apply {
+            addEventListener(Event.RTMP_STATUS, this@RtmpStreamSession)
+        }
+    }
     private var continuation: CancellableContinuation<Result<Unit>>? = null
 
     init {
         connection.addEventListener(Event.RTMP_STATUS, this)
         connection.addEventListener(Event.IO_ERROR, this)
-        rtmpStream =
-            RtmpStream(applicationContext, connection).apply {
-                addEventListener(Event.RTMP_STATUS, this@RtmpStreamSession)
-            }
     }
 
     override suspend fun connect(): Result<Unit> =
@@ -46,21 +46,26 @@ internal class RtmpStreamSession(applicationContext: Context, uri: Uri, val mode
                     } else {
                         continuation = pending
                         state.value = ReadyState.CONNECTING
+                        connection.connect(uri.tcUrl)
                         true
                     }
                 }
-            if (accepted) connection.connect(uri.tcUrl) else pending.resume(Result.failure(IllegalStateException("Session is already active")))
+            if (!accepted) pending.resume(Result.failure(IllegalStateException("Session is already active")))
         }
 
     override suspend fun close(): Result<Unit> {
         val pending =
             synchronized(guard) {
-                if (state.value == ReadyState.CLOSING) return Result.success(Unit)
-                if (!connection.isConnected) return Result.failure(IllegalStateException("Connection is not open"))
                 state.value = ReadyState.CLOSING
                 continuation.also { continuation = null }
             }
-        finishClose(pending, "Session closed")
+        try {
+            connection.close()
+            connection.socket.closeAndJoin()
+        } finally {
+            synchronized(guard) { state.value = ReadyState.CLOSED }
+            if (pending?.isActive == true) pending.resume(Result.failure(RtmpStatusException("Session closed")))
+        }
         return Result.success(Unit)
     }
 

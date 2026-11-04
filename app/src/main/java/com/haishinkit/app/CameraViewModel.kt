@@ -42,7 +42,7 @@ import java.io.ByteArrayOutputStream
 
 class CameraViewModel(
     application: Application,
-) : AndroidViewModel(application), DefaultLifecycleObserver {
+) : AndroidViewModel(application), DefaultLifecycleObserver, RendererChangeParticipant {
     var session: StreamSession? by mutableStateOf(null)
         private set
     var sessionError: String? by mutableStateOf(null)
@@ -107,6 +107,7 @@ class CameraViewModel(
         mixer.screen.addChild(lottie)
 
         mixer.registerOutput(recorder)
+        RendererPreference.register(this)
     }
 
     suspend fun refreshSession(): Result<Unit> {
@@ -227,7 +228,21 @@ class CameraViewModel(
         mixer.onPause(owner)
     }
 
+    override suspend fun stopForRendererChange() {
+        if (recorder.isRecording) recorder.stopRecording()
+        mixer.stopRunning()
+        mixer.unregisterOutput(recorder)
+        session?.let { previous ->
+            previous.close()
+            mixer.unregisterOutput(previous.stream)
+            previous.stream.dispose()
+        }
+        session = null
+        sessionUri = null
+    }
+
     override fun onCleared() {
+        RendererPreference.unregister(this)
         super.onCleared()
         cameraDeviceManager.release()
         mixer.dispose()

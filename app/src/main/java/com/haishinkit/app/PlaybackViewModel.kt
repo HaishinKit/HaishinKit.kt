@@ -9,13 +9,31 @@ import com.haishinkit.stream.StreamSession
 
 class PlaybackViewModel(
     application: Application,
-) : AndroidViewModel(application) {
+) : AndroidViewModel(application), RendererChangeParticipant {
     var session: StreamSession? by mutableStateOf(null)
         private set
     var sessionError: String? by mutableStateOf(null)
         private set
 
     private var sessionUri: android.net.Uri? = null
+
+    init {
+        RendererPreference.register(this)
+    }
+
+    override suspend fun stopForRendererChange() {
+        session?.let { previous ->
+            previous.close()
+            previous.stream.dispose()
+        }
+        session = null
+        sessionUri = null
+    }
+
+    override fun onCleared() {
+        RendererPreference.unregister(this)
+        super.onCleared()
+    }
 
     suspend fun refreshSession(): Result<Unit> {
         var replacement: StreamSession? = null

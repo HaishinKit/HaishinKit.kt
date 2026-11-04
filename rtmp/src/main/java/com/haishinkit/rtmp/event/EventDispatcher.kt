@@ -44,7 +44,8 @@ open class EventDispatcher(
             val isCapturingPhase = (event.eventPhase == Event.EVENT_PHASE_CAPTURING).toString()
             val listeners = this.listeners["${event.type}/$isCapturingPhase"]
             if (listeners != null) {
-                for (listener in listeners) {
+                val snapshot = synchronized(listeners) { listeners.toList() }
+                for (listener in snapshot) {
                     listener.handleEvent(event)
                 }
                 if (event.propagationStopped) {
@@ -86,13 +87,9 @@ open class EventDispatcher(
             return
         }
         val list = listeners[key]!!
-        var i = list.size - 1
-        while (0 <= i) {
-            if (list[i] === listener) {
-                list.removeAt(i)
-                return
-            }
-            --i
+        synchronized(list) {
+            val index = list.indexOfLast { it === listener }
+            if (index >= 0) list.removeAt(index)
         }
     }
 
