@@ -31,6 +31,7 @@ target_link_libraries(srt PRIVATE srt_static)
 target_compile_features(srt PRIVATE cxx_std_17)
 target_compile_definitions(srt PRIVATE HAISHINKIT_SRT_EPOLL)
 if(ANDROID)
+    target_link_libraries(srt PRIVATE log)
     target_link_options(srt PRIVATE "-Wl,-z,max-page-size=16384")
 else()
     # Host JNI build for native tests without an Android device.
