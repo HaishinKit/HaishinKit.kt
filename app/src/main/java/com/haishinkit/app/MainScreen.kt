@@ -1,5 +1,6 @@
 package com.haishinkit.app
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.foundation.layout.Box
@@ -26,6 +27,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -71,7 +74,9 @@ enum class MainScreenTab(
 
 @Suppress("ktlint:standard:function-naming")
 @Composable
-fun MainScreen() {
+fun MainScreen(onApplyRenderer: suspend (Renderer) -> Unit) {
+    var changingRenderer by remember { mutableStateOf(false) }
+    BackHandler(enabled = changingRenderer) {}
     val navController = rememberNavController()
     var selectedItemIndex by rememberSaveable {
         mutableIntStateOf(0)
@@ -90,6 +95,7 @@ fun MainScreen() {
                         },
                         label = { Text(text = item.label, fontSize = 10.sp) },
                         selected = selectedItemIndex == index,
+                        enabled = !changingRenderer,
                         onClick = {
                             selectedItemIndex = index
                             navController.navigate(item.id) {
@@ -132,7 +138,14 @@ fun MainScreen() {
                     PlaybackScreen()
                 }
                 composable(route = MainScreenTab.Preference.id) {
-                    PreferenceScreen()
+                    PreferenceScreen(onApplyRenderer = { renderer ->
+                        changingRenderer = true
+                        try {
+                            onApplyRenderer(renderer)
+                        } finally {
+                            changingRenderer = false
+                        }
+                    })
                 }
             }
         }

@@ -72,3 +72,10 @@ clip-space pre-rotation and adjusts swapchain dimensions using the selected surf
 transform, following [Android's pre-rotation guidance](https://developer.android.com/games/optimize/vulkan-prerotation).
 The host tests cover transform selection, rotated dimensions/corners, and the
 render-pass dependency that orders color-attachment transitions after image acquisition.
+
+The example app also exposes **Preference → Renderer → OpenGL / Vulkan**.
+Selecting **Apply renderer** stops publishing, playback, recording, and screen
+sharing, saves the selection, and rebuilds the app screens with the selected
+backend. Unsupported devices keep OpenGL available and disable Vulkan selection.
+The example keeps its API 23 minimum by guarding the optional API 28 native module
+before loading it.

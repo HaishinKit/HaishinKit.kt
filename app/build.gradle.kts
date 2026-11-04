@@ -48,6 +48,7 @@ android {
 
 dependencies {
     implementation(project(":haishinkit"))
+    implementation(project(":vulkan"))
     implementation(project(":rtmp"))
     implementation(project(":srt"))
     implementation(project(":lottie"))

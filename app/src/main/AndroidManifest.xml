@@ -12,6 +12,9 @@
     <uses-feature android:name="android.hardware.camera" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
 
+    <!-- Vulkan is optional and is loaded only after an API 28 capability check. -->
+    <uses-sdk tools:overrideLibrary="com.haishinkit.vulkan" />
+
     <application
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
