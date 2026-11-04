@@ -1,0 +1,119 @@
+package com.haishinkit.vulkan
+
+import android.graphics.Bitmap
+import android.graphics.Color
+import android.graphics.PixelFormat
+import android.graphics.Rect
+import android.media.ImageReader
+import android.media.MediaCodec
+import android.media.MediaCodecInfo
+import android.media.MediaFormat
+import android.os.Handler
+import android.os.HandlerThread
+import android.util.Size
+import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
+import com.haishinkit.screen.ImageScreenObject
+import com.haishinkit.screen.Screen
+import org.junit.Assert.assertTrue
+import org.junit.Assume.assumeTrue
+import org.junit.Test
+import org.junit.runner.RunWith
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+
+@RunWith(AndroidJUnit4::class)
+class VkPixelTransformTest {
+    @Test
+    fun compositionReachesOutputAfterSurfaceReattachment() {
+        assumeTrue(VkPixelTransform.isSupported())
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val screen =
+            Screen.create(context).apply {
+                frame = Rect(0, 0, 64, 64)
+                backgroundColor = Color.RED
+            }
+        screen.addChild(
+            ImageScreenObject().apply {
+                frame = Rect(0, 0, 16, 16)
+                bitmap = Bitmap.createBitmap(16, 16, Bitmap.Config.ARGB_8888).apply { eraseColor(Color.GREEN) }
+            },
+        )
+        val reader = ImageReader.newInstance(64, 64, PixelFormat.RGBA_8888, 3)
+        val callbackThread = HandlerThread("VulkanTestReader").apply { start() }
+        val transform = VkPixelTransform(context)
+        try {
+            transform.imageExtent = Size(64, 64)
+            transform.screen = screen
+            repeat(2) {
+                val received = CountDownLatch(1)
+                reader.setOnImageAvailableListener({ source ->
+                    source.acquireLatestImage()?.use { image ->
+                        val plane = image.planes[0]
+                        val offset = 32 * plane.rowStride + 32 * plane.pixelStride
+                        val red = plane.buffer.get(offset).toInt() and 0xff
+                        val green = plane.buffer.get(offset + 1).toInt() and 0xff
+                        val corner = 8 * plane.rowStride + 8 * plane.pixelStride
+                        val cornerGreen = plane.buffer.get(corner + 1).toInt() and 0xff
+                        if (red > 200 && green < 30 && cornerGreen > 200 && image.timestamp > 0) received.countDown()
+                    }
+                }, Handler(callbackThread.looper))
+                transform.surface = reader.surface
+                assertTrue("The red Screen composition did not reach Vulkan output", received.await(10, TimeUnit.SECONDS))
+                transform.surface = null
+            }
+        } finally {
+            transform.close()
+            screen.dispose()
+            reader.setOnImageAvailableListener(null, null)
+            callbackThread.quitSafely()
+            callbackThread.join()
+            reader.close()
+        }
+    }
+
+    @Test
+    fun codecOutputHasIncreasingPresentationTimestamps() {
+        assumeTrue(VkPixelTransform.isSupported())
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val encoder = MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_VIDEO_AVC)
+        val transform = VkPixelTransform(context)
+        var input: android.view.Surface? = null
+        val screen = Screen.create(context).apply { backgroundColor = Color.GREEN }
+        try {
+            val format =
+                MediaFormat.createVideoFormat(MediaFormat.MIMETYPE_VIDEO_AVC, 128, 128).apply {
+                    setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface)
+                    setInteger(MediaFormat.KEY_BIT_RATE, 128_000)
+                    setInteger(MediaFormat.KEY_FRAME_RATE, 30)
+                    setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 1)
+                }
+            encoder.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
+            input = encoder.createInputSurface()
+            encoder.start()
+            transform.imageExtent = Size(128, 128)
+            transform.frameRate = 30
+            transform.screen = screen
+            transform.surface = input
+            val info = MediaCodec.BufferInfo()
+            val timestamps = mutableListOf<Long>()
+            val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10)
+            while (timestamps.size < 5 && System.nanoTime() < deadline) {
+                val index = encoder.dequeueOutputBuffer(info, 100_000)
+                if (index >= 0) {
+                    if (info.size > 0 && info.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG == 0) {
+                        timestamps.add(info.presentationTimeUs)
+                    }
+                    encoder.releaseOutputBuffer(index, false)
+                }
+            }
+            assertTrue("Vulkan did not produce encoded frames", timestamps.size >= 5)
+            assertTrue(timestamps.zipWithNext().all { (first, second) -> second > first })
+        } finally {
+            transform.close()
+            screen.dispose()
+            encoder.release()
+            input?.release()
+        }
+    }
+}

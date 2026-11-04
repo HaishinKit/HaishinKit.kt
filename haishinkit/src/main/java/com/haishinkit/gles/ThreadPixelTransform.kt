@@ -127,6 +127,15 @@ internal class ThreadPixelTransform(
         }
     }
 
+    override fun close() {
+        handler.post {
+            pixelTransform.surface = null
+            pixelTransform.screen = null
+        }
+        handler.looper.quitSafely()
+        if (Looper.myLooper() != handler.looper) handler.looper.thread.join()
+    }
+
     protected fun finalize() {
         surface = null
         screen = null
