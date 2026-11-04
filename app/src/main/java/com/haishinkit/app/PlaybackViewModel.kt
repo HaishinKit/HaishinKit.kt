@@ -9,7 +9,7 @@ import com.haishinkit.stream.StreamSession
 
 class PlaybackViewModel(
     application: Application,
-) : AndroidViewModel(application) {
+) : AndroidViewModel(application), RendererChangeParticipant {
     var session: StreamSession by mutableStateOf(
         StreamSession
             .Builder(application.applicationContext, Preference.shared.toStreamUri())
@@ -19,6 +19,20 @@ class PlaybackViewModel(
         private set
 
     private var sessionUri = Preference.shared.toStreamUri()
+
+    init {
+        RendererPreference.register(this)
+    }
+
+    override suspend fun stopForRendererChange() {
+        session.close()
+        session.stream.dispose()
+    }
+
+    override fun onCleared() {
+        RendererPreference.unregister(this)
+        super.onCleared()
+    }
 
     suspend fun refreshSession() {
         val uri = Preference.shared.toStreamUri()

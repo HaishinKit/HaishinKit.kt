@@ -29,15 +29,20 @@ import com.haishinkit.media.source.MediaProjectionSource
 import com.haishinkit.stream.StreamSession
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.launch
 import kotlin.coroutines.CoroutineContext
 
 class MediaProjectionService :
     Service(),
-    CoroutineScope {
+    CoroutineScope,
+    RendererChangeParticipant {
     override val coroutineContext: CoroutineContext
-        get() = Dispatchers.IO
+        get() = Dispatchers.IO + serviceJob
 
+    private val serviceJob = SupervisorJob()
     private val mixer: MediaMixer by lazy {
         MediaMixer(applicationContext).apply {
             registerOutput(session.stream)
@@ -136,13 +141,24 @@ class MediaProjectionService :
 
     override fun onCreate() {
         super.onCreate()
+        RendererPreference.register(this)
         localBroadcastManager.registerReceiver(
             isRunningReceiver,
             IntentFilter(ACTION_SERVICE_RUNNING),
         )
     }
 
+    override suspend fun stopForRendererChange() {
+        serviceJob.cancelAndJoin()
+        session.close()
+        mixer.unregisterOutput(session.stream)
+        session.stream.dispose()
+        mixer.stopRunning()
+    }
+
     override fun onDestroy() {
+        RendererPreference.unregister(this)
+        serviceJob.cancel()
         super.onDestroy()
         mixer.dispose()
         localBroadcastManager.unregisterReceiver(isRunningReceiver)
