@@ -13,7 +13,11 @@ import com.haishinkit.stream.Stream
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.yield
 import java.util.concurrent.LinkedBlockingDeque
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.coroutines.CoroutineContext
@@ -57,26 +61,34 @@ class MediaLink(
         get() = Dispatchers.Default
 
     /**
-     * The playback audio track. Setting it to `null` releases the existing track and switches to clock synchronization.
+     * The playback audio track. Replacing it releases the existing track;
+     * setting it to `null` switches to clock synchronization.
+     * Track replacement preserves elapsed playback time.
      */
     var audioTrack: AudioTrack? = null
+        get() = synchronized(audioTrackGuard) { field }
         set(value) {
-            syncMode =
+            synchronized(audioTrackGuard) {
+                if (field === value) return
+                val previous = field
+                playbackClock.replaceAudio(previous?.let { (it.playbackHeadPosition.toLong() and 0xffffffffL) * 1_000_000 / it.sampleRate })
                 if (value == null) {
-                    field?.stop()
-                    field?.flush()
-                    field?.release()
-                    SYNC_MODE_CLOCK
-                } else {
-                    SYNC_MODE_AUDIO
+                    playbackClock.useClock()
+                    videoTimestamp.clear()
                 }
-            field = value
+                field?.stop()
+                field?.flush()
+                field?.release()
+                syncMode = if (value == null) SYNC_MODE_CLOCK else SYNC_MODE_AUDIO
+                field = value
+            }
         }
 
+    private val audioTrackGuard = Any()
     private var syncMode = SYNC_MODE_CLOCK
     private var hasKeyframe = false
     private val videoBuffers = LinkedBlockingDeque<MediaBuffer>()
-    private val audioBuffers = LinkedBlockingDeque<MediaBuffer>()
+    private val audioBuffers = Channel<MediaBuffer>(Channel.UNLIMITED, onUndeliveredElement = { stream.releaseOutputBuffer(it, false) })
     private var choreographer: Choreographer? = null
         set(value) {
             field?.removeFrameCallback(this)
@@ -108,7 +120,7 @@ class MediaLink(
             }
             return field
         }
-    private var audioTimestampZero = 0L
+    private val playbackClock = MediaPlaybackClock()
     private var audioPlaybackJob: Job? = null
         set(value) {
             field?.cancel()
@@ -119,8 +131,11 @@ class MediaLink(
      * Queues the audio data asynchronously for playback.
      */
     fun queueAudio(buffer: MediaBuffer) {
-        if (!isRunning.get()) return
-        audioBuffers.add(buffer)
+        if (!isRunning.get()) {
+            stream.releaseOutputBuffer(buffer, false)
+            return
+        }
+        audioBuffers.trySend(buffer)
         if (!stream.hasVideo) {
             val track = audioTrack ?: return
             if (track.playbackHeadPosition <= 0) {
@@ -135,7 +150,10 @@ class MediaLink(
      * Queues the video data asynchronously for playback.
      */
     fun queueVideo(buffer: MediaBuffer) {
-        if (!isRunning.get()) return
+        if (!isRunning.get()) {
+            stream.releaseOutputBuffer(buffer, false)
+            return
+        }
         if (videoTimestampZero == -1L) {
             videoTimestampZero = buffer.timestamp
         }
@@ -159,8 +177,11 @@ class MediaLink(
 
         // audio setup
         audioTrack = null
-        audioBuffers.clear()
-        audioTimestampZero = 0
+        while (true) stream.releaseOutputBuffer(audioBuffers.tryReceive().getOrNull() ?: break, false)
+        synchronized(audioTrackGuard) {
+            playbackClock.reset()
+            videoTimestamp.clear()
+        }
         audioPlaybackJob =
             launch(coroutineContext) {
                 doAudio()
@@ -170,7 +191,6 @@ class MediaLink(
         hasKeyframe = false
         videoTimestampZero = -1
         videoBuffers.clear()
-        videoTimestamp.clear()
 
         isRunning.set(true)
     }
@@ -189,25 +209,24 @@ class MediaLink(
     }
 
     override fun doFrame(frameTimeNanos: Long) {
+        if (!isRunning.get()) return
         if (keepAlive) {
             choreographer?.postFrameCallback(this)
         }
-        val duration: Long
-        if (syncMode == SYNC_MODE_AUDIO) {
-            val track = audioTrack ?: return
-            if (track.playbackHeadPosition <= 0) {
-                if (track.playState != AudioTrack.PLAYSTATE_PLAYING) {
-                    track.play()
-                    audioTimestampZero = videoTimestamp.duration
+        val duration =
+            synchronized(audioTrackGuard) {
+                val track = audioTrack
+                if (syncMode == SYNC_MODE_AUDIO && track != null) {
+                    if (track.playbackHeadPosition <= 0) {
+                        if (track.playState != AudioTrack.PLAYSTATE_PLAYING) track.play()
+                        return
+                    }
+                    playbackClock.audioTime((track.playbackHeadPosition.toLong() and 0xffffffffL) * 1_000_000 / track.sampleRate)
+                } else {
+                    videoTimestamp.nanoTime = frameTimeNanos
+                    playbackClock.clockTime(videoTimestamp.duration)
                 }
-                return
             }
-            duration =
-                (track.playbackHeadPosition.toLong() * 1000 * 1000 / track.sampleRate) + audioTimestampZero
-        } else {
-            videoTimestamp.nanoTime = frameTimeNanos
-            duration = videoTimestamp.duration
-        }
         try {
             val it = videoBuffers.iterator()
             var frameCount = 0
@@ -241,34 +260,27 @@ class MediaLink(
         }
     }
 
-    private fun doAudio() {
-        while (keepAlive) {
+    private suspend fun doAudio() {
+        while (currentCoroutineContext().isActive && keepAlive) {
+            val buffer = audioBuffers.receive()
             try {
-                val buffer = audioBuffers.take()
                 val payload = buffer.payload ?: continue
-                if (VERBOSE) {
-                    frameTracker?.track(FrameTracker.TYPE_AUDIO, SystemClock.uptimeMillis())
-                }
-                while (payload.hasRemaining()) {
-                    if (keepAlive) {
-                        audioTrack?.write(
-                            payload,
-                            payload.remaining(),
-                            AudioTrack.WRITE_NON_BLOCKING,
-                        )
-                    } else {
-                        break
-                    }
-                }
-                stream.releaseOutputBuffer(buffer, false)
-            } catch (e: InterruptedException) {
-                if (BuildConfig.DEBUG) {
-                    Log.w(TAG, "", e)
+                if (VERBOSE) frameTracker?.track(FrameTracker.TYPE_AUDIO, SystemClock.uptimeMillis())
+                while (payload.hasRemaining() && currentCoroutineContext().isActive && keepAlive) {
+                    var written = 0
+                    val valid =
+                        buffer.codecOutput?.process {
+                            synchronized(audioTrackGuard) {
+                                written = audioTrack?.write(payload, payload.remaining(), AudioTrack.WRITE_NON_BLOCKING) ?: 0
+                            }
+                        } == true
+                    if (!valid || written < 0) break
+                    if (written == 0) yield()
                 }
             } catch (e: IllegalStateException) {
-                if (BuildConfig.DEBUG) {
-                    Log.w(TAG, "", e)
-                }
+                if (BuildConfig.DEBUG) Log.w(TAG, "", e)
+            } finally {
+                stream.releaseOutputBuffer(buffer, false)
             }
         }
     }

@@ -4,24 +4,19 @@ import java.io.ByteArrayOutputStream
 
 /** Annex-B/length-prefixed NAL conversion and SPS dimensions, independent of Android. */
 internal object TSVideo {
+    /** The caller selects framing; the two formats have ambiguous byte patterns. */
+    enum class Framing { ANNEX_B, LENGTH_PREFIXED }
+
     data class Slice(val data: ByteArray, val offset: Int, val size: Int) {
         fun bytes(): ByteArray = data.copyOfRange(offset, offset + size)
     }
 
     /** Views into the caller-owned access unit; VCL payloads are not copied. */
-    fun slices(data: ByteArray): List<Slice> {
-        val prefixed = mutableListOf<Slice>()
-        var offset = 0
-        while (offset + 4 <= data.size) {
-            val size =
-                (TSBinary.u8(data, offset).toLong() shl 24) or (TSBinary.u8(data, offset + 1).toLong() shl 16) or
-                    (TSBinary.u8(data, offset + 2).toLong() shl 8) or TSBinary.u8(data, offset + 3).toLong()
-            if (size <= 0 || size > data.size - offset - 4) break
-            require(prefixed.size < 4096) { "Too many NAL units" }
-            prefixed.add(Slice(data, offset + 4, size.toInt()))
-            offset += 4 + size.toInt()
-        }
-        if (offset == data.size && prefixed.isNotEmpty()) return prefixed
+    fun slices(
+        data: ByteArray,
+        framing: Framing = Framing.ANNEX_B,
+    ): List<Slice> {
+        if (framing == Framing.LENGTH_PREFIXED) return lengthPrefixedSlices(data)
         val result = mutableListOf<Slice>()
         var start = -1
         var position = 0
@@ -46,7 +41,10 @@ internal object TSVideo {
         }
     }
 
-    fun units(data: ByteArray): List<ByteArray> = slices(data).map { it.bytes() }
+    fun units(
+        data: ByteArray,
+        framing: Framing = Framing.ANNEX_B,
+    ): List<ByteArray> = slices(data, framing).map { it.bytes() }
 
     fun type(
         unit: Slice,
@@ -63,12 +61,14 @@ internal object TSVideo {
     fun hasKey(
         data: ByteArray,
         codec: TSCodec,
-    ): Boolean = slices(data).any { if (codec == TSCodec.AVC) type(it, codec) == 5 else type(it, codec) in 16..21 }
+        framing: Framing = Framing.ANNEX_B,
+    ): Boolean = slices(data, framing).any { if (codec == TSCodec.AVC) type(it, codec) == 5 else type(it, codec) in 16..21 }
 
     fun configuration(
         data: ByteArray,
         codec: TSCodec,
-    ): List<ByteArray> = slices(data).filter { type(it, codec) in if (codec == TSCodec.AVC) 7..8 else 32..34 }.map { it.bytes() }
+        framing: Framing = Framing.ANNEX_B,
+    ): List<ByteArray> = slices(data, framing).filter { type(it, codec) in if (codec == TSCodec.AVC) 7..8 else 32..34 }.map { it.bytes() }
 
     fun annexB(units: List<ByteArray>): ByteArray {
         val result = ByteArray(units.sumOf { it.size + 4 })
@@ -126,6 +126,22 @@ internal object TSVideo {
         val size = if (codec == TSCodec.AVC) avcDimensions(bits) else hevcDimensions(bits)
         require(size.first in 1..16384 && size.second in 1..16384) { "Invalid SPS dimensions" }
         return size
+    }
+
+    private fun lengthPrefixedSlices(data: ByteArray): List<Slice> {
+        val result = mutableListOf<Slice>()
+        var offset = 0
+        while (offset < data.size) {
+            require(data.size - offset >= 4) { "Truncated NAL length" }
+            val size =
+                (TSBinary.u8(data, offset).toLong() shl 24) or (TSBinary.u8(data, offset + 1).toLong() shl 16) or
+                    (TSBinary.u8(data, offset + 2).toLong() shl 8) or TSBinary.u8(data, offset + 3).toLong()
+            require(size > 0 && size <= data.size - offset - 4) { "Invalid NAL length" }
+            require(result.size < 4096) { "Too many NAL units" }
+            result.add(Slice(data, offset + 4, size.toInt()))
+            offset += 4 + size.toInt()
+        }
+        return result
     }
 
     private fun startCode(

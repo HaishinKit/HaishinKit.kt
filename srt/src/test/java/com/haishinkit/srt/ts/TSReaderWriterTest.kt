@@ -19,13 +19,41 @@ class TSReaderWriterTest {
             }
         assertEquals(4, clocks.size)
         assertTrue(clocks.all { it[3].toInt() and 15 == 0 })
+        val video =
+            writer.write(TSSample(TSCodec.AVC, TSVideo.annexB(listOf(byteArrayOf(0x65, 7))), 80_000, keyframe = true))
+                .toList().chunked(188).first { packet ->
+                    ((packet[1].toInt() and 31) shl 8 or (packet[2].toInt() and 255)) == TSWriter.VIDEO_PID
+                }
+        assertEquals(1, video[3].toInt() and 15)
     }
 
     @Test
     fun lengthPrefixedNalIsNotMistakenForAnnexBStartCode() {
         val unit = ByteArray(300) { 0x55 }.apply { this[0] = 0x65 }
         val data = byteArrayOf(0, 0, 1, 44) + unit
-        assertArrayEquals(unit, TSVideo.units(data).single())
+        assertArrayEquals(unit, TSVideo.units(data, TSVideo.Framing.LENGTH_PREFIXED).single())
+    }
+
+    @Test
+    fun ambiguousThreeByteAnnexBStartCodePreservesIdrHeaderThroughRemux() {
+        val unit = ByteArray(358) { 0x55 }.apply { this[0] = 0x65 }
+        val annexB = byteArrayOf(0, 0, 1) + unit
+        assertArrayEquals(unit, TSVideo.units(annexB, TSVideo.Framing.ANNEX_B).single())
+        assertTrue(TSVideo.hasKey(annexB, TSCodec.AVC, TSVideo.Framing.ANNEX_B))
+        val wire = TSWriter(setOf(TSCodec.AVC)).write(TSSample(TSCodec.AVC, annexB, 0))
+        val decoded = TSReader().read(wire).single()
+        assertTrue(decoded.keyframe)
+        assertArrayEquals(unit, TSVideo.units(decoded.data, decoded.framing).last())
+    }
+
+    @Test
+    fun explicitlyLengthPrefixedVideoIsConvertedEvenWhenItsLengthLooksLikeAStartCode() {
+        val unit = ByteArray(300) { 0x55 }.apply { this[0] = 0x65 }
+        val prefixed = byteArrayOf(0, 0, 1, 44) + unit
+        val wire = TSWriter(setOf(TSCodec.AVC)).write(TSSample(TSCodec.AVC, prefixed, 0, framing = TSVideo.Framing.LENGTH_PREFIXED))
+        val decoded = TSReader().read(wire).single()
+        assertTrue(decoded.keyframe)
+        assertArrayEquals(unit, TSVideo.units(decoded.data, decoded.framing).last())
     }
 
     @Test

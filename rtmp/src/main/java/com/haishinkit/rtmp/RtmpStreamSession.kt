@@ -12,103 +12,113 @@ import com.haishinkit.stream.StreamSession.ReadyState
 import kotlinx.coroutines.CancellableContinuation
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume
 
-internal class RtmpStreamSession(
-    applicationContext: Context,
-    uri: Uri,
-    val mode: StreamSession.Mode,
-) : StreamSession,
-    IEventListener {
-    override val stream: Stream
-        get() = rtmpStream
+internal class RtmpStreamSession(applicationContext: Context, uri: Uri, val mode: StreamSession.Mode) : StreamSession, IEventListener {
+    override val stream: Stream get() = rtmpStream
+    override val isConnected: Boolean get() = connection.isConnected
+    override val readyState: StateFlow<ReadyState> get() = state.asStateFlow()
 
-    override val isConnected: Boolean
-        get() = connection.isConnected
-
-    private val _readyState = MutableStateFlow(ReadyState.CLOSED)
-    override var readyState: StateFlow<ReadyState> = _readyState
-
+    private val guard = Any()
+    private val state = MutableStateFlow(ReadyState.CLOSED)
     private val uri = RtmpUri(uri)
+    private val connection = RtmpConnection()
     private val rtmpStream: RtmpStream
-    private val connection: RtmpConnection = RtmpConnection()
     private var continuation: CancellableContinuation<Result<Unit>>? = null
 
     init {
-        connection.apply {
-            addEventListener(Event.RTMP_STATUS, this@RtmpStreamSession)
-            addEventListener(Event.IO_ERROR, this@RtmpStreamSession)
-        }
+        connection.addEventListener(Event.RTMP_STATUS, this)
+        connection.addEventListener(Event.IO_ERROR, this)
         rtmpStream =
             RtmpStream(applicationContext, connection).apply {
                 addEventListener(Event.RTMP_STATUS, this@RtmpStreamSession)
             }
     }
 
-    override suspend fun connect(): Result<Unit> {
-        if (connection.isConnected) {
-            return Result.failure(IllegalStateException())
+    override suspend fun connect(): Result<Unit> =
+        suspendCancellableCoroutine { pending ->
+            val accepted =
+                synchronized(guard) {
+                    if (connection.isConnected || state.value != ReadyState.CLOSED) {
+                        false
+                    } else {
+                        continuation = pending
+                        state.value = ReadyState.CONNECTING
+                        true
+                    }
+                }
+            if (accepted) connection.connect(uri.tcUrl) else pending.resume(Result.failure(IllegalStateException("Session is already active")))
         }
-        return suspendCancellableCoroutine { continuation ->
-            _readyState.value = ReadyState.CONNECTING
-            this.continuation = continuation
-            connection.connect(uri.tcUrl)
-        }
-    }
 
     override suspend fun close(): Result<Unit> {
-        if (!connection.isConnected) {
-            return Result.failure(IllegalStateException())
-        }
-        _readyState.value = ReadyState.CLOSING
-        connection.close()
-        _readyState.value = ReadyState.CLOSED
+        val pending =
+            synchronized(guard) {
+                if (state.value == ReadyState.CLOSING) return Result.success(Unit)
+                if (!connection.isConnected) return Result.failure(IllegalStateException("Connection is not open"))
+                state.value = ReadyState.CLOSING
+                continuation.also { continuation = null }
+            }
+        finishClose(pending, "Session closed")
         return Result.success(Unit)
     }
 
     override fun handleEvent(event: Event) {
         val data = EventUtils.toMap(event)
-        if (BuildConfig.DEBUG) {
-            Log.d(TAG, "$data")
+        if (BuildConfig.DEBUG) Log.d(TAG, "$data")
+        if (event.type == Event.IO_ERROR) {
+            fail("")
+            return
         }
-
-        when (event.type) {
-            Event.IO_ERROR -> {
-                continuation?.resume(Result.failure(RtmpStatusException("")))
-                continuation = null
-                _readyState.value = ReadyState.CLOSED
-                return
+        if (event.type != Event.RTMP_STATUS) return
+        val code = data["code"] as? String
+        if (code == RtmpConnection.Code.CONNECT_SUCCESS.rawValue) {
+            if (state.value != ReadyState.CONNECTING) return
+            when (mode) {
+                StreamSession.Mode.PUBLISH -> rtmpStream.publish(uri.streamName)
+                StreamSession.Mode.PLAYBACK -> rtmpStream.play(uri.streamName)
             }
-
-            else -> {
-                // no op
-            }
+            return
         }
-
-        when (data["code"]) {
-            RtmpConnection.Code.CONNECT_SUCCESS.rawValue -> {
-                when (mode) {
-                    StreamSession.Mode.PUBLISH -> rtmpStream.publish(this@RtmpStreamSession.uri.streamName)
-                    StreamSession.Mode.PLAYBACK -> rtmpStream.play(this@RtmpStreamSession.uri.streamName)
-                }
+        val transition =
+            synchronized(guard) {
+                val next = RtmpSessionStatus.nextState(state.value, code, data["level"] as? String)
+                if (next == state.value) return
+                val closing = next == ReadyState.CLOSED
+                state.value = if (closing) ReadyState.CLOSING else next
+                closing to continuation.also { continuation = null }
             }
-
-            RtmpStream.Code.PLAY_START.rawValue, RtmpStream.Code.PUBLISH_START.rawValue -> {
-                continuation?.resume(Result.success(Unit))
-                continuation = null
-                _readyState.value = ReadyState.OPEN
-            }
-
-            else -> {
-                continuation?.resume(Result.failure(RtmpStatusException("${data["code"]}")))
-                continuation = null
-                _readyState.value = ReadyState.CLOSED
-            }
+        if (transition.first) {
+            finishClose(transition.second, code.orEmpty())
+        } else {
+            transition.second?.let { if (it.isActive) it.resume(Result.success(Unit)) }
         }
     }
 
-    companion object {
-        private val TAG = RtmpStreamSession::class.java.simpleName
+    private fun fail(code: String) {
+        val pending =
+            synchronized(guard) {
+                if (state.value == ReadyState.CLOSED || state.value == ReadyState.CLOSING) return
+                state.value = ReadyState.CLOSING
+                continuation.also { continuation = null }
+            }
+        finishClose(pending, code)
+    }
+
+    private fun finishClose(
+        pending: CancellableContinuation<Result<Unit>>?,
+        code: String,
+    ) {
+        try {
+            connection.close()
+        } finally {
+            synchronized(guard) { state.value = ReadyState.CLOSED }
+            if (pending?.isActive == true) pending.resume(Result.failure(RtmpStatusException(code)))
+        }
+    }
+
+    private companion object {
+        val TAG = RtmpStreamSession::class.java.simpleName
     }
 }

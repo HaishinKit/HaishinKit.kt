@@ -11,6 +11,7 @@ internal class TSReader {
     private val pes = mutableMapOf<Int, Assembly>()
     private val buffers = mutableMapOf<Int, Assembly>()
     private val timestamps = mutableMapOf<Int, Long>()
+    private val audio = mutableMapOf<Int, ADTSReader>()
     private var clock: Long? = null
 
     fun read(data: ByteArray): List<TSSample> {
@@ -53,6 +54,7 @@ internal class TSReader {
         val result = mutableListOf<TSSample>()
         pes.toMap().forEach { (pid, assembly) -> complete(pid, assembly, result, allowUnbounded = true) }
         pes.clear()
+        audio.clear()
         return result
     }
 
@@ -65,6 +67,7 @@ internal class TSReader {
         pes.clear()
         buffers.clear()
         timestamps.clear()
+        audio.clear()
         clock = null
     }
 
@@ -78,6 +81,7 @@ internal class TSReader {
         val start = TSBinary.u8(bytes, base + 1) and 0x40 != 0
         val control = (TSBinary.u8(bytes, base + 3) shr 4) and 3
         if (control == 0 || TSBinary.u8(bytes, base + 1) and 0x80 != 0 || TSBinary.u8(bytes, base + 3) and 0xc0 != 0) {
+            audio.remove(pid)
             pes.remove(pid)
             sections.remove(pid)
             return
@@ -89,6 +93,7 @@ internal class TSReader {
         if (control and 2 != 0) {
             val length = TSBinary.u8(bytes, offset)
             if (offset + length + 1 > end) {
+                audio.remove(pid)
                 pes.remove(pid)
                 return
             }
@@ -99,6 +104,7 @@ internal class TSReader {
             offset += length + 1
         }
         if (discontinuity) {
+            audio.remove(pid)
             counters.remove(pid)
             pes.remove(pid)
             sections.remove(pid)
@@ -108,6 +114,7 @@ internal class TSReader {
         val previous = counters.put(pid, counter)
         if (previous == counter && !discontinuity) return
         if (previous != null && counter != ((previous + 1) and 15)) {
+            audio.remove(pid)
             pes.remove(pid)
             sections.remove(pid)
             if (!start) return
@@ -124,6 +131,7 @@ internal class TSReader {
         }
         val assembly = pes[pid] ?: return
         if (assembly.size + end - offset > MAX_PES_SIZE) {
+            audio.remove(pid)
             pes.remove(pid)
             return
         }
@@ -196,6 +204,7 @@ internal class TSReader {
                         codecs.clear()
                         buffers.clear()
                         timestamps.clear()
+                        audio.clear()
                         pes.clear()
                         sections.keys.filter { it != 0 }.forEach { sections.remove(it) }
                     }
@@ -213,6 +222,7 @@ internal class TSReader {
                 offset += 5 + (TSBinary.u16(data, offset + 3) and 0x0fff)
             }
             if (offset != data.size - 4) return
+            audio.keys.filter { codecs[it] != next[it] }.forEach { audio.remove(it) }
             buffers.keys.filter { codecs[it] != next[it] }.forEach {
                 buffers.remove(it)
                 timestamps.remove(it)
@@ -234,53 +244,51 @@ internal class TSReader {
     ) {
         val data = assembly.data
         val size = assembly.size
-        if (size < 14 || data[0] != 0.toByte() || data[1] != 0.toByte() || data[2] != 1.toByte()) return
+        if (size < 9 || data[0] != 0.toByte() || data[1] != 0.toByte() || data[2] != 1.toByte()) {
+            audio.remove(pid)
+            return
+        }
         val length = TSBinary.u16(data, 4)
-        if (length == 0 && codecs[pid] == TSCodec.AAC) return
-        if ((length == 0 && !allowUnbounded) || (length != 0 && size < length + 6)) return
+        if ((length == 0 && (codecs[pid] == TSCodec.AAC || !allowUnbounded)) || (length != 0 && size < length + 6)) {
+            audio.remove(pid)
+            return
+        }
         val end = if (length == 0) size else length + 6
         val flags = TSBinary.u8(data, 7) shr 6
         val header = TSBinary.u8(data, 8)
-        if ((TSBinary.u8(data, 6) and 0xc0) != 0x80 || flags !in 2..3 || header < (if (flags == 3) 10 else 5) || 9 + header > end) return
+        if ((TSBinary.u8(data, 6) and 0xc0) != 0x80 || flags !in listOf(0, 2, 3) || header < (
+                if (flags == 3) {
+                    10
+                } else if (flags == 2) {
+                    5
+                } else {
+                    0
+                }
+            ) || 9 + header > end
+        ) {
+            audio.remove(pid)
+            return
+        }
         try {
-            val pts = unwrap(TSBinary.timestamp(data, 9), timestamps[pid] ?: clock)
+            val pts = if (flags == 0) null else unwrap(TSBinary.timestamp(data, 9), timestamps[pid] ?: clock)
             val dts = if (flags == 3) unwrap(TSBinary.timestamp(data, 14), pts) else pts
-            timestamps[pid] = pts
-            clock = maxOf(clock ?: pts, pts)
+            if (pts != null) {
+                timestamps[pid] = pts
+                clock = maxOf(clock ?: pts, pts)
+            }
             if (9 + header == end) return
             val payload = data.copyOfRange(9 + header, end)
             val codec = codecs[pid] ?: return
             if (codec == TSCodec.AAC) {
-                readAudio(payload, pts, output)
+                output.addAll(audio.getOrPut(pid) { ADTSReader() }.read(payload, pts?.let { TSBinary.micros(it) }))
             } else {
-                val key = assembly.keyframe || TSVideo.hasKey(payload, codec)
-                output.add(TSSample(codec, payload, TSBinary.micros(pts), TSBinary.micros(dts), key))
+                if (pts == null || dts == null) return
+                val key = assembly.keyframe || TSVideo.hasKey(payload, codec, TSVideo.Framing.ANNEX_B)
+                output.add(TSSample(codec, payload, TSBinary.micros(pts), TSBinary.micros(dts), key, framing = TSVideo.Framing.ANNEX_B))
             }
         } catch (_: IllegalArgumentException) {
+            audio.remove(pid)
             // Drop malformed PES/ADTS, retaining subsequent TS synchronization.
-        }
-    }
-
-    private fun readAudio(
-        data: ByteArray,
-        pts: Long,
-        output: MutableList<TSSample>,
-    ) {
-        var offset = 0
-        var samples = 0L
-        while (offset + 7 <= data.size) {
-            if (TSBinary.u8(data, offset) != 255 || TSBinary.u8(data, offset + 1) and 0xf6 != 0xf0) return
-            val header = if (TSBinary.u8(data, offset + 1) and 1 != 0) 7 else 9
-            val index = (TSBinary.u8(data, offset + 2) shr 2) and 15
-            if (index >= TSAudioConfig.RATES.size || TSBinary.u8(data, offset + 6) and 3 != 0) return
-            val channels = ((TSBinary.u8(data, offset + 2) and 1) shl 2) or (TSBinary.u8(data, offset + 3) shr 6)
-            val config = TSAudioConfig(TSAudioConfig.RATES[index], channels, (TSBinary.u8(data, offset + 2) shr 6) + 1)
-            val size = ((TSBinary.u8(data, offset + 3) and 3) shl 11) or (TSBinary.u8(data, offset + 4) shl 3) or (TSBinary.u8(data, offset + 5) shr 5)
-            if (size < header || offset + size > data.size) return
-            val time = TSBinary.micros(pts) + samples * 1_000_000 / config.sampleRate
-            output.add(TSSample(TSCodec.AAC, data.copyOfRange(offset + header, offset + size), time, audio = config, keyframe = true))
-            samples += 1024
-            offset += size
         }
     }
 

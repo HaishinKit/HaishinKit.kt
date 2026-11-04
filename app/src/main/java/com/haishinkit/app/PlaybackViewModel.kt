@@ -10,24 +10,41 @@ import com.haishinkit.stream.StreamSession
 class PlaybackViewModel(
     application: Application,
 ) : AndroidViewModel(application) {
-    var session: StreamSession by mutableStateOf(
-        StreamSession
-            .Builder(application.applicationContext, Preference.shared.toStreamUri())
-            .setMode(StreamSession.Mode.PLAYBACK)
-            .build(),
-    )
+    var session: StreamSession? by mutableStateOf(null)
+        private set
+    var sessionError: String? by mutableStateOf(null)
         private set
 
-    private var sessionUri = Preference.shared.toStreamUri()
+    private var sessionUri: android.net.Uri? = null
 
-    suspend fun refreshSession() {
-        val uri = Preference.shared.toStreamUri()
-        if (uri == sessionUri) return
-        session.close()
-        session.stream.dispose()
-        session =
-            StreamSession.Builder(getApplication<Application>().applicationContext, uri)
-                .setMode(StreamSession.Mode.PLAYBACK).build()
-        sessionUri = uri
+    suspend fun refreshSession(): Result<Unit> {
+        var replacement: StreamSession? = null
+        try {
+            val uri = Preference.shared.toStreamUri()
+            if (uri == sessionUri && session != null) {
+                sessionError = null
+                return Result.success(Unit)
+            }
+            val candidate =
+                StreamSession.Builder(getApplication<Application>().applicationContext, uri)
+                    .setMode(StreamSession.Mode.PLAYBACK).build()
+            replacement = candidate
+            session?.let { previous ->
+                previous.close()
+                previous.stream.dispose()
+            }
+            session = candidate
+            sessionUri = uri
+            replacement = null
+            sessionError = null
+            return Result.success(Unit)
+        } catch (cause: kotlinx.coroutines.CancellationException) {
+            throw cause
+        } catch (cause: Exception) {
+            sessionError = cause.message ?: "Check the stream URL."
+            return Result.failure(cause)
+        } finally {
+            replacement?.stream?.dispose()
+        }
     }
 }

@@ -17,4 +17,6 @@ data class MediaBuffer(
     var payload: ByteBuffer? = null,
     var timestamp: Long = 0L,
     var sync: Boolean = false,
-)
+) {
+    internal var codecOutput: CodecOutputBuffer? = null
+}

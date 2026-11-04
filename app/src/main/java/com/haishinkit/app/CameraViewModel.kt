@@ -43,11 +43,9 @@ import java.io.ByteArrayOutputStream
 class CameraViewModel(
     application: Application,
 ) : AndroidViewModel(application), DefaultLifecycleObserver {
-    var session: StreamSession by mutableStateOf(
-        StreamSession
-            .Builder(application.applicationContext, Preference.shared.toStreamUri())
-            .build(),
-    )
+    var session: StreamSession? by mutableStateOf(null)
+        private set
+    var sessionError: String? by mutableStateOf(null)
         private set
     val cameraList: StateFlow<List<CameraDevice>>
         get() {
@@ -63,7 +61,7 @@ class CameraViewModel(
         CameraDeviceManager(context = application.applicationContext)
     private var mixer: MediaMixer = MediaMixer(application.applicationContext)
     private val _selectedCamera = MutableStateFlow<CameraDevice?>(null)
-    private var sessionUri = Preference.shared.toStreamUri()
+    private var sessionUri: android.net.Uri? = null
 
     private val sceneManager: SceneManager by lazy {
         val manager = SceneManager(mixer.screen)
@@ -109,18 +107,37 @@ class CameraViewModel(
         mixer.screen.addChild(lottie)
 
         mixer.registerOutput(recorder)
-        mixer.registerOutput(session.stream)
     }
 
-    suspend fun refreshSession() {
-        val uri = Preference.shared.toStreamUri()
-        if (uri == sessionUri) return
-        session.close()
-        mixer.unregisterOutput(session.stream)
-        session.stream.dispose()
-        session = StreamSession.Builder(application.applicationContext, uri).build()
-        mixer.registerOutput(session.stream)
-        sessionUri = uri
+    suspend fun refreshSession(): Result<Unit> {
+        var replacement: StreamSession? = null
+        try {
+            val uri = Preference.shared.toStreamUri()
+            if (uri == sessionUri && session != null) {
+                sessionError = null
+                return Result.success(Unit)
+            }
+            val candidate = StreamSession.Builder(application.applicationContext, uri).build()
+            replacement = candidate
+            session?.let { previous ->
+                previous.close()
+                mixer.unregisterOutput(previous.stream)
+                previous.stream.dispose()
+            }
+            mixer.registerOutput(candidate.stream)
+            session = candidate
+            sessionUri = uri
+            replacement = null
+            sessionError = null
+            return Result.success(Unit)
+        } catch (cause: kotlinx.coroutines.CancellationException) {
+            throw cause
+        } catch (cause: Exception) {
+            sessionError = cause.message ?: "Check the stream URL."
+            return Result.failure(cause)
+        } finally {
+            replacement?.stream?.dispose()
+        }
     }
 
     fun selectAudioDevice() {

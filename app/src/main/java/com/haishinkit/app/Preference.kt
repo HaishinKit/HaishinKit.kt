@@ -8,8 +8,10 @@ data class Preference(
     var streamName: String,
 ) {
     fun toStreamUri(): Uri {
-        val uri = streamURL.toUri()
-        return if (uri.scheme == "srt") uri else ("$streamURL/$streamName").toUri()
+        val uri = streamURL.toUri().normalizeScheme()
+        require(uri.scheme in setOf("rtmp", "rtmps", "srt")) { "Enter an rtmp://, rtmps:// or srt:// stream URL." }
+        require(uri.scheme == "srt" || !uri.host.isNullOrBlank()) { "The stream URL must include a host." }
+        return if (uri.scheme == "srt") uri else ("$streamURL/$streamName").toUri().normalizeScheme()
     }
 
     companion object {

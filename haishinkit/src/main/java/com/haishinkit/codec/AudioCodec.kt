@@ -52,37 +52,36 @@ class AudioCodec : Codec() {
             buffer.sampleRate = value
         }
     var channelCount = DEFAULT_CHANNEL_COUNT
+        set(value) {
+            field = value
+            buffer.channelCount = value
+        }
     var bitRate = DEFAULT_BIT_RATE
     var aacProfile = DEFAULT_AAC_PROFILE
     override var inputMimeType = MediaFormat.MIMETYPE_AUDIO_RAW
     override var outputMimeType = MediaFormat.MIMETYPE_AUDIO_AAC
     private var buffer = AudioCodecBuffer()
+    private val inputIndices = java.util.ArrayDeque<Int>()
 
+    @Synchronized
     fun append(byteBuffer: ByteBuffer) {
         if (!isRunning.get()) return
         buffer.append(byteBuffer)
+        drainInputs()
     }
 
     override fun onInputBufferAvailable(
         codec: MediaCodec,
         index: Int,
     ) {
-        if (mode == MODE_ENCODE) {
-            try {
-                val inputBuffer = codec.getInputBuffer(index) ?: return
-                val result = buffer.render(inputBuffer)
-                codec.queueInputBuffer(
-                    index,
-                    0,
-                    result,
-                    buffer.presentationTimestamp,
-                    0,
-                )
-            } catch (e: IllegalStateException) {
-                Log.w(TAG, e)
-            }
-        } else {
+        if (mode != MODE_ENCODE) {
             super.onInputBufferAvailable(codec, index)
+            return
+        }
+        synchronized(this) {
+            if (!isRunning.get() || codec !== this.codec) return
+            inputIndices.addLast(index)
+            drainInputs()
         }
     }
 
@@ -96,9 +95,28 @@ class AudioCodec : Codec() {
             }
         }
 
+    @Synchronized
     override fun dispose() {
+        inputIndices.clear()
         buffer.clear()
         super.dispose()
+    }
+
+    private fun drainInputs() {
+        if (mode != MODE_ENCODE) return
+        try {
+            val encoder = codec ?: return
+            while (inputIndices.isNotEmpty()) {
+                val index = inputIndices.peekFirst()
+                val input = encoder.getInputBuffer(index) ?: return
+                input.clear()
+                val count = buffer.render(input) ?: return
+                inputIndices.removeFirst()
+                encoder.queueInputBuffer(index, 0, count, buffer.presentationTimestamp, 0)
+            }
+        } catch (cause: IllegalStateException) {
+            Log.w(TAG, cause)
+        }
     }
 
     companion object {

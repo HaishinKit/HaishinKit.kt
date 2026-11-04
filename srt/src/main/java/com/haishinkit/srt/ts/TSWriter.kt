@@ -84,7 +84,7 @@ internal class TSWriter(codecs: Set<TSCodec>) {
 
     private fun payload(sample: TSSample): List<TSVideo.Slice> {
         if (sample.codec == TSCodec.AAC) return listOf(slice(requireNotNull(sample.audio) { "AAC configuration is required" }.adts(sample.data.size)), slice(sample.data))
-        val units = TSVideo.slices(sample.data)
+        val units = TSVideo.slices(sample.data, sample.framing)
         val auditType = if (sample.codec == TSCodec.AVC) 9 else 35
         val result = ArrayList<TSVideo.Slice>(units.size * 2 + videoConfig.size * 2 + 2)
 
@@ -192,6 +192,7 @@ internal class TSWriter(codecs: Set<TSCodec>) {
         output[offset + 1] = (pcrPID shr 8).toByte()
         output[offset + 2] = pcrPID.toByte()
         output[offset + 3] = (0x20 or lastCounters[pcrPID]).toByte()
+        counters[pcrPID] = (lastCounters[pcrPID] + 1) and 15
         output[offset + 4] = 183.toByte()
         output[offset + 5] = (0x10 or if (seen[pcrPID]) 0 else 0x80).toByte()
         pcr(output, offset + 6, value)

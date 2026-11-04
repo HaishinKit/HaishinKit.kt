@@ -1,8 +1,8 @@
 #include "SrtEventLoop.h"
+#include <udt.h>
 #include <sys/socket.h>
 #include <fcntl.h>
 #include <unistd.h>
-#include <array>
 #include <atomic>
 #include <limits>
 #include <stdexcept>
@@ -230,23 +230,23 @@ void SrtEventLoop::Run() {
 
 void SrtEventLoop::RunLoop() {
     while (true) {
-        std::array<SRTSOCKET, 64> readable{};
-        std::array<SRTSOCKET, 64> writable{};
-        SYSSOCKET systemRead;
-        int readCount = readable.size(), writeCount = writable.size(), systemCount = 1;
+        std::set<SRTSOCKET> readable;
+        std::set<SRTSOCKET> writable;
+        std::set<SYSSOCKET> systemRead;
         // The system wake socket permits registration, cancellation and shutdown
         // without polling timeouts. ERR is reported in both SRT arrays.
-        if (srt_epoll_wait(epoll, readable.data(), &readCount, writable.data(), &writeCount,
-                -1, &systemRead, &systemCount, nullptr, nullptr) == SRT_ERROR) {
+        // The C array wrapper truncates after consuming all ET notices. The C++
+        // set API returns every event, including simultaneous bursts above 64.
+        if (UDT::epoll_wait(epoll, &readable, &writable, -1, &systemRead, nullptr) == SRT_ERROR) {
             throw std::runtime_error(std::string("SRT epoll wait failed: ") + srt_getlasterror_str());
         }
-        if (systemCount > 0) {
+        if (!systemRead.empty()) {
             char drain[256];
             while (recv(wakeRead, drain, sizeof(drain), 0) > 0) {}
         }
         std::map<SRTSOCKET, int> events;
-        for (int i = 0; i < readCount; ++i) events[readable[i]] |= SRT_EPOLL_IN;
-        for (int i = 0; i < writeCount; ++i) events[writable[i]] |= SRT_EPOLL_OUT;
+        for (auto socket : readable) events[socket] |= SRT_EPOLL_IN;
+        for (auto socket : writable) events[socket] |= SRT_EPOLL_OUT;
         std::map<Token, Callback> callbacks;
         bool stop;
         {

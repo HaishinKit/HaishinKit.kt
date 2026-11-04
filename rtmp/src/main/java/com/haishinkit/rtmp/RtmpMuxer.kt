@@ -72,66 +72,46 @@ internal class RtmpMuxer(
         codec: MediaCodec,
         index: Int,
     ) {
-        when (mime) {
-            MediaFormat.MIMETYPE_VIDEO_RAW -> {
-                try {
-                    val inputBuffer = codec.getInputBuffer(index) ?: return
+        try {
+            when (mime) {
+                MediaFormat.MIMETYPE_VIDEO_RAW -> {
                     val message = videoBufferController.take()
                     videoBufferController.consume(message.timestamp)
-                    val success =
-                        message.data?.let {
-                            if (it.remaining() <= inputBuffer.remaining()) {
-                                inputBuffer.put(it)
-                                true
-                            } else {
-                                Log.w(TAG, "BufferOverrun will drop a RTMPVideoMessage")
-                                false
-                            }
-                        } == true
-                    videoTimestamp += message.timestamp * 1000
-                    if (success) {
-                        // There are some devices where info.flags always become 0, so this is a workaround.
-                        if (message.frame == FLV_FRAME_TYPE_KEY) {
-                            keyframes[videoTimestamp] = true
+                    stream.withInputBuffer(MediaType.VIDEO, codec, index) { inputBuffer ->
+                        val success =
+                            message.data?.let {
+                                if (it.remaining() <= inputBuffer.remaining()) {
+                                    inputBuffer.put(it)
+                                    true
+                                } else {
+                                    Log.w(TAG, "BufferOverrun will drop a RTMPVideoMessage")
+                                    false
+                                }
+                            } == true
+                        videoTimestamp += message.timestamp * 1000
+                        if (success) {
+                            if (message.frame == FLV_FRAME_TYPE_KEY) keyframes[videoTimestamp] = true
+                            codec.queueInputBuffer(index, 0, message.length, videoTimestamp, message.toFlags())
                         }
-                        codec.queueInputBuffer(
-                            index,
-                            0,
-                            message.length,
-                            videoTimestamp,
-                            message.toFlags(),
-                        )
                     }
-                } catch (e: InterruptedException) {
-                    Log.w(TAG, "", e)
                 }
-            }
-
-            MediaFormat.MIMETYPE_AUDIO_RAW -> {
-                try {
-                    val inputBuffer = codec.getInputBuffer(index) ?: return
+                MediaFormat.MIMETYPE_AUDIO_RAW -> {
                     audioBufferController.stop()
                     val message = audioBufferController.take()
                     audioBufferController.consume(message.timestamp)
-                    message.data?.let {
-                        it.position(1)
-                        inputBuffer.put(it)
+                    stream.withInputBuffer(MediaType.AUDIO, codec, index) { inputBuffer ->
+                        message.data?.let {
+                            it.position(1)
+                            inputBuffer.put(it)
+                        }
+                        audioTimestamp += message.timestamp * 1000
+                        codec.queueInputBuffer(index, 0, message.length - 2, audioTimestamp, message.toFlags())
                     }
-                    audioTimestamp += message.timestamp * 1000
-                    codec.queueInputBuffer(
-                        index,
-                        0,
-                        message.length - 2,
-                        audioTimestamp,
-                        message.toFlags(),
-                    )
-                } catch (e: InterruptedException) {
-                    Log.w(TAG, "", e)
                 }
             }
-
-            else -> {
-            }
+        } catch (cause: InterruptedException) {
+            // Codec teardown interrupts the retired callback thread's input waits.
+            if (BuildConfig.DEBUG) Log.d(TAG, "Input callback stopped")
         }
     }
 

@@ -2,9 +2,11 @@ package com.haishinkit.rtmp
 
 import android.content.Context
 import android.graphics.Rect
+import android.media.MediaCodec
 import android.media.MediaFormat
 import android.util.Log
 import com.haishinkit.codec.Codec
+import com.haishinkit.media.MediaType
 import com.haishinkit.media.source.VideoCodecSource
 import com.haishinkit.rtmp.event.Event
 import com.haishinkit.rtmp.event.EventDispatcher
@@ -17,6 +19,7 @@ import com.haishinkit.rtmp.message.RtmpDataMessage
 import com.haishinkit.rtmp.message.RtmpMessage
 import com.haishinkit.rtmp.message.RtmpMessageFactory
 import com.haishinkit.stream.Stream
+import java.nio.ByteBuffer
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
@@ -523,6 +526,18 @@ class RtmpStream(
         currentFPS = frameCount.get()
         frameCount.set(0)
         listener?.onStatics(this, connection)
+    }
+
+    internal fun withInputBuffer(
+        type: MediaType,
+        instance: MediaCodec,
+        index: Int,
+        action: (ByteBuffer) -> Unit,
+    ) {
+        val owner = if (type == MediaType.AUDIO) audioCodec else videoCodec
+        owner.withCurrentCodec(instance) {
+            instance.getInputBuffer(index)?.let(action)
+        }
     }
 
     private fun toMetaData(): Map<String, Any> {

@@ -22,6 +22,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
@@ -42,6 +43,7 @@ import com.haishinkit.compose.rememberMediaRecorderState
 import com.haishinkit.compose.rememberStreamSessionState
 import com.haishinkit.graphics.VideoGravity
 import com.haishinkit.graphics.effect.DefaultVideoEffect
+import com.haishinkit.srt.SrtStream
 import com.haishinkit.stream.StreamSession
 import kotlinx.coroutines.launch
 import java.io.File
@@ -57,7 +59,9 @@ fun CameraScreen(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    LaunchedEffect(Unit) { viewModel.refreshSession() }
+    LaunchedEffect(Unit) {
+        viewModel.refreshSession().onFailure { Toast.makeText(context, it.message, Toast.LENGTH_SHORT).show() }
+    }
 
     val cameraList by viewModel.cameraList.collectAsState()
     val selectedCamera by viewModel.selectedCamera.collectAsState()
@@ -83,8 +87,12 @@ fun CameraScreen(
             viewModel.videoEffectItems.size
         })
 
-    val sessionState =
-        rememberStreamSessionState(viewModel.session)
+    val currentSession = viewModel.session
+    if (currentSession == null) {
+        Text(viewModel.sessionError ?: "Preparing stream...", modifier = modifier.safeDrawingPadding().padding(16.dp))
+        return
+    }
+    val sessionState = rememberStreamSessionState(currentSession)
     val sessionReadyState by sessionState.readyState.collectAsState()
     val sessionActive = sessionReadyState != StreamSession.ReadyState.CLOSED
 
@@ -96,11 +104,13 @@ fun CameraScreen(
     }
 
     Box(modifier = modifier) {
-        HaishinKitView(
-            stream = viewModel.session.stream,
-            videoGravity = VideoGravity.RESIZE_ASPECT_FILL,
-            modifier = Modifier.fillMaxSize(),
-        )
+        key(currentSession.stream) {
+            HaishinKitView(
+                stream = currentSession.stream,
+                videoGravity = VideoGravity.RESIZE_ASPECT_FILL,
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
 
         Column(
             modifier =
@@ -182,6 +192,7 @@ fun CameraScreen(
                 isRecording = recorderState.isRecording,
                 isConnected = sessionActive,
                 readyState = sessionReadyState,
+                canCancelConnection = sessionState.stream is SrtStream,
                 onClickScreenShot = {
                     viewModel.takeSnapShot(context)
                 },
@@ -190,6 +201,10 @@ fun CameraScreen(
                         if (sessionActive) {
                             sessionState.close()
                         } else {
+                            viewModel.sessionError?.let {
+                                Toast.makeText(context, it, Toast.LENGTH_SHORT).show()
+                                return@launch
+                            }
                             sessionState.connect().onFailure {
                                 Toast
                                     .makeText(context, it.message, Toast.LENGTH_SHORT)
