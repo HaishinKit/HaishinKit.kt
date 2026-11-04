@@ -21,10 +21,11 @@ internal class Renderer(
     override fun layout(screenObject: ScreenObject) {
         when (screenObject) {
             is VideoScreenObject -> {
+                GLES20.glBindTexture(screenObject.target, screenObject.textureId)
                 GLES20.glTexParameteri(
                     screenObject.target,
                     GL10.GL_TEXTURE_MIN_FILTER,
-                    GLES20.GL_NEAREST,
+                    GLES20.GL_LINEAR,
                 )
                 GLES20.glTexParameteri(
                     screenObject.target,
@@ -53,7 +54,7 @@ internal class Renderer(
                 GLES20.glTexParameteri(
                     screenObject.target,
                     GLES20.GL_TEXTURE_MIN_FILTER,
-                    GLES20.GL_NEAREST,
+                    GLES20.GL_LINEAR,
                 )
                 GLES20.glTexParameteri(
                     screenObject.target,

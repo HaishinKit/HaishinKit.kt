@@ -9,7 +9,7 @@ import android.util.Size
 import android.view.Surface
 import com.haishinkit.graphics.PixelTransform
 import com.haishinkit.graphics.VideoGravity
-import com.haishinkit.graphics.effect.DefaultVideoEffect
+import com.haishinkit.graphics.effect.BicubicVideoEffect
 import com.haishinkit.graphics.effect.VideoEffect
 import com.haishinkit.screen.Screen
 import java.util.concurrent.FutureTask
@@ -49,7 +49,7 @@ class VkPixelTransform(
             field = value
             onWorker { producer?.videoGravity = value }
         }
-    override var videoEffect: VideoEffect = DefaultVideoEffect.shared
+    override var videoEffect: VideoEffect = BicubicVideoEffect()
         set(value) {
             field = value
             onWorker { producer?.videoEffect = value }

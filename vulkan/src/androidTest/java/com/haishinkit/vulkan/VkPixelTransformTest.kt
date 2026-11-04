@@ -13,6 +13,7 @@ import android.os.HandlerThread
 import android.util.Size
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import com.haishinkit.graphics.effect.BicubicVideoEffect
 import com.haishinkit.screen.ImageScreenObject
 import com.haishinkit.screen.Screen
 import org.junit.Assert.assertTrue
@@ -21,9 +22,86 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicReference
+import kotlin.math.abs
+import kotlin.math.floor
 
 @RunWith(AndroidJUnit4::class)
 class VkPixelTransformTest {
+    @Test
+    fun downsampledCompositionMatchesBicubicAtVulkanOutput() {
+        assumeTrue(VkPixelTransform.isSupported())
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val sourceSize = 128
+        val outputSize = 85
+        val values = IntArray(sourceSize) { (it * 37) % 256 }
+        val expected =
+            DoubleArray(outputSize) { x ->
+                val position = (x + 0.5) * sourceSize / outputSize - 0.5
+                (floor(position).toInt() - 1..floor(position).toInt() + 2).sumOf { index ->
+                    values[index.coerceIn(0, sourceSize - 1)] * splineWeight(position - index)
+                }
+            }
+        val screen = Screen.create(context).apply { frame = Rect(0, 0, sourceSize, sourceSize) }
+        screen.addChild(
+            ImageScreenObject().apply {
+                frame = Rect(0, 0, sourceSize, sourceSize)
+                bitmap =
+                    Bitmap.createBitmap(sourceSize, sourceSize, Bitmap.Config.ARGB_8888).apply {
+                        setPixels(
+                            IntArray(sourceSize * sourceSize) { index ->
+                                val value = values[index % sourceSize]
+                                Color.rgb(value, value, value)
+                            },
+                            0, sourceSize, 0, 0, sourceSize, sourceSize,
+                        )
+                    }
+            },
+        )
+        val reader = ImageReader.newInstance(outputSize, outputSize, PixelFormat.RGBA_8888, 3)
+        val callbacks = HandlerThread("VulkanResamplingTest").apply { start() }
+        val received = CountDownLatch(1)
+        val lastError = AtomicReference(Double.POSITIVE_INFINITY)
+        val transform = VkPixelTransform(context)
+        try {
+            reader.setOnImageAvailableListener({ source ->
+                source.acquireLatestImage()?.use { image ->
+                    val plane = image.planes[0]
+                    val error =
+                        expected.indices.maxOf { x ->
+                            val offset = outputSize / 2 * plane.rowStride + x * plane.pixelStride
+                            abs((plane.buffer.get(offset).toInt() and 255) - expected[x])
+                        }
+                    lastError.set(error)
+                    if (error <= 4.0) received.countDown()
+                }
+            }, Handler(callbacks.looper))
+            transform.imageExtent = Size(outputSize, outputSize)
+            transform.screen = screen
+            transform.surface = reader.surface
+            val matched = received.await(10, TimeUnit.SECONDS)
+            assertTrue(
+                "Vulkan output must retain bicubic minification; max error ${lastError.get()}",
+                matched,
+            )
+        } finally {
+            transform.close()
+            screen.dispose()
+            reader.setOnImageAvailableListener(null, null)
+            callbacks.quitSafely()
+            callbacks.join()
+            reader.close()
+        }
+    }
+
+    @Test
+    fun defaultBridgeResamplingUsesBicubic() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        VkPixelTransform(context).use { transform ->
+            assertTrue(transform.videoEffect is BicubicVideoEffect)
+        }
+    }
+
     @Test
     fun compositionReachesOutputAfterSurfaceReattachment() {
         assumeTrue(VkPixelTransform.isSupported())
@@ -114,6 +192,15 @@ class VkPixelTransformTest {
             screen.dispose()
             encoder.release()
             input?.release()
+        }
+    }
+
+    private fun splineWeight(distance: Double): Double {
+        val x = abs(distance)
+        return when {
+            x < 1 -> (4 - 6 * x * x + 3 * x * x * x) / 6
+            x < 2 -> (2 - x) * (2 - x) * (2 - x) / 6
+            else -> 0.0
         }
     }
 }

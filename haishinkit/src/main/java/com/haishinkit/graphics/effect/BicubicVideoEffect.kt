@@ -4,7 +4,7 @@ import com.haishinkit.graphics.glsl.RequirementsDirective
 import com.haishinkit.graphics.glsl.VersionCode
 
 /**
- * Resamples video using bicubic interpolation.
+ * Resamples video using a cubic B-spline reconstructed with bilinear texture fetches.
  */
 @RequirementsDirective(VersionCode.ES300)
 class BicubicVideoEffect(

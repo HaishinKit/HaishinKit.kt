@@ -1,6 +1,6 @@
 #version 300 es
-precision mediump float;
-in vec2 vTexcoord;
+precision highp float;
+in highp vec2 vTexcoord;
 out vec4 fragColor;
 uniform sampler2D uTexture;
 
@@ -14,6 +14,8 @@ vec4 cubic(float v) {
     return vec4(x, y, z, w);
 }
 
+// Four bilinear samples reconstruct the 4 x 4 cubic B-spline footprint.
+// Both texture filters must be LINEAR, with CLAMP_TO_EDGE at image boundaries.
 vec4 textureBicubic(sampler2D tex, vec2 texCoords) {
     vec2 texSize = vec2(textureSize(tex, 0));
     vec2 invTexSize = 1.0 / texSize;
