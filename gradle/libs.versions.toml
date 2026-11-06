@@ -20,7 +20,7 @@ appcompat = "1.7.1"
 lottie = "6.4.1"
 material = "1.12.0"
 robolectric = "4.16"
-dokkaPlugin = "2.1.0"
+dokkaPlugin = "2.2.0"
 
 [libraries]
 accompanist-permissions = { module = "com.google.accompanist:accompanist-permissions", version.ref = "accompanistPermissions" }
