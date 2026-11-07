@@ -3,10 +3,52 @@ package com.haishinkit.codec
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.nio.ByteBuffer
 
 class AudioCodecBufferTest {
+    @Test
+    fun aacFrameTimestampsAdvanceInMicrosecondsWithoutAccumulatingRoundingError() {
+        for (channels in 1..2) {
+            val buffer =
+                AudioCodecBuffer().apply {
+                    sampleRate = 48000
+                    channelCount = channels
+                }
+            val pcm = ByteBuffer.allocate(1024 * 2 * channels)
+            val input = ByteBuffer.allocate(pcm.capacity())
+            var firstTime = 0L
+            repeat(3001) { index ->
+                buffer.append(pcm)
+                input.clear()
+                assertEquals(pcm.capacity(), buffer.render(input))
+                if (index == 0) firstTime = buffer.presentationTimestamp
+                assertEquals(index * 1024L * 1_000_000 / 48000, buffer.presentationTimestamp - firstTime)
+            }
+        }
+    }
+
+    @Test
+    fun clearResetsSampleClockAndDiscardsPendingAndQueuedPcm() {
+        val buffer = AudioCodecBuffer().apply { sampleRate = 48000 }
+        buffer.append(ByteBuffer.allocate(4096))
+        buffer.render(ByteBuffer.allocate(2048))
+        buffer.append(ByteBuffer.allocate(2048))
+        buffer.clear()
+        assertEquals(AudioCodecBuffer.DEFAULT_PRESENTATION_TIMESTAMP, buffer.presentationTimestamp)
+        assertNull(buffer.render(ByteBuffer.allocate(2048)))
+
+        buffer.append(ByteBuffer.allocate(2048))
+        val beforeRender = System.nanoTime() / 1000
+        buffer.render(ByteBuffer.allocate(2048))
+        val firstTime = buffer.presentationTimestamp
+        assertTrue(firstTime in beforeRender..System.nanoTime() / 1000)
+        buffer.append(ByteBuffer.allocate(2048))
+        buffer.render(ByteBuffer.allocate(2048))
+        assertEquals(21_333L, buffer.presentationTimestamp - firstTime)
+    }
+
     @Test
     fun pcmLengthAndStereoSampleClockUseValidBytesRatherThanCapacity() {
         val buffer =
