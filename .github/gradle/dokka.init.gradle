@@ -1,0 +1,19 @@
+// Apply after Android/Kotlin have finished configuring Dokka's source sets.
+// Keep release: androidJvm otherwise claims the same source roots.
+gradle.projectsEvaluated {
+    allprojects {
+        plugins.withId('org.jetbrains.dokka') {
+            def sourceSets = extensions.getByName('dokka').dokkaSourceSets
+            def main = sourceSets.findByName('main')
+            def release = sourceSets.findByName('release')
+            if (main != null && release != null) {
+                release.includes.from(main.includes)
+            }
+            sourceSets.configureEach {
+                if (name == 'main' && sourceSets.findByName('release') != null) {
+                    suppress.set(true)
+                }
+            }
+        }
+    }
+}

@@ -1,0 +1,91 @@
+name: Republish documentation
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Existing release tag to publish'
+        required: true
+        default: '0.20.0'
+        type: string
+      update_latest:
+        description: 'Also replace kt/latest'
+        required: true
+        default: false
+        type: boolean
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      RELEASE_VERSION: ${{ inputs.version }}
+    steps:
+      - name: Checkout
+        id: checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: true
+          persist-credentials: false
+      - name: Validate documentation version
+        id: validate-documentation-version
+        shell: bash
+        run: |
+          # Fastlane also interpolates this value into shell commands and paths.
+          if [[ ! "$RELEASE_VERSION" =~ ^[a-zA-Z0-9][a-zA-Z0-9.+-]*$ ]]; then
+            echo 'Invalid documentation version' >&2
+            exit 1
+          fi
+      - name: Checkout release source
+        id: checkout-release-source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: refs/tags/${{ inputs.version }}
+          path: documentation-source
+          submodules: true
+          persist-credentials: false
+      - name: Setup JDK 17
+        id: setup-jdk-17
+        uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+      - name: Setup Gradle
+        id: setup-gradle
+        uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
+        with:
+          cache-read-only: false
+      - name: Setup Ruby
+        id: setup-ruby
+        uses: ruby/setup-ruby@de492cf36cbab201753d720ce4f4e336cd688c94 # v1.336.0
+        with:
+          ruby-version: .ruby-version
+          bundler-cache: true
+      - name: Setup SSH
+        id: setup-ssh
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        run: |
+          umask 077
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan github.com >> ~/.ssh/known_hosts
+      - name: Generate and publish documentation
+        id: generate-and-publish-documentation
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          bundle exec fastlane document "version:$RELEASE_VERSION" "source_directory:../documentation-source" "update_latest:${{ inputs.update_latest }}"
+      - name: Annotate failed steps
+        if: ${{ failure() }}
+        env:
+          STEPS_JSON: ${{ toJSON(steps) }}
+        shell: bash
+        run: |
+          /usr/bin/ruby -rjson <<'RUBY'
+          JSON.parse(ENV.fetch('STEPS_JSON')).each do |name, step|
+            next unless step['outcome'] == 'failure'
+
+            puts "::error title=Failed step: #{name}::The #{name} step failed. Open its logs for details; Fastlane failures also include an error annotation with the lane and cause."
+          end
+          RUBY

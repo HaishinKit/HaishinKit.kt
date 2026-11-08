@@ -38,6 +38,9 @@ jobs:
         env:
           DANGER_GITHUB_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: bundle exec fastlane review
+      - name: Check API documentation
+        id: check-documentation
+        run: bundle exec fastlane check_documentation
       - name: Annotate failed steps
         if: ${{ failure() }}
         env:
