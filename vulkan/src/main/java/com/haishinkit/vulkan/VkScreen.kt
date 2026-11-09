@@ -222,7 +222,7 @@ class VkScreen private constructor(context: Context) : Screen(context), Choreogr
                 if (screenObject is VideoScreenObject && screenObject.imageOrientation in MIRRORED) {
                     for (row in 0..3) matrix[row] = -matrix[row]
                 }
-                native.layer(bitmap, buffer, intArrayOf(bounds.left, bounds.top, bounds.width(), bounds.height()) + (input?.reader?.crop() ?: IntArray(4)), matrix, shader.assets(), shader.parameters)
+                native.layer(bitmap, buffer, intArrayOf(bounds.left, bounds.top, bounds.width(), bounds.height()) + (input?.crop() ?: IntArray(4)), matrix, shader.assets(), shader.parameters)
             }
         } catch (error: Throwable) {
             try {
@@ -267,6 +267,15 @@ class VkScreen private constructor(context: Context) : Screen(context), Choreogr
     private class Input(val size: Size, val source: VideoSource? = null) : AutoCloseable {
         val reader = NativeInput(size.width, size.height)
         var buffer: HardwareBuffer? = null
+
+        fun crop(): IntArray {
+            val rect = source?.videoCropRect ?: return reader.crop()
+            val current = buffer ?: return IntArray(4)
+            require(rect.left >= 0 && rect.top >= 0 && !rect.isEmpty && rect.right <= current.width && rect.bottom <= current.height) {
+                "Video crop is outside its hardware buffer: $rect (${current.width}x${current.height})"
+            }
+            return intArrayOf(rect.left, rect.top, rect.right, rect.bottom)
+        }
 
         fun acquire() {
             reader.acquire()?.let { next ->

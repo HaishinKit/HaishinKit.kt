@@ -159,6 +159,12 @@ abstract class Codec :
     abstract var outputMimeType: String
 
     override val isRunning = AtomicBoolean(false)
+
+    /** Most recent format of the active codec; cleared when it is disposed. */
+    protected val currentOutputFormat: MediaFormat?
+        get() = outputFormat
+
+    @Volatile
     private var outputFormat: MediaFormat? = null
         set(value) {
             if (field != value && value != null) {

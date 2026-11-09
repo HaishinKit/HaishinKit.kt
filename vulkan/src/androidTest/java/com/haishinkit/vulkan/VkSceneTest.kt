@@ -2,8 +2,11 @@ package com.haishinkit.vulkan
 
 import android.graphics.Bitmap
 import android.graphics.Color
+import android.graphics.ImageFormat
 import android.graphics.Paint
 import android.graphics.Rect
+import android.media.ImageWriter
+import android.os.Build
 import android.util.Size
 import android.view.Surface
 import androidx.test.platform.app.InstrumentationRegistry
@@ -156,6 +159,73 @@ class VkSceneTest {
             screen.attachVideo(0, null)
             assertEquals(null, source.surface)
         } finally {
+            screen.dispose()
+        }
+    }
+
+    @Test
+    fun yuvInputUsesConversionAndCropRectangle() {
+        assumeTrue(VkPixelTransform.isSupported())
+        assumeTrue(Build.VERSION.SDK_INT >= 29)
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val screen = VkScreen.create(context).apply { frame = Rect(0, 0, 64, 64) }
+        val source =
+            object : VideoSource {
+                override var surface: Surface? = null
+                override val videoSize = Size(64, 64)
+                override val imageOrientation = ImageOrientation.UP
+                override val videoCropRect = Rect(16, 0, 48, 64)
+
+                override suspend fun open(mixer: MediaMixer) = Result.success(Unit)
+
+                override suspend fun close() = Result.success(Unit)
+            }
+        var writer: ImageWriter? = null
+        try {
+            screen.addChild(VideoScreenObject())
+            screen.attachVideo(0, source)
+            writer = ImageWriter.newInstance(checkNotNull(source.surface), 3, ImageFormat.YUV_420_888)
+            val input = writer.dequeueInputImage()
+            // Black outer bands would be visible if the imported source crop were ignored.
+            input.planes.forEachIndexed { index, plane ->
+                val width = if (index == 0) 64 else 32
+                val height = if (index == 0) 64 else 32
+                for (y in 0 until height) for (x in 0 until width) {
+                    val value =
+                        if (index != 0) {
+                            128
+                        } else if (x < 16 || x >= 48) {
+                            16
+                        } else if (x < 32) {
+                            80
+                        } else {
+                            200
+                        }
+                    plane.buffer.put(y * plane.rowStride + x * plane.pixelStride, value.toByte())
+                }
+            }
+            input.cropRect = Rect(16, 0, 48, 64)
+            input.timestamp = System.nanoTime()
+            writer.queueInputImage(input)
+            val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5)
+            var matched = false
+            var left = 0
+            var right = 0
+            while (!matched && System.nanoTime() < deadline) {
+                snapshot(screen).also { image ->
+                    val a = image.getPixel(8, 32)
+                    val b = image.getPixel(56, 32)
+                    left = Color.red(a)
+                    right = Color.red(b)
+                    matched = left in 55..100 && right in 180..225 &&
+                        abs(Color.green(a) - left) <= 4 && abs(Color.blue(a) - left) <= 4 &&
+                        abs(Color.green(b) - right) <= 4 && abs(Color.blue(b) - right) <= 4
+                    image.recycle()
+                }
+            }
+            assertTrue("YUV conversion/crop mismatch: left=$left right=$right", matched)
+        } finally {
+            writer?.close()
             screen.dispose()
         }
     }

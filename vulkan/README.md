@@ -21,6 +21,9 @@ VkPixelTransform fails explicitly. There is no hidden OpenGL bridge or automatic
 Camera, decoder and MediaProjection surfaces feed an NDK ImageReader configured for GPU sampling.
 Vulkan imports its HardwareBuffers with the supplied YCbCr conversion and crop rectangle. Images
 and text use Android bitmaps; text rasterization still uses StaticLayout/Canvas on the CPU.
+Some ImageReader implementations report crop dimensions rebased to (0, 0), losing a nonzero source origin.
+Such producers must supply `VideoSource.videoCropRect`; `VideoCodecSource` obtains it from the
+decoder output format, converting inclusive codec bounds to exclusive coordinates.
 The Vulkan render pass blends the objects into an RGBA composition image. A second Vulkan pass
 samples that image with bicubic B-spline filtering (four linear samples) into the MediaCodec or
 preview surface. No EGL context, SurfaceTexture or OpenGL producer is created by this path.
@@ -84,7 +87,12 @@ interface above and device-supported shader capabilities.
 ## Validation
 
 Unit tests cover effect registration, parameter binding, explicit unsupported-effect failures,
-factory selection and frame pacing. Instrumentation tests cover Vulkan-only bitmap/text/alpha
-composition, custom SPIR-V and changing constants, video HardwareBuffer input, bicubic output,
+factory selection, decoder crop metadata and frame pacing. Instrumentation tests cover Vulkan-only bitmap/text/alpha
+composition, custom SPIR-V and changing constants, RGBA/YUV HardwareBuffer input and nonzero source cropping, bicubic output,
 surface reattachment and increasing MediaCodec presentation timestamps. Instrumentation tests
 require a Vulkan-capable Android device; compiling their APK is not a rendering test.
+
+Device validation (2026-11-09): all eight Vulkan instrumentation tests passed on Pixel 5a / Android 14,
+with zero skips. Synthetic RGBA/YUV inputs were used; no camera capture was performed. Real capture
+and playback, renderer switching, long-running preview/encoding performance and A/V sync remain
+unverified.
