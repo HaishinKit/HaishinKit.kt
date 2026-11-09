@@ -92,7 +92,7 @@ composition, custom SPIR-V and changing constants, RGBA/YUV HardwareBuffer input
 surface reattachment and increasing MediaCodec presentation timestamps. Instrumentation tests
 require a Vulkan-capable Android device; compiling their APK is not a rendering test.
 
-Device validation (2026-11-09): all eight Vulkan instrumentation tests passed on Pixel 5a / Android 14,
-with zero skips. Synthetic RGBA/YUV inputs were used; no camera capture was performed. Real capture
+Device validation (2026-11-09): all nine Vulkan instrumentation tests passed on Pixel 5a / Android 14,
+with zero skips, including 90/270-degree camera sensor orientations. Synthetic RGBA/YUV inputs were used; no camera capture was performed. Real capture
 and playback, renderer switching, long-running preview/encoding performance and A/V sync remain
 unverified.

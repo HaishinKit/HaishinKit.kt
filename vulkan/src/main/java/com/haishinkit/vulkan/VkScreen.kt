@@ -213,12 +213,11 @@ class VkScreen private constructor(context: Context) : Screen(context), Choreogr
                 val buffer = input?.buffer
                 if (bitmap == null && buffer == null) return@forEach
                 val shader = VulkanEffectRegistry.resolve(screenObject.videoEffect)
-                // Convert OpenGL's upward Y matrix to Vulkan's downward Y, cancelling the texture flip.
+                // GL's quad has vertex Y opposite to texture Y; scene.vert derives both from UV.
+                // Change the input basis (matrix * flipY), not the output basis (flipY * matrix):
+                // those orders differ for the camera's 90/270-degree sensor rotations.
                 val matrix = screenObject.matrix.copyOf()
-                matrix[1] = -matrix[1]
-                matrix[5] = -matrix[5]
-                matrix[9] = -matrix[9]
-                matrix[13] = -matrix[13]
+                for (row in 0..3) matrix[4 + row] = -matrix[4 + row]
                 if (screenObject is VideoScreenObject && screenObject.imageOrientation in MIRRORED) {
                     for (row in 0..3) matrix[row] = -matrix[row]
                 }

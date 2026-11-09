@@ -230,6 +230,58 @@ class VkSceneTest {
         }
     }
 
+    @Test
+    fun cameraSensorQuarterTurnsPreserveTopAndBottom() {
+        assumeTrue(VkPixelTransform.isSupported())
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val screen = VkScreen.create(context).apply { frame = Rect(0, 0, 64, 64) }
+        val source =
+            object : VideoSource {
+                override var surface: Surface? = null
+                override val videoSize = Size(64, 64)
+                override var imageOrientation = ImageOrientation.LEFT
+
+                override suspend fun open(mixer: MediaMixer) = Result.success(Unit)
+
+                override suspend fun close() = Result.success(Unit)
+            }
+        try {
+            screen.addChild(VideoScreenObject())
+            screen.attachVideo(0, source)
+            val surface = checkNotNull(source.surface)
+            val canvas = surface.lockHardwareCanvas()
+            val paint = Paint()
+            listOf(Color.RED, Color.GREEN, Color.BLUE, Color.YELLOW).forEachIndexed { index, color ->
+                paint.color = color
+                val x = (index % 2) * 32f
+                val y = (index / 2) * 32f
+                canvas.drawRect(x, y, x + 32f, y + 32f, paint)
+            }
+            surface.unlockCanvasAndPost(canvas)
+            // Match the existing OpenGL Screen convention for sensor orientations LEFT/RIGHT.
+            val cases =
+                listOf(
+                    ImageOrientation.LEFT to listOf(Color.BLUE, Color.RED, Color.YELLOW, Color.GREEN),
+                    ImageOrientation.RIGHT to listOf(Color.GREEN, Color.YELLOW, Color.RED, Color.BLUE),
+                    ImageOrientation.UP to listOf(Color.RED, Color.GREEN, Color.BLUE, Color.YELLOW),
+                )
+            cases.forEach { (orientation, expected) ->
+                source.imageOrientation = orientation
+                val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(3)
+                var actual = emptyList<Int>()
+                do {
+                    snapshot(screen).also { image ->
+                        actual = listOf(image.getPixel(8, 8), image.getPixel(56, 8), image.getPixel(8, 56), image.getPixel(56, 56))
+                        image.recycle()
+                    }
+                } while (actual != expected && System.nanoTime() < deadline)
+                assertEquals("Camera orientation $orientation", expected, actual)
+            }
+        } finally {
+            screen.dispose()
+        }
+    }
+
     private fun snapshot(screen: VkScreen): Bitmap {
         var result: Bitmap? = null
         screen.readPixels { result = it }
