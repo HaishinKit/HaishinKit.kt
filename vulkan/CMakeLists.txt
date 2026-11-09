@@ -34,7 +34,7 @@ add_library(
         src/main/cpp/Graphics/CommandBuffer.cpp
         src/main/cpp/Graphics/Queue.cpp
         src/main/cpp/Graphics/FpsController.cpp
-        src/main/cpp/Graphics/PixelTransform.cpp
+        src/main/cpp/Graphics/VkPixelTransform.cpp
         src/main/cpp/Graphics/SwapChain.cpp
         src/main/cpp/Graphics/Pipeline.cpp
         src/main/cpp/Graphics/Texture.cpp

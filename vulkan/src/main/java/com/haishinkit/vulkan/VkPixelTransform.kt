@@ -113,9 +113,21 @@ class VkPixelTransform(override val context: Context) : PixelTransform {
     }
 
     companion object {
-        fun isSupported(): Boolean = NativePixelTransform.isSupported()
+        // Keep loading lazy so referring to the renderer does not load native code on older Android.
+        private val loaded by lazy {
+            try {
+                System.loadLibrary("hkvulkan")
+                true
+            } catch (_: UnsatisfiedLinkError) {
+                false
+            }
+        }
+
+        fun isSupported(): Boolean = loaded && nativeIsDeviceSupported()
 
         /** Select this together with VkScreen; unsupported devices must select both OpenGL factories. */
         fun create(context: Context): PixelTransform = VkPixelTransform(context)
+
+        private external fun nativeIsDeviceSupported(): Boolean
     }
 }
