@@ -12,6 +12,9 @@ import android.view.Surface
 import androidx.test.platform.app.InstrumentationRegistry
 import com.haishinkit.graphics.ImageOrientation
 import com.haishinkit.graphics.PixelTransform
+import com.haishinkit.graphics.effect.BicubicVideoEffect
+import com.haishinkit.graphics.effect.DefaultVideoEffect
+import com.haishinkit.graphics.effect.LanczosVideoEffect
 import com.haishinkit.graphics.effect.VideoEffect
 import com.haishinkit.media.MediaMixer
 import com.haishinkit.media.source.VideoSource
@@ -19,7 +22,9 @@ import com.haishinkit.screen.ImageScreenObject
 import com.haishinkit.screen.TextScreenObject
 import com.haishinkit.screen.VideoScreenObject
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeTrue
@@ -182,7 +187,8 @@ class VkSceneTest {
             }
         var writer: ImageWriter? = null
         try {
-            screen.addChild(VideoScreenObject())
+            val video = VideoScreenObject()
+            screen.addChild(video)
             screen.attachVideo(0, source)
             writer = ImageWriter.newInstance(checkNotNull(source.surface), 3, ImageFormat.YUV_420_888)
             val input = writer.dequeueInputImage()
@@ -207,23 +213,41 @@ class VkSceneTest {
             input.cropRect = Rect(16, 0, 48, 64)
             input.timestamp = System.nanoTime()
             writer.queueInputImage(input)
-            val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5)
-            var matched = false
-            var left = 0
-            var right = 0
-            while (!matched && System.nanoTime() < deadline) {
-                snapshot(screen).also { image ->
-                    val a = image.getPixel(8, 32)
-                    val b = image.getPixel(56, 32)
-                    left = Color.red(a)
-                    right = Color.red(b)
-                    matched = left in 55..100 && right in 180..225 &&
-                        abs(Color.green(a) - left) <= 4 && abs(Color.blue(a) - left) <= 4 &&
-                        abs(Color.green(b) - right) <= 4 && abs(Color.blue(b) - right) <= 4
-                    image.recycle()
+            listOf(
+                DefaultVideoEffect.shared,
+                BicubicVideoEffect(),
+                LanczosVideoEffect().apply {
+                    texelWidth = 64f
+                    texelHeight = 64f
+                },
+            ).forEach { effect ->
+                video.videoEffect = effect
+                val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5)
+                var matched = false
+                var left = 0
+                var right = 0
+                var borderDifference = Int.MAX_VALUE
+                while (!matched && System.nanoTime() < deadline) {
+                    snapshot(screen).also { image ->
+                        val a = image.getPixel(8, 32)
+                        val b = image.getPixel(56, 32)
+                        left = Color.red(a)
+                        right = Color.red(b)
+                        borderDifference =
+                            maxOf(
+                                abs(Color.red(image.getPixel(0, 32)) - left),
+                                abs(Color.red(image.getPixel(1, 32)) - left),
+                                abs(Color.red(image.getPixel(62, 32)) - right),
+                                abs(Color.red(image.getPixel(63, 32)) - right),
+                            )
+                        matched = left in 55..100 && right in 180..225 && borderDifference <= 3 &&
+                            abs(Color.green(a) - left) <= 4 && abs(Color.blue(a) - left) <= 4 &&
+                            abs(Color.green(b) - right) <= 4 && abs(Color.blue(b) - right) <= 4
+                        image.recycle()
+                    }
                 }
+                assertTrue("${effect.name} crop border mismatch: left=$left right=$right difference=$borderDifference", matched)
             }
-            assertTrue("YUV conversion/crop mismatch: left=$left right=$right", matched)
         } finally {
             writer?.close()
             screen.dispose()
@@ -277,6 +301,41 @@ class VkSceneTest {
                 } while (actual != expected && System.nanoTime() < deadline)
                 assertEquals("Camera orientation $orientation", expected, actual)
             }
+        } finally {
+            screen.dispose()
+        }
+    }
+
+    @Test
+    fun failedSurfaceAttachmentClosesReaderEvenWhenDetachingThrows() {
+        assumeTrue(VkPixelTransform.isSupported())
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val screen = VkScreen.create(context)
+        val attachError = IllegalStateException("producer rejected surface")
+        val detachError = IllegalStateException("producer rejected detach")
+        var assigned: Surface? = null
+        val source =
+            object : VideoSource {
+                override var surface: Surface?
+                    get() = assigned
+                    set(value) {
+                        if (value == null) throw detachError
+                        assigned = value
+                        throw attachError
+                    }
+                override val videoSize = Size(64, 64)
+                override val imageOrientation = ImageOrientation.UP
+
+                override suspend fun open(mixer: MediaMixer) = Result.success(Unit)
+
+                override suspend fun close() = Result.success(Unit)
+            }
+        try {
+            val thrown = assertThrows(IllegalStateException::class.java) { screen.attachVideo(0, source) }
+            assertSame(attachError, thrown)
+            assertTrue(thrown.suppressed.contains(detachError))
+            assertFalse("The failed attachment retained its input Surface", checkNotNull(assigned).isValid)
+            screen.attachVideo(0, null) // No partially attached entry remains in the registry.
         } finally {
             screen.dispose()
         }

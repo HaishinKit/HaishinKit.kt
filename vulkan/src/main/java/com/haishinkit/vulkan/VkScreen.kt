@@ -7,6 +7,7 @@ import android.hardware.HardwareBuffer
 import android.util.Log
 import android.util.Size
 import android.view.Choreographer
+import android.view.Surface
 import com.haishinkit.graphics.ImageOrientation
 import com.haishinkit.media.source.VideoSource
 import com.haishinkit.screen.ImageScreenObject
@@ -110,7 +111,7 @@ class VkScreen private constructor(context: Context) : Screen(context), Choreogr
             tracks.remove(track)?.close()
             if (video != null) {
                 require(video.videoSize.width > 0 && video.videoSize.height > 0)
-                tracks[track] = Input(video.videoSize, video).also { video.surface = it.reader.surface }
+                tracks[track] = createInput(video.videoSize, video) { video.surface = it }
             }
         }
 
@@ -155,10 +156,17 @@ class VkScreen private constructor(context: Context) : Screen(context), Choreogr
         try {
             callbacks.toList().forEach { it.onEnterFrame() }
             prepare()
-            outputs.toList().forEach { it.render(frameTimeNanos) }
         } catch (error: Exception) {
-            // Do not silently replace a failed Vulkan effect with an OpenGL or default shader.
-            onError(error)
+            reportError(error)
+            return
+        }
+        outputs.toList().forEach { output ->
+            try {
+                output.render(frameTimeNanos)
+            } catch (error: Exception) {
+                // Failure of a preview/effect must not interrupt independent encoders.
+                reportError(error)
+            }
         }
     }
 
@@ -227,7 +235,7 @@ class VkScreen private constructor(context: Context) : Screen(context), Choreogr
             try {
                 native.abort()
             } catch (cleanup: Throwable) {
-                error.addSuppressed(cleanup)
+                if (cleanup !== error) error.addSuppressed(cleanup)
             }
             throw error
         }
@@ -252,11 +260,38 @@ class VkScreen private constructor(context: Context) : Screen(context), Choreogr
             if (nestedInputs[video]?.size != size) {
                 video.surface = null
                 nestedInputs.remove(video)?.close()
-                nestedInputs[video] = Input(size).also { video.surface = it.reader.surface }
+                nestedInputs[video] = createInput(size) { video.surface = it }
             }
         }
         tracks.values.forEach { it.acquire() }
         nestedInputs.values.forEach { it.acquire() }
+    }
+
+    private fun createInput(
+        size: Size,
+        source: VideoSource? = null,
+        attach: (Surface) -> Unit,
+    ): Input {
+        val input = Input(size, source)
+        try {
+            attach(input.reader.surface)
+            return input
+        } catch (error: Throwable) {
+            try {
+                input.close()
+            } catch (cleanup: Throwable) {
+                if (cleanup !== error) error.addSuppressed(cleanup)
+            }
+            throw error
+        }
+    }
+
+    private fun reportError(error: Exception) {
+        try {
+            onError(error)
+        } catch (callbackError: Exception) {
+            Log.e("VkScreen", "Rendering error callback failed", callbackError)
+        }
     }
 
     private fun checkOpen() {
@@ -284,10 +319,16 @@ class VkScreen private constructor(context: Context) : Screen(context), Choreogr
         }
 
         override fun close() {
-            source?.surface = null
-            buffer?.close()
-            buffer = null
-            reader.close()
+            try {
+                source?.surface = null
+            } finally {
+                try {
+                    buffer?.close()
+                } finally {
+                    buffer = null
+                    reader.close()
+                }
+            }
         }
     }
 

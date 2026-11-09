@@ -39,11 +39,11 @@ object VulkanEffectRegistry {
 
     internal fun resolve(effect: VideoEffect): VulkanShader =
         factories[effect.javaClass]?.invoke(effect) ?: when (effect) {
-            is DefaultVideoEffect -> VulkanShader("shaders/default.frag.spv")
-            is BicubicVideoEffect -> VulkanShader("shaders/bicubic.frag.spv")
-            is BilinearVideoEffect -> VulkanShader("shaders/default.frag.spv")
-            is MonochromeVideoEffect -> VulkanShader("shaders/monochrome.frag.spv")
-            is SepiaVideoEffect -> VulkanShader("shaders/sepia.frag.spv")
+            is DefaultVideoEffect -> VulkanShader("shaders/scene-default.frag.spv")
+            is BicubicVideoEffect -> VulkanShader("shaders/scene-bicubic.frag.spv")
+            is BilinearVideoEffect -> VulkanShader("shaders/scene-default.frag.spv")
+            is MonochromeVideoEffect -> VulkanShader("shaders/scene-monochrome.frag.spv")
+            is SepiaVideoEffect -> VulkanShader("shaders/scene-sepia.frag.spv")
             is MosaicVideoEffect -> VulkanShader("shaders/scene-mosaic.frag.spv", parameters = floatArrayOf(effect.mosaicScale))
             is LanczosVideoEffect -> VulkanShader("shaders/scene-lanczos.frag.spv", parameters = floatArrayOf(effect.texelWidth, effect.texelHeight))
             else -> error("No Vulkan shader registered for ${effect.javaClass.name}")

@@ -14,6 +14,7 @@ import android.util.Size
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.haishinkit.graphics.effect.BicubicVideoEffect
+import com.haishinkit.graphics.effect.VideoEffect
 import com.haishinkit.screen.ImageScreenObject
 import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeTrue
@@ -21,12 +22,17 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.math.abs
 import kotlin.math.floor
 
 @RunWith(AndroidJUnit4::class)
 class VkPixelTransformTest {
+    private class BrokenPreviewEffect : VideoEffect {
+        override val name = "broken-preview"
+    }
+
     @Test
     fun downsampledCompositionMatchesBicubicAtVulkanOutput() {
         assumeTrue(VkPixelTransform.isSupported())
@@ -191,6 +197,66 @@ class VkPixelTransformTest {
             screen.dispose()
             encoder.release()
             input?.release()
+        }
+    }
+
+    @Test
+    fun failedPreviewShaderDoesNotBlockIndependentEncoder() {
+        assumeTrue(VkPixelTransform.isSupported())
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val screen =
+            VkScreen.create(context).apply {
+                frame = Rect(0, 0, 64, 64)
+                backgroundColor = Color.GREEN
+            }
+        val errors = AtomicInteger()
+        screen.onError = { errors.incrementAndGet() }
+        val previewReader = ImageReader.newInstance(64, 64, PixelFormat.RGBA_8888, 3)
+        val preview = VkPixelTransform(context)
+        val output = VkPixelTransform(context)
+        val encoder = MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_VIDEO_AVC)
+        var input: android.view.Surface? = null
+        VulkanEffectRegistry.register(BrokenPreviewEffect::class.java) { VulkanShader("shaders/nonexistent-preview.frag.spv") }
+        try {
+            // Register the failing output first; the encoder must still be rendered every frame.
+            preview.videoEffect = BrokenPreviewEffect()
+            preview.imageExtent = Size(64, 64)
+            preview.screen = screen
+            preview.surface = previewReader.surface
+            val format =
+                MediaFormat.createVideoFormat(MediaFormat.MIMETYPE_VIDEO_AVC, 128, 128).apply {
+                    setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface)
+                    setInteger(MediaFormat.KEY_BIT_RATE, 128_000)
+                    setInteger(MediaFormat.KEY_FRAME_RATE, 30)
+                    setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 1)
+                }
+            encoder.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
+            input = encoder.createInputSurface()
+            encoder.start()
+            output.imageExtent = Size(128, 128)
+            output.frameRate = 30
+            output.screen = screen
+            output.surface = input
+            val info = MediaCodec.BufferInfo()
+            var frames = 0
+            val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5)
+            while (frames < 5 && System.nanoTime() < deadline) {
+                val index = encoder.dequeueOutputBuffer(info, 100_000)
+                if (index >= 0) {
+                    if (info.size > 0 && info.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG == 0) frames++
+                    encoder.releaseOutputBuffer(index, false)
+                }
+            }
+            assertTrue("The broken preview prevented encoder output", frames >= 5)
+            assertTrue("The failing preview should still report its shader error", errors.get() > 0)
+        } finally {
+            preview.close()
+            output.close()
+            screen.dispose()
+            encoder.release()
+            input?.release()
+            previewReader.close()
+            VulkanEffectRegistry.unregister(BrokenPreviewEffect::class.java)
         }
     }
 

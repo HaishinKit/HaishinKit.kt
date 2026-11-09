@@ -79,6 +79,12 @@ Shader interface:
   vertex shader may use the same interface; no vertex attributes are bound. Apply textureRect when
   generating coordinates so source cropping remains correct.
 
+For cropped video, clamp every sampling tap to the valid texel centers of `textureRect`,
+not just to the full-buffer edges. The standard effects and tint example use the shared
+`scene-sampling.glsl` / `sampleSource` helper, including each bicubic/Lanczos tap. Custom
+shaders should include that helper (from this module's shader sources) or implement the
+same clamp: `textureRect.xy + 0.5 / textureSize` through `textureRect.zw - 0.5 / textureSize`.
+
 Use normalized texture sampling operations compatible with YCbCr converted images when effects
 operate on video inputs. Custom descriptor sets, extra textures, storage buffers and arbitrary
 uniform layouts are outside this initial API. Shader authors are responsible for matching the
@@ -89,7 +95,7 @@ interface above and device-supported shader capabilities.
 Unit tests cover effect registration, parameter binding, explicit unsupported-effect failures,
 factory selection, decoder crop metadata and frame pacing. Instrumentation tests cover Vulkan-only bitmap/text/alpha
 composition, custom SPIR-V and changing constants, RGBA/YUV HardwareBuffer input and nonzero source cropping, bicubic output,
-surface reattachment and increasing MediaCodec presentation timestamps. Instrumentation tests
+surface reattachment and increasing MediaCodec presentation timestamps. Review regressions also cover\ncrop border pixels with bilinear/bicubic/Lanczos, failed producer attachment cleanup even when detach\nthrows, and independent encoder output while a preview shader fails. Instrumentation tests
 require a Vulkan-capable Android device; compiling their APK is not a rendering test.
 
 Device validation (2026-11-09): all nine Vulkan instrumentation tests passed on Pixel 5a / Android 14,

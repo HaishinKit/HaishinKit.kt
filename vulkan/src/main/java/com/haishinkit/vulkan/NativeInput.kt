@@ -20,8 +20,11 @@ internal class NativeInput(width: Int, height: Int) : AutoCloseable {
     external fun crop(): IntArray
 
     override fun close() {
-        surface.release()
-        nativeDispose()
+        try {
+            surface.release()
+        } finally {
+            nativeDispose()
+        }
     }
 
     private external fun nativeInitialize(
