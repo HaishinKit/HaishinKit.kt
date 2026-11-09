@@ -7,3 +7,9 @@
 [submodule "vulkan/vendor/glm"]
 	path = vulkan/vendor/glm
 	url = https://github.com/g-truc/glm.git
+[submodule "vulkan/vendor/SPIRV-Tools"]
+	path = vulkan/vendor/SPIRV-Tools
+	url = https://github.com/KhronosGroup/SPIRV-Tools.git
+[submodule "vulkan/vendor/SPIRV-Headers"]
+	path = vulkan/vendor/SPIRV-Headers
+	url = https://github.com/KhronosGroup/SPIRV-Headers.git

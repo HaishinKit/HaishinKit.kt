@@ -70,6 +70,7 @@ find_library(
 target_link_libraries(
         # Specifies the target library.
         hkvulkan
+        PRIVATE
         # Links the target library to the log library
         # included in the NDK.
         -landroid
@@ -86,3 +87,6 @@ include_directories(
 
 target_compile_features(hkvulkan PRIVATE cxx_std_17)
 target_compile_options(hkvulkan PRIVATE -include ${CMAKE_CURRENT_SOURCE_DIR}/src/main/cpp/Graphics/VulkanDispatcher.h)
+
+include(SpirvTools.cmake)
+target_link_libraries(hkvulkan PRIVATE SPIRV-Tools-static)

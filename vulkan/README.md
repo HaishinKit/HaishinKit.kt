@@ -63,7 +63,12 @@ objectToDraw.videoEffect = TintEffect(0.5f)
 The shipped example-tint.frag demonstrates a custom fragment shader. Compile GLSL 450 to SPIR-V
 with the NDK's glslc at build time, and package the files as application assets. The Vulkan module's
 CompileVulkanShaders task demonstrates this build integration. VulkanShader accepts explicit asset
-paths; malformed/missing assets fail rather than loading a default shader. Unregister with
+paths; malformed/missing assets fail rather than loading a default shader. Complete modules are
+validated against Vulkan 1.1 with the pinned SPIRV-Tools core validator before calling the driver.
+The validator and its matching SPIRV-Headers are git submodules; initialize them with
+`git submodule update --init --recursive`. CMake builds only the core static library, not the
+optimizer or command-line tools; upstream table generation requires host Python 3. Licenses are
+packaged under `assets/licenses/`. Unregister with
 VulkanEffectRegistry.unregister(TintEffect::class.java).
 
 Shader interface:
@@ -95,10 +100,16 @@ interface above and device-supported shader capabilities.
 Unit tests cover effect registration, parameter binding, explicit unsupported-effect failures,
 factory selection, decoder crop metadata and frame pacing. Instrumentation tests cover Vulkan-only bitmap/text/alpha
 composition, custom SPIR-V and changing constants, RGBA/YUV HardwareBuffer input and nonzero source cropping, bicubic output,
-surface reattachment and increasing MediaCodec presentation timestamps. Review regressions also cover\ncrop border pixels with bilinear/bicubic/Lanczos, failed producer attachment cleanup even when detach\nthrows, and independent encoder output while a preview shader fails. Instrumentation tests
+surface reattachment and increasing MediaCodec presentation timestamps. Review regressions also cover
+crop border pixels with bilinear/bicubic/Lanczos, failed producer attachment cleanup even when detach
+throws, and independent encoder output while a preview shader fails. Instrumentation tests
 require a Vulkan-capable Android device; compiling their APK is not a rendering test.
 
-Device validation (2026-11-09): all nine Vulkan instrumentation tests passed on Pixel 5a / Android 14,
-with zero skips, including 90/270-degree camera sensor orientations. Synthetic RGBA/YUV inputs were used; no camera capture was performed. Real capture
+Device validation (2026-11-09): all eleven Vulkan instrumentation tests passed on Pixel 5a / Android 14,
+with zero skips at commit dc87c48b, including 90/270-degree camera sensor orientations. Synthetic RGBA/YUV inputs were used; no camera capture was performed. Real capture
 and playback, renderer switching, long-running preview/encoding performance and A/V sync remain
 unverified.
+
+The subsequent complete-SPIR-V-validation and shutdown fixes have four passing host tests and
+seven passing Vulkan unit tests. The expanded 13-case instrumentation APK compiles, but these
+latest device cases have not been run because the test device is disconnected.

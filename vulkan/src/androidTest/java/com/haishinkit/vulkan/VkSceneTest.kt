@@ -120,6 +120,11 @@ class VkSceneTest {
             VulkanEffectRegistry.register(MissingEffect::class.java) { VulkanShader("shaders/missing.frag.spv") }
             assertThrows(IllegalStateException::class.java) { snapshot(screen) }
             assertThrows(IllegalStateException::class.java) { snapshot(screen) } // Retry must fail safely too.
+            listOf("shaders/malformed-header.frag.spv", "shaders/type-mismatch.frag.spv").forEach { asset ->
+                VulkanEffectRegistry.register(MissingEffect::class.java) { VulkanShader(asset) }
+                val error = assertThrows(IllegalStateException::class.java) { snapshot(screen) }
+                assertTrue("Malformed asset must fail before driver submission", error.message?.contains("Invalid SPIR-V") == true)
+            }
             objectToDraw.videoEffect = effect
             snapshot(screen).recycle() // The renderer remains usable after the failed transaction.
         } finally {
@@ -338,6 +343,80 @@ class VkSceneTest {
             screen.attachVideo(0, null) // No partially attached entry remains in the registry.
         } finally {
             screen.dispose()
+        }
+    }
+
+    @Test
+    fun lateDetachAfterDisposalIsHarmlessButNewAttachmentIsRejected() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val screen = VkScreen.create(context)
+        screen.dispose()
+        screen.attachVideo(0, null) // MediaMixer's asynchronous source.close() can finish this late.
+        val source =
+            object : VideoSource {
+                override var surface: Surface? = null
+                override val videoSize = Size(64, 64)
+                override val imageOrientation = ImageOrientation.UP
+
+                override suspend fun open(mixer: MediaMixer) = Result.success(Unit)
+
+                override suspend fun close() = Result.success(Unit)
+            }
+        assertThrows(IllegalStateException::class.java) { screen.attachVideo(0, source) }
+        screen.dispose()
+    }
+
+    @Test
+    fun failedProducerDetachDoesNotPreventOtherInputsAndChildrenFromDisposing() {
+        assumeTrue(VkPixelTransform.isSupported())
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val screen = VkScreen.create(context).apply { frame = Rect(0, 0, 64, 64) }
+        val failure = IllegalStateException("detach failed")
+        var firstSurface: Surface? = null
+        val first =
+            object : VideoSource {
+                override var surface: Surface?
+                    get() = firstSurface
+                    set(value) {
+                        if (value == null) throw failure
+                        firstSurface = value
+                    }
+                override val videoSize = Size(64, 64)
+                override val imageOrientation = ImageOrientation.UP
+
+                override suspend fun open(mixer: MediaMixer) = Result.success(Unit)
+
+                override suspend fun close() = Result.success(Unit)
+            }
+        val second =
+            object : VideoSource {
+                override var surface: Surface? = null
+                override val videoSize = Size(64, 64)
+                override val imageOrientation = ImageOrientation.UP
+
+                override suspend fun open(mixer: MediaMixer) = Result.success(Unit)
+
+                override suspend fun close() = Result.success(Unit)
+            }
+        screen.attachVideo(0, first)
+        screen.attachVideo(1, second)
+        val secondSurface = checkNotNull(second.surface)
+        screen.addChild(
+            ImageScreenObject().apply {
+                bitmap = Bitmap.createBitmap(64, 64, Bitmap.Config.ARGB_8888).apply { eraseColor(Color.RED) }
+            },
+        )
+        snapshot(screen).recycle() // Allocate the snapshot renderer too.
+        try {
+            val thrown = assertThrows(IllegalStateException::class.java) { screen.dispose() }
+            assertSame(failure, thrown)
+            assertFalse(checkNotNull(firstSurface).isValid)
+            assertFalse(secondSurface.isValid)
+            assertEquals(null, second.surface)
+            assertEquals(0, screen.childCounts)
+            screen.attachVideo(0, null)
+        } finally {
+            screen.dispose() // Ownership was cleared even though the first disposal reported an error.
         }
     }
 

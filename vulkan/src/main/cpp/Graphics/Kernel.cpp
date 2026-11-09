@@ -1,4 +1,5 @@
 #include "Kernel.h"
+#include "SpirvValidation.h"
 #include "VulkanLock.h"
 #include "SwapChain.h"
 #include "Texture.h"
@@ -522,5 +523,8 @@ vk::ShaderModule Kernel::LoadShaderStrict(const std::string &fileName) {
     AAsset_close(asset);
     if (read != length || length < 20 || length % 4 != 0 || code[0] != 0x07230203)
         throw std::runtime_error("Invalid SPIR-V shader asset: " + fileName);
+    std::string diagnostic;
+    if (!ValidateSpirv(code, diagnostic))
+        throw std::runtime_error("Invalid SPIR-V shader asset: " + fileName + " (" + diagnostic + ")");
     return device->createShaderModule(vk::ShaderModuleCreateInfo().setCode(code));
 }

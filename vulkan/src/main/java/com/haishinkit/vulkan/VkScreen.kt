@@ -107,6 +107,7 @@ class VkScreen private constructor(context: Context) : Screen(context), Choreogr
         video: VideoSource?,
     ) =
         VkWorker.run {
+            if (disposed && video == null) return@run
             checkOpen()
             tracks.remove(track)?.close()
             if (video != null) {
@@ -134,20 +135,26 @@ class VkScreen private constructor(context: Context) : Screen(context), Choreogr
 
     override fun dispose() =
         VkWorker.run {
-            if (!disposed) {
-                disposed = true
-                choreographer?.removeFrameCallback(this)
-                outputs.toList().forEach { it.screen = null }
-                tracks.values.forEach { it.close() }
-                tracks.clear()
-                nestedInputs.values.forEach { it.close() }
-                nestedInputs.clear()
-                convertedBitmaps.values.forEach { it.second.recycle() }
-                convertedBitmaps.clear()
-                snapshotRenderer?.close()
-                snapshotRenderer = null
-                super.dispose()
+            if (disposed) return@run
+            disposed = true
+            // Clear ownership first so callbacks cannot find a partially disposed registry.
+            val oldOutputs = outputs.toList().also { outputs.clear() }
+            val oldTracks = tracks.values.toList().also { tracks.clear() }
+            val oldNested = nestedInputs.toList().also { nestedInputs.clear() }
+            val oldBitmaps = convertedBitmaps.values.toList().also { convertedBitmaps.clear() }
+            val oldRenderer = snapshotRenderer.also { snapshotRenderer = null }
+            val children = super.getChildren()
+            val actions = mutableListOf<() -> Unit>({ choreographer?.removeFrameCallback(this) })
+            oldOutputs.forEach { output -> actions.add { output.screen = null } }
+            oldTracks.forEach { input -> actions.add { input.close() } }
+            oldNested.forEach { (video, input) ->
+                actions.add { video.surface = null }
+                actions.add { input.close() }
             }
+            oldBitmaps.forEach { (_, bitmap) -> actions.add { bitmap.recycle() } }
+            actions.add { oldRenderer?.close() }
+            children.forEach { child -> actions.add { super.removeChild(child) } }
+            cleanupAll(actions)
         }
 
     override fun doFrame(frameTimeNanos: Long) {
@@ -319,16 +326,8 @@ class VkScreen private constructor(context: Context) : Screen(context), Choreogr
         }
 
         override fun close() {
-            try {
-                source?.surface = null
-            } finally {
-                try {
-                    buffer?.close()
-                } finally {
-                    buffer = null
-                    reader.close()
-                }
-            }
+            val oldBuffer = buffer.also { buffer = null }
+            cleanupAll(listOf({ source?.surface = null }, { oldBuffer?.close() }, { reader.close() }))
         }
     }
 
