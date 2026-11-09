@@ -1,5 +1,6 @@
 package com.haishinkit.util
 
+import android.graphics.Rect
 import android.media.AudioAttributes
 import android.media.AudioFormat
 import android.media.AudioManager
@@ -30,6 +31,23 @@ object MediaFormatUtil {
             height = format.getInteger(CROP_BOTTOM) + 1 - format.getInteger(CROP_TOP)
         }
         return height
+    }
+
+    /** Converts inclusive decoder crop bounds to a Rect with exclusive right/bottom coordinates.
+     * Returns null when crop metadata is missing, incomplete, invalid, or would overflow.
+     */
+    fun getCropRect(format: MediaFormat?): Rect? {
+        if (format == null || !format.containsKey(CROP_LEFT) || !format.containsKey(CROP_TOP) ||
+            !format.containsKey(CROP_RIGHT) || !format.containsKey(CROP_BOTTOM)
+        ) {
+            return null
+        }
+        val left = format.getInteger(CROP_LEFT)
+        val top = format.getInteger(CROP_TOP)
+        val right = format.getInteger(CROP_RIGHT)
+        val bottom = format.getInteger(CROP_BOTTOM)
+        if (left < 0 || top < 0 || right < left || bottom < top || right == Int.MAX_VALUE || bottom == Int.MAX_VALUE) return null
+        return Rect(left, top, right + 1, bottom + 1)
     }
 
     fun createAudioTrack(mediaFormat: MediaFormat): AudioTrack {

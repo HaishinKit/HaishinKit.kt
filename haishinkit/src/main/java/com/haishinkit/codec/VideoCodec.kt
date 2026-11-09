@@ -11,6 +11,7 @@ import android.util.Size
 import com.haishinkit.graphics.PixelTransform
 import com.haishinkit.graphics.VideoGravity
 import com.haishinkit.util.FeatureUtil
+import com.haishinkit.util.MediaFormatUtil
 import kotlin.properties.Delegates
 
 /**
@@ -151,7 +152,7 @@ class VideoCodec(
 
     /** Crop in the decoder's underlying buffer; right/bottom are exclusive. */
     val videoCropRect: Rect?
-        get() = cropRect(currentOutputFormat)
+        get() = MediaFormatUtil.getCropRect(currentOutputFormat)
 
     override var inputMimeType = MediaFormat.MIMETYPE_VIDEO_RAW
     override var outputMimeType = DEFAULT_PROFILE_LEVEL.mime
@@ -213,17 +214,5 @@ class VideoCodec(
 
         @Suppress("unused")
         private val TAG = VideoCodec::class.java.simpleName
-
-        internal fun cropRect(format: MediaFormat?): Rect? {
-            if (format == null) return null
-            val keys = arrayOf("crop-left", "crop-top", "crop-right", "crop-bottom")
-            if (keys.any { !format.containsKey(it) }) return null
-            val left = format.getInteger(keys[0])
-            val top = format.getInteger(keys[1])
-            val right = format.getInteger(keys[2])
-            val bottom = format.getInteger(keys[3])
-            if (left < 0 || top < 0 || right < left || bottom < top || right == Int.MAX_VALUE || bottom == Int.MAX_VALUE) return null
-            return Rect(left, top, right + 1, bottom + 1)
-        }
     }
 }
