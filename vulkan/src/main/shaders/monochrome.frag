@@ -9,6 +9,6 @@ const vec3 monochromeScale = vec3(0.298912, 0.586611, 0.114478);
 void main() {
     vec4 color = texture(tex, texcoord);
     float grayColor = dot(color.rgb, monochromeScale);
-    color = vec4(vec3(grayColor), 1.0);
+    color = vec4(vec3(grayColor), color.a);
     uFragColor = vec4(color);
 }

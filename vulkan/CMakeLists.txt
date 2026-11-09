@@ -28,6 +28,7 @@ add_library(
         # Provides a relative path to your source file(s).
         src/main/cpp/haishinkit.hpp
         src/main/cpp/Graphics/Kernel.cpp
+        src/main/cpp/Graphics/SceneRenderer.cpp
         src/main/cpp/Graphics/ImageStorage.cpp
         src/main/cpp/Graphics/DynamicLoader.cpp
         src/main/cpp/Graphics/CommandBuffer.cpp
@@ -74,6 +75,7 @@ target_link_libraries(
         -landroid
         ${log-lib}
         mediandk
+        jnigraphics
 )
 
 include_directories(

@@ -2,7 +2,7 @@
 
 // https://stackoverflow.com/questions/13501081/efficient-bicubic-filtering-code-in-glsl
 
-precision mediump float;
+precision highp float;
 
 layout (binding = 0) uniform sampler2D tex;
 layout (location = 0) in vec2 texcoord;

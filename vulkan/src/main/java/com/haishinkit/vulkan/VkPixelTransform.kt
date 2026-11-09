@@ -2,9 +2,6 @@ package com.haishinkit.vulkan
 
 import android.content.Context
 import android.graphics.Color
-import android.os.Handler
-import android.os.HandlerThread
-import android.os.Looper
 import android.util.Size
 import android.view.Surface
 import com.haishinkit.graphics.PixelTransform
@@ -12,154 +9,113 @@ import com.haishinkit.graphics.VideoGravity
 import com.haishinkit.graphics.effect.BicubicVideoEffect
 import com.haishinkit.graphics.effect.VideoEffect
 import com.haishinkit.screen.Screen
-import java.util.concurrent.FutureTask
 
-/**
- * Presents the current Screen composition using Vulkan.
- *
- * Screen composition and effects use the existing OpenGL renderer. Its output is
- * imported through an Android hardware buffer and presented by Vulkan.
- * Configure [PixelTransform.factory] before constructing streams and preview views.
- */
-class VkPixelTransform(
-    override val context: Context,
-) : PixelTransform,
-    AutoCloseable {
+/** Composes a VkScreen and resamples its Vulkan render target directly to the destination Surface. */
+class VkPixelTransform(override val context: Context) : PixelTransform {
     override var screen: Screen? = null
-        set(value) {
-            if (field === value) return
-            field = value
-            update()
-        }
+        set(value) =
+            VkWorker.run {
+                check(!closed)
+                require(value == null || value is VkScreen) { "VkPixelTransform requires VkScreen; configure Screen.factory before constructing streams" }
+                (field as? VkScreen)?.unregister(this)
+                field = value
+                (value as? VkScreen)?.register(this)
+            }
     override var surface: Surface? = null
-        set(value) {
-            if (field === value) return
-            field = value
-            update()
-        }
-    override var imageExtent: Size = Size(0, 0)
-        set(value) {
-            require(value.width >= 0 && value.height >= 0)
-            if (field == value) return
-            field = value
-            update()
-        }
-    override var videoGravity: VideoGravity = VideoGravity.RESIZE_ASPECT_FILL
-        set(value) {
-            field = value
-            onWorker { producer?.videoGravity = value }
-        }
+        set(value) =
+            VkWorker.run {
+                check(!closed)
+                field = value
+                reset()
+            }
+    override var imageExtent = Size(0, 0)
+        set(value) =
+            VkWorker.run {
+                require(value.width >= 0 && value.height >= 0)
+                check(!closed)
+                if (field != value) {
+                    field = value
+                    reset()
+                }
+            }
+    override var videoGravity = VideoGravity.RESIZE_ASPECT_FILL
+        set(value) =
+            VkWorker.run {
+                check(!closed)
+                field = value
+            }
     override var videoEffect: VideoEffect = BicubicVideoEffect()
-        set(value) {
-            field = value
-            onWorker { producer?.videoEffect = value }
-        }
-    override var frameRate: Int = 60
-        set(value) {
-            require(value > 0)
-            field = value
-            onWorker {
-                producer?.frameRate = value
-                native?.setFrameRate(value)
+        set(value) =
+            VkWorker.run {
+                check(!closed)
+                VulkanEffectRegistry.resolve(value)
+                field = value
             }
-        }
-    override var backgroundColor: Int = Color.BLACK
-        set(value) {
-            field = value
-            onWorker { producer?.backgroundColor = value }
-        }
+    override var frameRate = 60
+        set(value) =
+            VkWorker.run {
+                check(!closed)
+                require(value in 1..240)
+                field = value
+                pacer.reset()
+            }
+    override var backgroundColor = Color.BLACK
+        set(value) =
+            VkWorker.run {
+                check(!closed)
+                field = value
+            }
 
-    private val handler = Handler(thread.looper)
-    private var producer: PixelTransform? = null
-    private var native: NativePixelTransform? = null
-    private var inputSurface: Surface? = null
-
-    @Volatile
+    private var native: NativeScene? = null
     private var closed = false
+    private val pacer = FramePacer()
 
-    /** Releases the bridge and native renderer. */
-    override fun close() {
-        if (closed) return
-        onWorker {
-            if (closed) return@onWorker
-            release()
-            closed = true
-        }
-    }
-
-    private fun update() {
-        onWorker {
-            check(!closed) { "VkPixelTransform is closed" }
-            release()
-            val screen = screen ?: return@onWorker
-            val surface = surface ?: return@onWorker
-            if (imageExtent.width == 0 || imageExtent.height == 0) return@onWorker
-            try {
-                val renderer = NativePixelTransform(context)
-                native = renderer
-                renderer.setImageExtent(imageExtent.width, imageExtent.height)
-                renderer.setFrameRate(frameRate)
-                inputSurface = renderer.createInputSurface(imageExtent.width, imageExtent.height)
-                renderer.setSurface(surface)
-                producer =
-                    PixelTransform.createOpenGL(context).apply {
-                        imageExtent = this@VkPixelTransform.imageExtent
-                        videoGravity = this@VkPixelTransform.videoGravity
-                        videoEffect = this@VkPixelTransform.videoEffect
-                        frameRate = this@VkPixelTransform.frameRate
-                        backgroundColor = this@VkPixelTransform.backgroundColor
-                        this.surface = inputSurface
-                        this.screen = screen
-                    }
-            } catch (error: Throwable) {
-                release()
-                throw error
+    override fun close() =
+        VkWorker.run {
+            if (!closed) {
+                screen = null
+                surface = null
+                closed = true
             }
         }
+
+    internal fun render(timestamp: Long) {
+        val screen = screen as? VkScreen ?: return
+        if (surface == null || imageExtent.width == 0 || imageExtent.height == 0 || screen.frame.isEmpty) return
+        if (!pacer.accept(timestamp, frameRate)) return
+        val renderer =
+            native ?: NativeScene(context).also {
+                try {
+                    it.setSurface(surface, imageExtent.width, imageExtent.height)
+                    native = it
+                } catch (error: Throwable) {
+                    it.close()
+                    throw error
+                }
+            }
+        val matrix = VkScreen.identity()
+        val sourceAspect = screen.frame.width().toFloat() / screen.frame.height()
+        val targetAspect = imageExtent.width.toFloat() / imageExtent.height
+        when (videoGravity) {
+            VideoGravity.RESIZE -> Unit
+            VideoGravity.RESIZE_ASPECT -> if (sourceAspect > targetAspect) matrix[5] = targetAspect / sourceAspect else matrix[0] = sourceAspect / targetAspect
+            VideoGravity.RESIZE_ASPECT_FILL -> if (sourceAspect > targetAspect) matrix[0] = sourceAspect / targetAspect else matrix[5] = targetAspect / sourceAspect
+        }
+        val shader = VulkanEffectRegistry.resolve(videoEffect)
+        screen.compose(renderer)
+        renderer.end(timestamp, matrix, shader.assets(), shader.parameters, backgroundColor)
     }
 
-    private fun release() {
-        val previousNative = native
-        val previousProducer = producer
-        val previousInput = inputSurface
+    private fun reset() {
+        native?.close()
         native = null
-        producer = null
-        inputSurface = null
-        // Abandon the reader before joining a producer blocked in eglSwapBuffers.
-        try {
-            previousNative?.close()
-        } finally {
-            try {
-                previousProducer?.close()
-            } finally {
-                previousInput?.release()
-            }
-        }
-    }
-
-    private fun onWorker(action: () -> Unit) {
-        if (Looper.myLooper() == thread.looper) {
-            action()
-        } else {
-            val task = FutureTask(action, Unit)
-            check(handler.post(task)) { "VkPixelTransform is closed" }
-            try {
-                task.get()
-            } catch (error: java.util.concurrent.ExecutionException) {
-                throw error.cause ?: error
-            }
-        }
+        pacer.reset()
     }
 
     companion object {
-        // JNI state changes share a worker; idle views do not retain a thread each.
-        private val thread by lazy { HandlerThread("VkPixelTransform").apply { start() } }
-
-        /** Checks device extensions without changing the selected rendering backend. */
         fun isSupported(): Boolean = NativePixelTransform.isSupported()
 
-        /** Uses OpenGL on devices without the required Vulkan capabilities. */
-        fun create(context: Context): PixelTransform =
-            if (isSupported()) VkPixelTransform(context) else PixelTransform.createOpenGL(context)
+        /** Select this together with VkScreen; unsupported devices must select both OpenGL factories. */
+        fun create(context: Context): PixelTransform = VkPixelTransform(context)
     }
 }

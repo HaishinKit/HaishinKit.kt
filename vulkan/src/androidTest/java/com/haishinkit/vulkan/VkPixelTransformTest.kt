@@ -15,7 +15,6 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.haishinkit.graphics.effect.BicubicVideoEffect
 import com.haishinkit.screen.ImageScreenObject
-import com.haishinkit.screen.Screen
 import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeTrue
 import org.junit.Test
@@ -42,7 +41,7 @@ class VkPixelTransformTest {
                     values[index.coerceIn(0, sourceSize - 1)] * splineWeight(position - index)
                 }
             }
-        val screen = Screen.create(context).apply { frame = Rect(0, 0, sourceSize, sourceSize) }
+        val screen = VkScreen.create(context).apply { frame = Rect(0, 0, sourceSize, sourceSize) }
         screen.addChild(
             ImageScreenObject().apply {
                 frame = Rect(0, 0, sourceSize, sourceSize)
@@ -95,7 +94,7 @@ class VkPixelTransformTest {
     }
 
     @Test
-    fun defaultBridgeResamplingUsesBicubic() {
+    fun defaultResamplingUsesBicubic() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         VkPixelTransform(context).use { transform ->
             assertTrue(transform.videoEffect is BicubicVideoEffect)
@@ -107,7 +106,7 @@ class VkPixelTransformTest {
         assumeTrue(VkPixelTransform.isSupported())
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val screen =
-            Screen.create(context).apply {
+            VkScreen.create(context).apply {
                 frame = Rect(0, 0, 64, 64)
                 backgroundColor = Color.RED
             }
@@ -157,7 +156,7 @@ class VkPixelTransformTest {
         val encoder = MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_VIDEO_AVC)
         val transform = VkPixelTransform(context)
         var input: android.view.Surface? = null
-        val screen = Screen.create(context).apply { backgroundColor = Color.GREEN }
+        val screen = VkScreen.create(context).apply { backgroundColor = Color.GREEN }
         try {
             val format =
                 MediaFormat.createVideoFormat(MediaFormat.MIMETYPE_VIDEO_AVC, 128, 128).apply {
