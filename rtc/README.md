@@ -13,7 +13,7 @@ existing minimum Android versions.
 - Bearer authentication and 307/308 POST redirects. Authorization is removed across origins; HTTPS downgrade is rejected.
 - RTCP sender/receiver reports, outgoing NACK responses, incoming PLI/FIR keyframe requests, and REMB bitrate limits.
 - Audio-only and video-only publishing through `expectedMedias`; rejected tracks do not start encoders.
-- Bounded media queues and reconnectable sessions. Observe `RTCSession.failure` for asynchronous failures.
+- Bounded native H.264 packet/byte retention before frame assembly, bounded media queues and reconnectable sessions. Observe `RTCSession.failure` for asynchronous failures.
 
 This is an initial transport implementation. It does not implement trickle ICE/PATCH,
 ICE restart, automatic ICE-server discovery from HTTP Link headers, simulcast, RTX,
@@ -56,7 +56,9 @@ mixer.dispose()
 offered tracks before connecting, otherwise they are derived from the mixer sources.
 Configure video dimensions, bitrate and frame rate through `stream.videoSetting`.
 The initial implementation requires `H264_BASELINE_3_1`; use dimensions/frame rates
-within that level's limits. Audio settings must describe the actual PCM input;
+within that level's limits (up to 3,600 macroblocks/frame, 108,000 macroblocks/second,
+and 14 Mbit/s). Incompatible H.264 profiles and receiver levels below 3.1 are rejected
+before publishing; codec options cannot override the fixed profile/level. Audio settings must describe the actual PCM input;
 this module does not resample captured audio.
 
 ## Playback
@@ -106,7 +108,7 @@ No separate software audio/video codec library is bundled.
 ```
 
 The device tests cover ICE/DTLS/SRTP, Opus encoding and playback, reconnect and DELETE,
-and H.264 encoding through WHIP followed by WHEP decoding and a pixel-color check.
+and H.264 encoding through WHIP followed by WHEP decoding with repeated resolution changes and a pixel-color check. Local connection and surface deadlines report failures while caller cancellation remains cancellation.
 They use a local test endpoint and do not require microphone/camera access or an
 external server. They do not replace interoperability tests against a production server.
 
@@ -139,3 +141,10 @@ from each other. Settings are applied when reopening the corresponding tab.
 The sample captures 48 kHz PCM and sets its stream/recorder audio settings to the
 same rate. RTMP and SRT continue using AAC at that rate. Screen sharing uses the
 same publishing endpoint and RTC configuration.
+
+Host native tests also exercise bounded H.264 input retention and recovery:
+
+```sh
+cmake --build /path/to/native-build --target rtc_media_test
+ctest --test-dir /path/to/native-build --output-on-failure
+```

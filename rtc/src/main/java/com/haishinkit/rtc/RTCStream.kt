@@ -3,6 +3,7 @@ package com.haishinkit.rtc
 import android.content.Context
 import android.graphics.Rect
 import android.media.MediaCodec
+import android.media.MediaCodecInfo
 import android.media.MediaFormat
 import android.os.Bundle
 import android.util.Size
@@ -27,7 +28,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeout
 import java.io.IOException
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -119,7 +119,12 @@ class RTCStream internal constructor(context: Context, private val stop: () -> U
                 if (publishing) {
                     require(audioSetting.sampleRate in setOf(8000, 12000, 16000, 24000, 48000)) { "Opus requires an 8/12/16/24/48 kHz PCM source; use 48 kHz capture" }
                     require(audioSetting.channelCount in 1..2)
-                    require(videoSetting.profileLevel == VideoCodecProfileLevel.H264_BASELINE_3_1) { "RTC currently offers H.264 Baseline level 3.1" }
+                    if ("video" in tracks) {
+                        require(videoSetting.profileLevel == VideoCodecProfileLevel.H264_BASELINE_3_1) { "RTC currently offers H.264 Baseline level 3.1" }
+                        require(videoSetting.options.none { it.key == MediaFormat.KEY_PROFILE || it.key == MediaFormat.KEY_LEVEL }) { "RTC fixes the video profile and level; configure videoSetting.profileLevel instead of overriding codec options" }
+                        SDP.validateH264Sender(videoSetting.width and -2, videoSetting.height and -2, videoSetting.frameRate, videoSetting.bitRate)
+                        videoCodec.options = videoSetting.options + CodecOption(MediaFormat.KEY_PROFILE, MediaCodecInfo.CodecProfileLevel.AVCProfileConstrainedBaseline)
+                    }
                     audioCodec.sampleRate = audioSetting.sampleRate
                     audioCodec.channelCount = audioSetting.channelCount
                     videoCodec.surface = null
@@ -281,7 +286,7 @@ class RTCStream internal constructor(context: Context, private val stop: () -> U
                             }
                     }
                 screen.attachVideo(0, source)
-                withTimeout(5000) { attached.await() }
+                withRTCDeadline(5000, "Decoder output surface was not attached") { attached.await() }
                 videoCodec.startRunning()
                 check(videoCodec.isRunning.get()) { "H.264 decoder failed to start" }
                 hasVideo = true
@@ -329,8 +334,12 @@ class RTCStream internal constructor(context: Context, private val stop: () -> U
             index: Int,
         ) {
             if (current !== run) return
-            val indices = if (mime == MediaFormat.MIMETYPE_AUDIO_RAW) run.audioIndices else run.videoIndices
-            if (indices.trySend(index).isFailure) run.failed.complete(IOException("Decoder input queue capacity exceeded"))
+            val owner = if (mime == MediaFormat.MIMETYPE_AUDIO_RAW) audioCodec else videoCodec
+            owner.withCurrentCodec(codec) {
+                if (current !== run) return@withCurrentCodec
+                val indices = if (mime == MediaFormat.MIMETYPE_AUDIO_RAW) run.audioIndices else run.videoIndices
+                if (indices.trySend(index).isFailure) run.failed.complete(IOException("Decoder input queue capacity exceeded"))
+            }
         }
 
         override fun onError(

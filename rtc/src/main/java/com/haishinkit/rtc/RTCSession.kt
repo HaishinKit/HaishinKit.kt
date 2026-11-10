@@ -21,7 +21,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeout
 import java.io.IOException
 import java.net.URI
 
@@ -127,7 +126,7 @@ class RTCSession(
                 peer = native
                 var videoConfiguration = emptyList<ByteArray>()
                 val tracks =
-                    withTimeout(configuration.connectionTimeoutMillis) {
+                    withRTCDeadline(configuration.connectionTimeoutMillis, "RTC connection timed out") {
                         native.offer()
                         val offer = gathered.await()
                         val response =

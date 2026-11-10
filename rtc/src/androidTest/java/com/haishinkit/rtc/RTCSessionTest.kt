@@ -1,5 +1,7 @@
 package com.haishinkit.rtc
 
+import android.content.Context
+import android.graphics.Bitmap
 import android.graphics.Color
 import android.graphics.Rect
 import android.net.Uri
@@ -7,6 +9,9 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.haishinkit.media.MediaBuffer
 import com.haishinkit.media.MediaMixer
 import com.haishinkit.media.MediaType
+import com.haishinkit.media.source.VideoSource
+import com.haishinkit.screen.Screen
+import com.haishinkit.screen.ScreenObject
 import com.haishinkit.stream.StreamSession
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
@@ -19,6 +24,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.io.IOException
 import java.nio.ByteBuffer
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
@@ -95,26 +101,39 @@ class RTCSessionTest {
             var playback: RTCSession? = null
             val whep = Endpoint(true, audio = false, video = true)
             try {
-                publisher.connect().getOrThrow()
-                val keyframe =
-                    withTimeout(10_000) {
-                        var frame: ByteArray? = null
-                        while (frame == null) {
-                            val candidate = whip.frames.poll()
-                            if (candidate != null && H264.units(candidate).any { it[0].toInt() and 31 == 5 }) frame = candidate
-                            if (frame == null) delay(20)
+                suspend fun captureKeyframe(
+                    width: Int,
+                    height: Int,
+                ): ByteArray {
+                    publisher.stream.videoSetting.width = width
+                    publisher.stream.videoSetting.height = height
+                    whip.frames.clear()
+                    publisher.connect().getOrThrow()
+                    val frame =
+                        withTimeout(10_000) {
+                            var key: ByteArray? = null
+                            while (key == null) {
+                                val candidate = whip.frames.poll()
+                                if (candidate != null && H264.units(candidate).any { it[0].toInt() and 31 == 5 }) key = candidate
+                                if (key == null) delay(20)
+                            }
+                            key
                         }
-                        frame
-                    }
-                publisher.close().getOrThrow()
+                    publisher.close().getOrThrow()
+                    return frame
+                }
+                val keyframe = captureKeyframe(128, 96)
+                val resizedKeyframe = captureKeyframe(256, 144)
                 val receiver = RTCSession(context, whep.uri, StreamSession.Mode.PLAYBACK)
                 playback = receiver
                 receiver.connect().getOrThrow()
-                repeat(30) {
-                    whep.peer!!.send(false, keyframe, it * 100_000L)
+                repeat(48) {
+                    whep.peer!!.send(false, if (it / 8 % 2 == 0) keyframe else resizedKeyframe, it * 100_000L)
                     delay(100)
                 }
                 assertTrue("WHEP failed: ${receiver.failure.value}", receiver.isConnected)
+                assertEquals(256, receiver.stream.screen.frame.width())
+                assertEquals(144, receiver.stream.screen.frame.height())
                 val pixel = CompletableDeferred<Int>()
                 receiver.stream.screen.readPixels { bitmap ->
                     if (bitmap == null) {
@@ -126,6 +145,8 @@ class RTCSessionTest {
                 }
                 val color = withTimeout(5000) { pixel.await() }
                 assertTrue("Decoded pixel is not green: $color", Color.green(color) > 180 && Color.red(color) < 80 && Color.blue(color) < 80)
+                receiver.close().getOrThrow()
+                assertMissingSurfaceFailure(context, whep, keyframe)
             } finally {
                 playback?.close()
                 playback?.stream?.dispose()
@@ -164,6 +185,60 @@ class RTCSessionTest {
                 endpoint.close()
             }
         }
+
+    @Test fun connectionTimeoutIsReportedAsFailureAndClosesTheSession() =
+        runBlocking {
+            val endpoint = Endpoint(false)
+            val context = InstrumentationRegistry.getInstrumentation().context
+            val session = RTCSession(context, endpoint.uri, configuration = RTCConfiguration(connectionTimeoutMillis = 1))
+            session.stream.expectedMedias = setOf(MediaType.AUDIO)
+            try {
+                val result = session.connect()
+                assertTrue("Expected an I/O failure, got $result", result.exceptionOrNull() is IOException)
+                assertTrue(session.failure.value is IOException)
+                assertEquals(StreamSession.ReadyState.CLOSED, session.readyState.value)
+            } finally {
+                session.close()
+                session.stream.dispose()
+                endpoint.close()
+            }
+        }
+
+    private suspend fun assertMissingSurfaceFailure(
+        context: Context,
+        endpoint: Endpoint,
+        keyframe: ByteArray,
+    ) {
+        val originalFactory = Screen.factory
+        Screen.factory = { application ->
+            object : Screen(application) {
+                override fun readPixels(lambda: (Bitmap?) -> Unit) = lambda(null)
+
+                override fun bind(screenObject: ScreenObject) {}
+
+                override fun unbind(screenObject: ScreenObject) {}
+
+                override fun attachVideo(
+                    track: Int,
+                    video: VideoSource?,
+                ) {}
+            }
+        }
+        var session: RTCSession? = null
+        try {
+            val waiting = RTCSession(context, endpoint.uri, StreamSession.Mode.PLAYBACK)
+            session = waiting
+            waiting.connect().getOrThrow()
+            endpoint.peer!!.send(false, keyframe, 0)
+            withTimeout(10_000) { waiting.readyState.first { it == StreamSession.ReadyState.CLOSED } }
+            assertTrue(waiting.failure.value is IOException)
+            assertEquals("Decoder output surface was not attached", waiting.failure.value?.message)
+        } finally {
+            session?.close()
+            session?.stream?.dispose()
+            Screen.factory = originalFactory
+        }
+    }
 
     private class Endpoint(
         private val publishing: Boolean,

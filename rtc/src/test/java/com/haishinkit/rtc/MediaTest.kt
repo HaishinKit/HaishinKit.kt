@@ -35,12 +35,35 @@ class MediaTest {
         val sps = hex("6742000af841a2")
         val pps = hex("68ce3c80")
         val parameter = listOf(sps, pps).joinToString(",") { java.util.Base64.getEncoder().encodeToString(it) }
-        val answer = "v=0\r\na=sendonly\r\nm=video 9 UDP/TLS/RTP/SAVPF 96\r\na=mid:video\r\na=rtpmap:96 H264/90000\r\na=fmtp:96 packetization-mode=1;sprop-parameter-sets=$parameter\r\n"
+        val answer = "v=0\r\na=sendonly\r\nm=video 9 UDP/TLS/RTP/SAVPF 96\r\na=mid:video\r\na=rtpmap:96 H264/90000\r\na=fmtp:96 profile-level-id=42e01f;packetization-mode=1;sprop-parameter-sets=$parameter\r\n"
         assertEquals(setOf("video"), SDP.validateAnswer(answer, false, false, true))
         val configuration = SDP.videoConfiguration(answer)
         assertArrayEquals(sps, configuration[0])
         assertArrayEquals(pps, configuration[1])
         assertThrows(IllegalArgumentException::class.java) { SDP.videoConfiguration(answer.replace(parameter, "invalid!")) }
+    }
+
+    @Test fun rejectsIncompatibleH264ReceiveCapabilities() {
+        fun answer(
+            profile: String,
+            extra: String = "",
+        ): String = "v=0\r\nm=video 9 UDP/TLS/RTP/SAVPF 96\r\na=mid:video\r\na=recvonly\r\na=rtpmap:96 H264/90000\r\na=fmtp:96 profile-level-id=$profile;packetization-mode=1;level-asymmetry-allowed=1$extra\r\n"
+        assertEquals(setOf("video"), SDP.validateAnswer(answer("42e01f"), true, false, true))
+        assertEquals(setOf("video"), SDP.validateAnswer(answer("4d801f"), true, false, true))
+        assertThrows(IllegalArgumentException::class.java) { SDP.validateAnswer(answer("42e00c"), true, false, true) }
+        assertThrows(IllegalArgumentException::class.java) { SDP.validateAnswer(answer("64001f"), true, false, true) }
+        assertThrows(IllegalArgumentException::class.java) { SDP.validateAnswer(answer("42e01f").replace("profile-level-id=42e01f;", ""), true, false, true) }
+        assertEquals(setOf("video"), SDP.validateAnswer(answer("42e00c", ";max-recv-level=e01f"), true, false, true))
+        assertThrows(IllegalArgumentException::class.java) { SDP.validateAnswer(answer("42e028").replace("recvonly", "sendonly"), false, false, true) }
+    }
+
+    @Test fun rejectsEncoderSettingsAboveTheAdvertisedH264Level() {
+        SDP.validateH264Sender(1280, 720, 30, 14_000_000)
+        SDP.validateH264Sender(854, 480, 30, 640_000)
+        assertThrows(IllegalArgumentException::class.java) { SDP.validateH264Sender(1920, 1080, 30, 4_000_000) }
+        assertThrows(IllegalArgumentException::class.java) { SDP.validateH264Sender(1280, 720, 60, 4_000_000) }
+        assertThrows(IllegalArgumentException::class.java) { SDP.validateH264Sender(1280, 720, 30, 20_000_000) }
+        assertThrows(IllegalArgumentException::class.java) { SDP.validateH264Sender(32_000, 16, 1, 640_000) }
     }
 
     private fun hex(
