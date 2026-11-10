@@ -16,6 +16,19 @@ The example application's renderer preference configures both factories. Existin
 outputs retain their backend; stop them before switching. Passing an OpenGL Screen to
 VkPixelTransform fails explicitly. There is no hidden OpenGL bridge or automatic shader fallback.
 
+## Device information
+
+`VkPixelTransform.inspectDevices()` returns a JSON string without creating a renderer or surface:
+
+```kotlin
+val devices = JSONObject(VkPixelTransform.inspectDevices()).getJSONArray("devices")
+```
+
+Each device contains `device_name`, `device_type`, `api_version`, `driver_version`, `vendor_id`,
+`device_id`, and an `extensions` array. This is diagnostic enumeration, not the renderer's feature
+check; use `isSupported()` for backend selection. If the native library or Vulkan loader is absent,
+`devices` is empty. Vulkan initialization/enumeration failures throw `IllegalStateException`.
+
 ## Rendering path
 
 Camera, decoder and MediaProjection surfaces feed an NDK ImageReader configured for GPU sampling.

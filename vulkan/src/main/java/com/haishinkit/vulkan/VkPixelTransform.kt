@@ -125,9 +125,19 @@ class VkPixelTransform(override val context: Context) : PixelTransform {
 
         fun isSupported(): Boolean = loaded && nativeIsDeviceSupported()
 
+        /**
+         * Returns physical-device information as JSON without creating a renderer or output surface.
+         * The `devices` array is empty if the native library or Vulkan loader is unavailable.
+         * Throws [IllegalStateException] if Vulkan initialization or enumeration fails.
+         */
+        @JvmStatic
+        fun inspectDevices(): String = if (loaded) nativeInspectDevices().toString(Charsets.UTF_8) else "{\"devices\":[]}"
+
         /** Select this together with VkScreen; unsupported devices must select both OpenGL factories. */
         fun create(context: Context): PixelTransform = VkPixelTransform(context)
 
         private external fun nativeIsDeviceSupported(): Boolean
+
+        private external fun nativeInspectDevices(): ByteArray
     }
 }
