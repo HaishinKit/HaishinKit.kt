@@ -7,7 +7,7 @@ existing minimum Android versions.
 ## Supported media and signaling
 
 - H.264 Baseline level 3.1, RTP packetization-mode 1; outgoing frames include SPS/PPS on keyframes.
-- Opus audio. Capture PCM must match `stream.audioSetting` (48 kHz mono by default).
+- Opus audio, with RTP padding and padding-only probes removed before decoding. Capture PCM must match `stream.audioSetting` (48 kHz mono by default).
 - HTTP(S) SDP POST, 201 response validation, relative/absolute Location, and DELETE on close/setup failure.
 - Non-trickle ICE: candidates are gathered before POST. Configure STUN/TURN URLs through `RTCConfiguration`.
 - Bearer authentication and 307/308 POST redirects. Authorization is removed across origins; HTTPS downgrade is rejected.
@@ -58,7 +58,8 @@ Configure video dimensions, bitrate and frame rate through `stream.videoSetting`
 The initial implementation requires `H264_BASELINE_3_1`; use dimensions/frame rates
 within that level's limits (up to 3,600 macroblocks/frame, 108,000 macroblocks/second,
 and 14 Mbit/s). Incompatible H.264 profiles and receiver levels below 3.1 are rejected
-before publishing; codec options cannot override the fixed profile/level. Audio settings must describe the actual PCM input;
+before publishing. Codec options cannot override the validated profile, level, dimensions,
+frame rate or bitrate; use the corresponding videoSetting fields. Audio settings must describe the actual PCM input;
 this module does not resample captured audio.
 
 ## Playback
@@ -91,8 +92,9 @@ val session = StreamSession.Builder(context, Uri.parse(endpoint))
 
 Production HTTPS uses Android's normal certificate validation. Plain HTTP endpoints
 also require the consuming app's Android network-security policy to permit cleartext.
-HTTP connect/read timeouts are finite; cancellation can wait for an in-flight blocking
-HTTP operation before cleanup finishes. Closing releases local codecs and transport
+HTTP redirects and response-body reads share an absolute `httpTimeoutMillis` deadline.
+Cancellation disconnects active HTTP requests and joins their workers before resource
+cleanup or reconnection. `connectionTimeoutMillis` bounds the entire WebRTC setup. Closing releases local codecs and transport
 even if server DELETE fails; the failure is returned from `close()`.
 
 ## Building and validation
@@ -142,7 +144,7 @@ The sample captures 48 kHz PCM and sets its stream/recorder audio settings to th
 same rate. RTMP and SRT continue using AAC at that rate. Screen sharing uses the
 same publishing endpoint and RTC configuration.
 
-Host native tests also exercise bounded H.264 input retention and recovery:
+Host native tests also exercise bounded H.264 input retention/recovery and padded Opus RTP packets:
 
 ```sh
 cmake --build /path/to/native-build --target rtc_media_test

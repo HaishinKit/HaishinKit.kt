@@ -22,6 +22,7 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.IOException
@@ -201,6 +202,66 @@ class RTCSessionTest {
                 session.close()
                 session.stream.dispose()
                 endpoint.close()
+            }
+        }
+
+    @Test fun stopAndConnectionDeadlineAbortDrippingHttpBeforeReconnect() =
+        runBlocking {
+            val context = InstrumentationRegistry.getInstrumentation().context
+            for (deadline in listOf(false, true)) {
+                val backend = Endpoint(false)
+                val http = TestHTTPServer()
+                val first = java.util.concurrent.atomic.AtomicBoolean(true)
+                val headers = CompletableDeferred<Unit>()
+                val deleted = AtomicInteger()
+                http.createContext("/whip") { request ->
+                    if (first.getAndSet(false)) {
+                        request.sendDrippingSDP("/resource") { headers.complete(Unit) }
+                    } else {
+                        request.responseHeaders.add("Location", backend.uri.toString())
+                        request.sendResponseHeaders(307, -1)
+                        request.close()
+                    }
+                }
+                http.createContext("/resource") { request ->
+                    deleted.incrementAndGet()
+                    request.sendResponseHeaders(204, -1)
+                    request.close()
+                }
+                http.start()
+                val configuration = RTCConfiguration(connectionTimeoutMillis = if (deadline) 1000 else 30_000)
+                val session = RTCSession(context, Uri.parse("http://127.0.0.1:${http.address.port}/whip"), configuration = configuration)
+                session.stream.expectedMedias = setOf(MediaType.AUDIO)
+                try {
+                    val connecting = async { session.connect() }
+                    withTimeout(3000) { headers.await() }
+                    delay(100) // Keep STOP inside an active body read, after Location is received.
+                    val start = System.nanoTime()
+                    if (deadline) {
+                        val result = withTimeout(3000) { connecting.await() }
+                        assertTrue(result.exceptionOrNull() is IOException)
+                        assertEquals("RTC connection timed out", session.failure.value?.message)
+                    } else {
+                        withTimeout(2000) { session.close().getOrThrow() }
+                        try {
+                            connecting.await()
+                        } catch (_: CancellationException) {
+                        }
+                        assertNull(session.failure.value)
+                    }
+                    assertTrue("HTTP cancellation waited for the dripping body", (System.nanoTime() - start) / 1_000_000 < 2500)
+                    assertEquals(StreamSession.ReadyState.CLOSED, session.readyState.value)
+                    assertEquals(1, deleted.get())
+                    session.connect().getOrThrow()
+                    assertTrue(session.isConnected)
+                    session.close().getOrThrow()
+                    assertEquals(1, backend.deleted.get())
+                } finally {
+                    session.close()
+                    session.stream.dispose()
+                    http.stop()
+                    backend.close()
+                }
             }
         }
 

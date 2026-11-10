@@ -1,6 +1,12 @@
 package com.haishinkit.rtc
 
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.async
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
@@ -8,6 +14,7 @@ import org.junit.Assert.fail
 import org.junit.Test
 import java.io.IOException
 import java.net.URI
+import java.util.concurrent.atomic.AtomicReference
 
 class HTTPTransportTest {
     @Test fun postResolvesRelativeLocationAndDeleteUsesAuthentication() {
@@ -92,7 +99,108 @@ class HTTPTransportTest {
         }
     }
 
-    private fun server(block: (TestHTTPServer, URI) -> Unit) {
+    @Test fun absoluteDeadlineStopsContinuouslyDrippingSdpAndRetainsCleanupLocation() {
+        server { server, endpoint ->
+            server.createContext("/whip") { it.sendDrippingSDP("/resource") }
+            var deleted = false
+            server.createContext("/resource") {
+                deleted = true
+                it.sendResponseHeaders(204, -1)
+                it.close()
+            }
+            val transport = HTTPTransport(RTCConfiguration(httpTimeoutMillis = 500))
+            val allocated = AtomicReference<HTTPTransport.Resource>()
+            val start = System.nanoTime()
+            assertThrows(IOException::class.java) {
+                runBlocking { transport.createCancellable(endpoint.resolve("/whip"), "offer") { allocated.set(it) } }
+            }
+            assertTrue("An inactivity-only timeout let the response run too long", (System.nanoTime() - start) / 1_000_000 < 3000)
+            assertNotNull(allocated.get())
+            runBlocking { transport.deleteCancellable(allocated.get()) }
+            assertTrue(deleted)
+        }
+    }
+
+    @Test fun cancellationDisconnectsAnActiveBodyReadAndAllowsAnotherRequest() {
+        server { server, endpoint ->
+            server.createContext("/whip") { it.sendDrippingSDP("/resource") }
+            server.createContext("/resource") {
+                it.sendResponseHeaders(204, -1)
+                it.close()
+            }
+            val transport = HTTPTransport(RTCConfiguration())
+            runBlocking {
+                val allocated = CompletableDeferred<HTTPTransport.Resource>()
+                val request = async { transport.createCancellable(endpoint.resolve("/whip"), "offer") { allocated.complete(it) } }
+                val resource = withTimeout(3000) { allocated.await() }
+                val start = System.nanoTime()
+                withTimeout(2000) { request.cancelAndJoin() }
+                assertTrue((System.nanoTime() - start) / 1_000_000 < 2000)
+                transport.deleteCancellable(resource)
+            }
+        }
+    }
+
+    @Test fun redirectHopsShareAnAbsoluteDeadline() {
+        server { server, endpoint ->
+            for (hop in 0..2) {
+                server.createContext("/hop$hop") { request ->
+                    try {
+                        Thread.sleep(200)
+                        if (hop < 2) {
+                            request.responseHeaders.add("Location", "/hop${hop + 1}")
+                            request.sendResponseHeaders(307, -1)
+                            request.close()
+                        } else {
+                            request.responseHeaders.add("Location", "/resource")
+                            request.responseHeaders.add("Content-Type", "application/sdp")
+                            request.sendResponseHeaders(201, 6)
+                            request.responseBody.use { it.write("answer".toByteArray()) }
+                        }
+                    } catch (_: IOException) {
+                        request.close()
+                    }
+                }
+            }
+            val transport = HTTPTransport(RTCConfiguration(httpTimeoutMillis = 500))
+            val failure =
+                assertThrows(IOException::class.java) {
+                    runBlocking { transport.createCancellable(endpoint.resolve("/hop0"), "offer") { } }
+                }
+            assertEquals("HTTP SDP request timed out", failure.message)
+        }
+    }
+
+    @Test fun absoluteDeadlineAbortsDrippingResponseHeaders() {
+        server { server, endpoint ->
+            server.createContext("/whip") { request ->
+                try {
+                    request.responseBody.write("HTTP/1.1 201 Created\r\nX-Padding: ".toByteArray())
+                    request.responseBody.flush()
+                    repeat(200) {
+                        request.responseBody.write('x'.code)
+                        request.responseBody.flush()
+                        Thread.sleep(20)
+                    }
+                    request.responseBody.write("\r\nLocation: /resource\r\nContent-Type: application/sdp\r\nContent-Length: 6\r\n\r\nanswer".toByteArray())
+                    request.responseBody.flush()
+                } catch (_: IOException) {
+                } finally {
+                    request.close()
+                }
+            }
+            val transport = HTTPTransport(RTCConfiguration(httpTimeoutMillis = 500))
+            val start = System.nanoTime()
+            assertThrows(IOException::class.java) {
+                runBlocking { transport.createCancellable(endpoint.resolve("/whip"), "offer") { } }
+            }
+            assertTrue("A header read ignored the absolute deadline", (System.nanoTime() - start) / 1_000_000 < 2500)
+        }
+    }
+
+    private fun server(
+        block: (TestHTTPServer, URI) -> Unit,
+    ) {
         val server = TestHTTPServer()
         server.start()
         try {

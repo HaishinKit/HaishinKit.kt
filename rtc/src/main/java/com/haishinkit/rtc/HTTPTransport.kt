@@ -1,5 +1,14 @@
 package com.haishinkit.rtc
 
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.async
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.withContext
 import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URI
@@ -8,16 +17,34 @@ import java.net.URI
 internal class HTTPTransport(private val configuration: RTCConfiguration) {
     data class Resource(val uri: URI, val authorization: String?, val answer: String)
 
+    suspend fun createCancellable(
+        endpoint: URI,
+        offer: String,
+        created: (Resource) -> Unit,
+    ): Resource =
+        cancellable("HTTP SDP request timed out") { call -> create(endpoint, offer, created, call) }
+
+    suspend fun deleteCancellable(resource: Resource) =
+        cancellable("HTTP session DELETE timed out") { call -> delete(resource, call) }
+
     fun create(
         endpoint: URI,
         offer: String,
         created: (Resource) -> Unit,
+    ): Resource = create(endpoint, offer, created, Call())
+
+    private fun create(
+        endpoint: URI,
+        offer: String,
+        created: (Resource) -> Unit,
+        call: Call,
     ): Resource {
         validate(endpoint)
         var target = endpoint
         var token = configuration.bearerToken?.let { "Bearer $it" }
         repeat(6) { attempt ->
             val connection = connection(target, "POST", token)
+            call.attach(connection)
             try {
                 connection.setRequestProperty("Content-Type", "application/sdp")
                 connection.setRequestProperty("Accept", "application/sdp")
@@ -50,6 +77,7 @@ internal class HTTPTransport(private val configuration: RTCConfiguration) {
                             val output = java.io.ByteArrayOutputStream()
                             val chunk = ByteArray(8192)
                             while (true) {
+                                call.ensureActive()
                                 val count = input.read(chunk)
                                 if (count < 0) break
                                 output.write(chunk, 0, count)
@@ -62,21 +90,60 @@ internal class HTTPTransport(private val configuration: RTCConfiguration) {
                     return pending.copy(answer = answer)
                 }
             } finally {
-                connection.disconnect()
+                call.finish(connection)
             }
         }
         throw IOException("Too many signaling redirects")
     }
 
-    fun delete(resource: Resource) {
+    fun delete(resource: Resource) = delete(resource, Call())
+
+    private fun delete(
+        resource: Resource,
+        call: Call,
+    ) {
         val connection = connection(resource.uri, "DELETE", resource.authorization)
+        call.attach(connection)
         try {
             val code = connection.responseCode
             if (code !in 200..299 && code != 404 && code != 410) throw IOException("Session DELETE failed (HTTP $code)")
         } finally {
-            connection.disconnect()
+            call.finish(connection)
         }
     }
+
+    private suspend fun <T> cancellable(
+        message: String,
+        block: (Call) -> T,
+    ): T =
+        withRTCDeadline(configuration.httpTimeoutMillis.toLong(), message) {
+            coroutineScope {
+                val call = Call()
+                val worker =
+                    async(Dispatchers.IO) {
+                        try {
+                            block(call)
+                        } catch (cause: Exception) {
+                            // A disconnect caused by STOP/deadline is cancellation, not a new
+                            // socket failure that should replace the original cancellation.
+                            currentCoroutineContext().ensureActive()
+                            throw cause
+                        }
+                    }
+                try {
+                    worker.await()
+                } finally {
+                    // Do not queue disconnect behind the blocking I/O workers it
+                    // needs to release when the shared I/O dispatcher is saturated.
+                    withContext(NonCancellable) {
+                        call.cancel()
+                        // Wait for any last Location callback before the session deletes
+                        // its resource or permits a replacement connection generation.
+                        worker.cancelAndJoin()
+                    }
+                }
+            }
+        }
 
     private fun connection(
         uri: URI,
@@ -86,6 +153,7 @@ internal class HTTPTransport(private val configuration: RTCConfiguration) {
         (uri.toURL().openConnection() as HttpURLConnection).apply {
             requestMethod = method
             instanceFollowRedirects = false
+            setRequestProperty("Connection", "close")
             connectTimeout = configuration.httpTimeoutMillis
             readTimeout = configuration.httpTimeoutMillis
             authorization?.let { setRequestProperty("Authorization", it) }
@@ -109,6 +177,50 @@ internal class HTTPTransport(private val configuration: RTCConfiguration) {
         } else {
             80
         }
+
+    private class Call {
+        private val guard = Any()
+
+        @Volatile private var cancelled = false
+        private var active: HttpURLConnection? = null
+
+        fun attach(connection: HttpURLConnection) {
+            val rejected =
+                synchronized(guard) {
+                    if (cancelled) {
+                        true
+                    } else {
+                        active = connection
+                        false
+                    }
+                }
+            if (rejected) {
+                connection.disconnect()
+                throw CancellationException("HTTP request cancelled")
+            }
+        }
+
+        fun ensureActive() {
+            if (cancelled) throw CancellationException("HTTP request cancelled")
+        }
+
+        fun cancel() {
+            val connection =
+                synchronized(guard) {
+                    cancelled = true
+                    active
+                }
+            connection?.disconnect()
+        }
+
+        fun finish(connection: HttpURLConnection) {
+            try {
+                connection.disconnect()
+            } finally {
+                synchronized(guard) { if (active === connection) active = null }
+            }
+        }
+    }
 
     private companion object {
         const val MAX_SDP = 1024 * 1024

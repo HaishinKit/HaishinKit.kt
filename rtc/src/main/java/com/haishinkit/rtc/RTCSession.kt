@@ -28,7 +28,8 @@ import java.net.URI
  * WHIP publishing or WHEP playback over HTTP(S), using a non-trickle ICE offer.
  * A session owns one reusable stream. Register its stream with a mixer for publishing
  * or attach a StreamView for playback. Close before reconnecting. Configure settings
- * while closed. HTTP requests use finite connect/read timeouts, including on cancellation.
+ * while closed. Cancellation disconnects the active HTTP request; redirects and response
+ * reads share an absolute HTTP deadline before cleanup and reconnection.
  */
 class RTCSession(
     context: Context,
@@ -129,10 +130,7 @@ class RTCSession(
                     withRTCDeadline(configuration.connectionTimeoutMillis, "RTC connection timed out") {
                         native.offer()
                         val offer = gathered.await()
-                        val response =
-                            withContext(Dispatchers.IO) {
-                                http.create(URI(uri.toString()), offer) { resource = it }
-                            }
+                        val response = http.createCancellable(URI(uri.toString()), offer) { resource = it }
                         val selected = SDP.validateAnswer(response.answer, publishing, audio, video)
                         videoConfiguration = SDP.videoConfiguration(response.answer)
                         native.answer(response.answer)
@@ -160,7 +158,7 @@ class RTCSession(
                     error.value = cause
                 }
                 try {
-                    resource?.let { withContext(Dispatchers.IO) { http.delete(it) } }
+                    resource?.let { http.deleteCancellable(it) }
                 } catch (cause: Throwable) {
                     run.cleanupFailure = cause
                     error.value = cause

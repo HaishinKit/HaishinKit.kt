@@ -1,4 +1,5 @@
 #include "BoundedH264Depacketizer.h"
+#include "RtpPaddingStripper.h"
 #include <cstdlib>
 #include <iostream>
 
@@ -54,5 +55,49 @@ int main() {
     auto control = rtc::make_message(4, rtc::Message::Control);
     auto forwarded = feed(incomplete, control);
     require(forwarded.size() == 1 && forwarded[0] == control, "RTCP control packet was not forwarded");
-    std::cout << "Bounded H264 depacketization tests passed" << std::endl;
+    auto opus = std::make_shared<rtc::OpusRtpDepacketizer>();
+    opus->addToChain(std::make_shared<RtpPaddingStripper>());
+    auto paddedOpus = [](size_t extensionBytes) {
+        auto message = packet(1, 1, true, extensionBytes + 7);
+        auto header = reinterpret_cast<rtc::RtpHeader *>(message->data());
+        header->_first |= 0x20;
+        if (extensionBytes) {
+            header->setExtension(true);
+            auto extension = header->getExtensionHeader();
+            extension->setProfileSpecificId(0xbede);
+            extension->setHeaderLength(1);
+        }
+        const auto offset = sizeof(rtc::RtpHeader) + extensionBytes;
+        (*message)[offset] = rtc::byte{0xf8};
+        (*message)[offset + 1] = rtc::byte{0xff};
+        (*message)[offset + 2] = rtc::byte{0xfe};
+        message->back() = rtc::byte{4};
+        return message;
+    };
+    for (size_t extensionBytes : {size_t{0}, size_t{8}}) {
+        rtc::message_vector audio{paddedOpus(extensionBytes)};
+        opus->incomingChain(audio, [](rtc::message_ptr) {});
+        require(audio.size() == 1 && audio[0]->size() == 3, "Opus padding reached the audio decoder");
+        require((*audio[0])[0] == rtc::byte{0xf8} && audio[0]->back() == rtc::byte{0xfe}, "Opus payload changed");
+    }
+    auto paddingOnly = packet(1, 1, true, 4);
+    reinterpret_cast<rtc::RtpHeader *>(paddingOnly->data())->_first |= 0x20;
+    paddingOnly->back() = rtc::byte{4};
+    rtc::message_vector audio{paddingOnly};
+    opus->incomingChain(audio, [](rtc::message_ptr) {});
+    require(audio.empty(), "Padding-only probe became an Opus frame");
+    for (auto invalidPadding : {rtc::byte{0}, rtc::byte{255}}) {
+        auto invalid = paddedOpus(0);
+        invalid->back() = invalidPadding;
+        audio = {invalid};
+        opus->incomingChain(audio, [](rtc::message_ptr) {});
+        require(audio.empty(), "Invalid RTP padding was accepted");
+    }
+    audio = {truncated};
+    opus->incomingChain(audio, [](rtc::message_ptr) {});
+    require(audio.empty(), "Truncated Opus RTP header was accepted");
+    audio = {control};
+    opus->incomingChain(audio, [](rtc::message_ptr) {});
+    require(audio.size() == 1 && audio[0] == control, "Audio RTCP control packet was not forwarded");
+    std::cout << "Bounded H264 and Opus RTP padding tests passed" << std::endl;
 }

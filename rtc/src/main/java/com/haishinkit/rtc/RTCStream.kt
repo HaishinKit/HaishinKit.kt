@@ -121,9 +121,10 @@ class RTCStream internal constructor(context: Context, private val stop: () -> U
                     require(audioSetting.channelCount in 1..2)
                     if ("video" in tracks) {
                         require(videoSetting.profileLevel == VideoCodecProfileLevel.H264_BASELINE_3_1) { "RTC currently offers H.264 Baseline level 3.1" }
-                        require(videoSetting.options.none { it.key == MediaFormat.KEY_PROFILE || it.key == MediaFormat.KEY_LEVEL }) { "RTC fixes the video profile and level; configure videoSetting.profileLevel instead of overriding codec options" }
+                        val options = videoSetting.options.toList()
+                        H264EncoderOptions.validate(options)
                         SDP.validateH264Sender(videoSetting.width and -2, videoSetting.height and -2, videoSetting.frameRate, videoSetting.bitRate)
-                        videoCodec.options = videoSetting.options + CodecOption(MediaFormat.KEY_PROFILE, MediaCodecInfo.CodecProfileLevel.AVCProfileConstrainedBaseline)
+                        videoCodec.options = options + CodecOption(MediaFormat.KEY_PROFILE, MediaCodecInfo.CodecProfileLevel.AVCProfileConstrainedBaseline)
                     }
                     audioCodec.sampleRate = audioSetting.sampleRate
                     audioCodec.channelCount = audioSetting.channelCount

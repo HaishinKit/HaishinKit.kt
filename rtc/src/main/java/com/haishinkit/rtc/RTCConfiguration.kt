@@ -5,6 +5,7 @@ data class RTCConfiguration(
     val iceServers: List<String> = emptyList(),
     val bearerToken: String? = null,
     val connectionTimeoutMillis: Long = 30_000,
+    /** Connect/read timeout and absolute deadline shared by one HTTP operation's redirects/body. */
     val httpTimeoutMillis: Int = 10_000,
 ) {
     init {

@@ -109,6 +109,28 @@ internal class TestHTTPServer {
             requestBody = ByteArrayInputStream(data)
         }
 
+        /** A deliberately incomplete response that keeps the inactivity timeout alive. */
+        fun sendDrippingSDP(
+            location: String,
+            headersSent: () -> Unit = {},
+        ) {
+            responseHeaders.add("Location", location)
+            responseHeaders.add("Content-Type", "application/sdp")
+            try {
+                sendResponseHeaders(201, 1_000_000)
+                headersSent()
+                repeat(250) {
+                    responseBody.write('x'.code)
+                    responseBody.flush()
+                    Thread.sleep(20)
+                }
+            } catch (_: java.io.IOException) {
+                // The test deliberately disconnects this response before it completes.
+            } finally {
+                close()
+            }
+        }
+
         fun sendResponseHeaders(
             code: Int,
             length: Long,

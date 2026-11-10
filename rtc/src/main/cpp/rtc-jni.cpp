@@ -1,6 +1,7 @@
 #include <jni.h>
 #include <rtc/rtc.hpp>
 #include "BoundedH264Depacketizer.h"
+#include "RtpPaddingStripper.h"
 #include <atomic>
 #include <map>
 #include <mutex>
@@ -111,6 +112,9 @@ void track(const std::shared_ptr<Peer> &p, bool audio, bool publishing) {
         std::shared_ptr<rtc::MediaHandler> handler;
         if (audio) handler = std::make_shared<rtc::OpusRtpDepacketizer>();
         else handler = std::make_shared<BoundedH264Depacketizer>();
+        if (audio) handler->addToChain(std::make_shared<RtpPaddingStripper>());
+        // Incoming handlers run tail-first: count valid RTP (including padding
+        // probes) in receiver reports before stripping the codec payload.
         handler->addToChain(std::make_shared<rtc::RtcpReceivingSession>());
         t->setMediaHandler(handler);
         t->onFrame([weak, audio](rtc::binary data, rtc::FrameInfo info) {
