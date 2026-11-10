@@ -110,6 +110,10 @@ class RTCSessionTest {
                     publisher.stream.videoSetting.height = height
                     whip.frames.clear()
                     publisher.connect().getOrThrow()
+                    val encoder = com.haishinkit.stream.Stream::class.java.getDeclaredMethod("getVideoCodec").apply { isAccessible = true }.invoke(publisher.stream) as com.haishinkit.codec.VideoCodec
+                    assertEquals(publisher.stream.videoSetting.bitRate, encoder.bitRate)
+                    publisher.stream.requestBitrate(100_000)
+                    withTimeout(2_000) { while (encoder.bitRate != 100_000) delay(10) }
                     val frame =
                         withTimeout(10_000) {
                             var key: ByteArray? = null

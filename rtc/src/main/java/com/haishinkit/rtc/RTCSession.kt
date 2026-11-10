@@ -123,7 +123,13 @@ class RTCSession(
                 val native =
                     NativePeer(publishing, audio, video, configuration.iceServers.toTypedArray(), { kind, value, text ->
                         if (events.trySend(Event(kind, value, text)).isFailure) overflow.complete(IOException("RTC event queue capacity exceeded"))
-                    }, stream::receive)
+                    }, { audio, data, timestamp ->
+                        synchronized(guard) {
+                            if (current === run && run.job.isActive && state.value != StreamSession.ReadyState.CLOSING) {
+                                stream.receive(audio, data, timestamp)
+                            }
+                        }
+                    })
                 peer = native
                 var videoConfiguration = emptyList<ByteArray>()
                 val tracks =
@@ -139,7 +145,7 @@ class RTCSession(
                     }
                 stream.execute(publishing, tracks, native, videoConfiguration) {
                     synchronized(guard) {
-                        check(current === run && state.value == StreamSession.ReadyState.CONNECTING && run.job.isActive) { "Session was closed" }
+                        if (current !== run || state.value != StreamSession.ReadyState.CONNECTING || !run.job.isActive) throw CancellationException("Session was closed")
                         state.value = StreamSession.ReadyState.OPEN
                         run.started.complete(Unit)
                     }

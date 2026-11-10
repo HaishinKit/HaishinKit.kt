@@ -2,6 +2,7 @@
 #include <rtc/rtc.hpp>
 #include "BoundedH264Depacketizer.h"
 #include "RtpPaddingStripper.h"
+#include "FirHandler.h"
 #include <atomic>
 #include <map>
 #include <mutex>
@@ -104,6 +105,7 @@ void track(const std::shared_ptr<Peer> &p, bool audio, bool publishing) {
         handler->addToChain(std::make_shared<rtc::RtcpSrReporter>(config));
         handler->addToChain(std::make_shared<rtc::RtcpNackResponder>());
         if (!audio) {
+            handler->addToChain(std::make_shared<FirHandler>([weak] { if (auto p = weak.lock()) p->event(3); }));
             handler->addToChain(std::make_shared<rtc::PliHandler>([weak] { if (auto p = weak.lock()) p->event(3); }));
             handler->addToChain(std::make_shared<rtc::RembHandler>([weak](unsigned int bitrate) { if (auto p = weak.lock()) p->event(4, static_cast<int>(std::min(bitrate, 2147483647u))); }));
         }

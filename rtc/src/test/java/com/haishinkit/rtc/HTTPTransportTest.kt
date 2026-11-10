@@ -26,7 +26,7 @@ class HTTPTransportTest {
                 assertEquals("Bearer secret", request.requestHeaders.getFirst("Authorization"))
                 assertEquals("application/sdp", request.requestHeaders.getFirst("Content-Type"))
                 posted = request.requestBody.bufferedReader().readText()
-                request.responseHeaders.add("Location", "sessions/123")
+                request.responseHeaders.add("Location", endpoint.resolve("/live/sessions/123").toString().replace("http:", "HTTP:"))
                 request.responseHeaders.add("Content-Type", "application/sdp; charset=utf-8")
                 request.sendResponseHeaders(201, 6)
                 request.responseBody.use { it.write("answer".toByteArray()) }
@@ -40,7 +40,7 @@ class HTTPTransportTest {
             }
             val http = HTTPTransport(RTCConfiguration(bearerToken = "secret"))
             var allocated: HTTPTransport.Resource? = null
-            val resource = http.create(endpoint.resolve("/live/whip"), "offer") { allocated = it }
+            val resource = http.create(URI(endpoint.resolve("/live/whip").toString().replace("http:", "HTTP:")), "offer") { allocated = it }
             assertEquals("offer", posted)
             assertEquals("answer", resource.answer)
             assertEquals(endpoint.resolve("/live/sessions/123"), allocated!!.uri)
@@ -89,7 +89,7 @@ class HTTPTransportTest {
             server { first, endpoint ->
                 first.createContext("/whip") { request ->
                     request.requestBody.close()
-                    request.responseHeaders.add("Location", second.resolve("/whip").toString())
+                    request.responseHeaders.add("Location", second.resolve("/whip").toString().replace("http:", "HTTP:"))
                     request.sendResponseHeaders(307, -1)
                     request.close()
                 }

@@ -57,7 +57,7 @@ internal class HTTPTransport(private val configuration: RTCConfiguration) {
                     check(attempt < 5) { "Too many signaling redirects" }
                     val next = target.resolve(connection.getHeaderField("Location") ?: throw IOException("Redirect has no Location"))
                     validate(next)
-                    require(target.scheme != "https" || next.scheme == "https") { "HTTPS downgrade is not allowed" }
+                    require(!target.scheme.equals("https", true) || next.scheme.equals("https", true)) { "HTTPS downgrade is not allowed" }
                     if (!sameOrigin(target, next)) token = null
                     target = next
                 } else {
@@ -65,7 +65,7 @@ internal class HTTPTransport(private val configuration: RTCConfiguration) {
                     val location = connection.getHeaderField("Location") ?: throw IOException("SDP response has no Location")
                     val resource = target.resolve(location)
                     validate(resource)
-                    require(target.scheme != "https" || resource.scheme == "https") { "HTTPS resource downgrade is not allowed" }
+                    require(!target.scheme.equals("https", true) || resource.scheme.equals("https", true)) { "HTTPS resource downgrade is not allowed" }
                     // Record the resource before reading/validating the answer so setup failure
                     // can still DELETE the server allocation.
                     val pending = Resource(resource, token.takeIf { sameOrigin(target, resource) }, "")
@@ -160,7 +160,7 @@ internal class HTTPTransport(private val configuration: RTCConfiguration) {
         }
 
     private fun validate(uri: URI) {
-        require(uri.scheme in setOf("http", "https") && !uri.host.isNullOrBlank() && uri.userInfo == null && uri.fragment == null) { "Expected an HTTP(S) URL without user info or fragment" }
+        require((uri.scheme.equals("http", true) || uri.scheme.equals("https", true)) && !uri.host.isNullOrBlank() && uri.userInfo == null && uri.fragment == null) { "Expected an HTTP(S) URL without user info or fragment" }
     }
 
     private fun sameOrigin(
@@ -172,7 +172,7 @@ internal class HTTPTransport(private val configuration: RTCConfiguration) {
     private fun port(uri: URI): Int =
         if (uri.port != -1) {
             uri.port
-        } else if (uri.scheme == "https") {
+        } else if (uri.scheme.equals("https", true)) {
             443
         } else {
             80

@@ -128,6 +128,7 @@ class RTCStream internal constructor(context: Context, private val stop: () -> U
                     }
                     audioCodec.sampleRate = audioSetting.sampleRate
                     audioCodec.channelCount = audioSetting.channelCount
+                    videoCodec.bitRate = videoSetting.bitRate
                     videoCodec.surface = null
                     // Start only tracks accepted by the server. Base startRunning() would
                     // start every attached mixer source, including rejected media.
@@ -378,7 +379,7 @@ class RTCStream internal constructor(context: Context, private val stop: () -> U
         ): Boolean {
             if (current !== run) return true
             if (!run.publishing) {
-                queueOutputBuffer(if (mime == MediaFormat.MIMETYPE_AUDIO_RAW) MediaType.AUDIO else MediaType.VIDEO, index, buffer, info.presentationTimeUs, run.keyframes.remove(info.presentationTimeUs))
+                queueOutputBuffer(if (mime == MediaFormat.MIMETYPE_AUDIO_RAW) MediaType.AUDIO else MediaType.VIDEO, index, buffer, info.presentationTimeUs, mime != MediaFormat.MIMETYPE_AUDIO_RAW && run.keyframes.remove(info.presentationTimeUs))
                 return false
             }
             if (info.size == 0 || info.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG != 0) return true

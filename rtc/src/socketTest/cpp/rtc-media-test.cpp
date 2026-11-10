@@ -1,5 +1,6 @@
 #include "BoundedH264Depacketizer.h"
 #include "RtpPaddingStripper.h"
+#include "FirHandler.h"
 #include <cstdlib>
 #include <iostream>
 
@@ -26,6 +27,18 @@ static rtc::message_vector feed(BoundedH264Depacketizer &decoder, rtc::message_p
 }
 
 int main() {
+    int keyframes = 0;
+    FirHandler fir([&] { ++keyframes; });
+    auto feedback = rtc::make_message(20, rtc::Message::Control);
+    (*feedback)[0] = rtc::byte{0x84}; (*feedback)[1] = rtc::byte{206};
+    (*feedback)[2] = rtc::byte{0}; (*feedback)[3] = rtc::byte{4};
+    rtc::message_vector feedbacks{feedback};
+    fir.incoming(feedbacks, [](rtc::message_ptr) {});
+    require(keyframes == 1, "WebRTC FIR did not request a keyframe");
+    feedback->resize(12);
+    fir.incoming(feedbacks, [](rtc::message_ptr) {});
+    require(keyframes == 1, "Truncated FIR triggered a keyframe");
+
     // Holding a timestamp fixed without a marker must not retain unlimited data.
     BoundedH264Depacketizer bytes(64, 4096);
     for (int i = 0; i < 10000; ++i) {
