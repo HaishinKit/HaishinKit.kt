@@ -10,7 +10,7 @@ bool DynamicLoader::Load() {
         if (loaded) {
             return true;
         }
-        static vk::DynamicLoader dl;
+        static vk::detail::DynamicLoader dl;
         const auto vkGetInstanceProcAddr = dl.getProcAddress<PFN_vkGetInstanceProcAddr>(
                 "vkGetInstanceProcAddr");
         if (!vkGetInstanceProcAddr) return false;

@@ -70,33 +70,22 @@ void ImageStorage::Update(Kernel &kernel, AHardwareBuffer *buffer) {
     imageView.reset();
     image.reset();
     memory.reset();
+    auto externalMemory =
+        vk::ExternalMemoryImageCreateInfo()
+            .setHandleTypes(vk::ExternalMemoryHandleTypeFlagBits::eAndroidHardwareBufferANDROID)
+            .setPNext(&externalFormat);
     image = kernel.device->createImageUnique(
-            imageCreateInfo
-                    .setInitialLayout(layout)
-                    .setArrayLayers(desc.layers)
-                    .setPNext(&vk::ExternalMemoryImageCreateInfo()
-                            .setHandleTypes(
-                                    vk::ExternalMemoryHandleTypeFlagBits::eAndroidHardwareBufferANDROID)
-                            .setPNext(
-                                    &externalFormat
-                            )));
+        imageCreateInfo.setInitialLayout(layout).setArrayLayers(desc.layers).setPNext(&externalMemory));
 
-    const auto hardwareBufferProperties = kernel.device->getAndroidHardwareBufferPropertiesANDROID(
-            *buffer);
+    const auto hardwareBufferProperties = kernel.device->getAndroidHardwareBufferPropertiesANDROID(*buffer);
 
+    auto importedBuffer = vk::ImportAndroidHardwareBufferInfoANDROID().setBuffer(buffer);
+    auto dedicatedMemory = vk::MemoryDedicatedAllocateInfo().setImage(image.get()).setPNext(&importedBuffer);
     memory = kernel.device->allocateMemoryUnique(
-            memoryAllocateInfo
-                    .setAllocationSize(hardwareBufferProperties.allocationSize)
-                    .setMemoryTypeIndex(
-                            kernel.FindMemoryType(
-                                    hardwareBufferProperties.memoryTypeBits,
-                                    vk::MemoryPropertyFlags()
-                            ))
-                    .setPNext(&vk::MemoryDedicatedAllocateInfo()
-                            .setImage(image.get())
-                            .setPNext(&vk::ImportAndroidHardwareBufferInfoANDROID()
-                                    .setBuffer(buffer)))
-    );
+        memoryAllocateInfo.setAllocationSize(hardwareBufferProperties.allocationSize)
+            .setMemoryTypeIndex(
+                kernel.FindMemoryType(hardwareBufferProperties.memoryTypeBits, vk::MemoryPropertyFlags()))
+            .setPNext(&dedicatedMemory));
 
     kernel.device->bindImageMemory(image.get(), memory.get(), 0);
     // Foreign producers preserve the imported contents in GENERAL layout.

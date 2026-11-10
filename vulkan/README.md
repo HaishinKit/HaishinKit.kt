@@ -1,5 +1,8 @@
 # Vulkan rendering
 
+Native builds pin Vulkan-Headers to `v1.4.368`. This is a build-time header update;
+the renderer still requests Vulkan 1.1 and checks required device features at runtime.
+
 Select both factories **before** creating mixers, streams, recorders, or preview views:
 
 ```kotlin
