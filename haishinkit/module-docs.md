@@ -25,3 +25,36 @@ Custom types require platform-specific support. Android preserves an unknown typ
 `NullScreenObject`, whereas Swift's built-in factory returns `nil` for unsupported types.
 Only properties represented by the snapshot are shared; effects, video scaling, and orientation
 are not encoded by this format.
+
+## Editing screen objects
+
+[ScreenCoordinateTransform][com.haishinkit.screen.ScreenCoordinateTransform] maps between
+composition pixels and preview-local pixels for `RESIZE`, `RESIZE_ASPECT`, and
+`RESIZE_ASPECT_FILL`. Supply the preview's actual pixel size and matching gravity, and recreate
+the transform when the preview or composition changes size. Letterbox coordinates are not clamped.
+
+[ScreenObjectEditor][com.haishinkit.screen.ScreenObjectEditor] provides hit testing, movement,
+and proportional scaling for editable direct children of a composition, without a Compose dependency.
+Supply eligible objects in drawing order (back to front), excluding background video. Register and
+unregister objects alongside scene changes; the editor does not manage rendering resources.
+
+```kotlin
+val editor = ScreenObjectEditor(mixer.screen, listOf(image, text))
+val coordinates = ScreenCoordinateTransform(
+    Size(1280, 720), Size(preview.width, preview.height), VideoGravity.RESIZE_ASPECT_FILL,
+)
+val point = coordinates.toScreen(PointF(event.x, event.y))
+val target = point?.let { editor.hitTest(it) }
+if (point != null && target != null) {
+    editor.transform(target, anchor = point, scale = 1.1f)
+    val selectionBounds = editor.getBounds(target)?.let { coordinates.toPreview(it) }
+}
+```
+
+Use `moveTo` for top-left positioning, or `transform` with separate anchor and destination points
+to combine scaling and panning. Geometry retains fractional precision between input events,
+resolves alignment into a left/top frame, and clamps position and proportional size to the
+composition; text font size scales with its frame. After external layout changes, call
+`invalidateBounds` so editing uses the newly rendered geometry. Keep editor calls on one thread,
+as with direct frame changes. Gesture detection, focus state, dialogs, and selection decorations
+belong to the UI layer; the camera example demonstrates these with Compose.
