@@ -51,8 +51,6 @@ namespace Graphics {
 
         bool IsAvailable() const;
 
-        std::string InspectDevices();
-
         vk::ShaderModule LoadShader(const std::string &fileName);
 
         vk::ShaderModule LoadShaderStrict(const std::string &fileName);

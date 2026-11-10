@@ -4,7 +4,6 @@
 #include "SwapChain.h"
 #include "Texture.h"
 #include "stdexcept"
-#include <picojson/picojson.h>
 #include <jni.h>
 #include "../haishinkit.hpp"
 #include "vulkan/vulkan.h"
@@ -301,40 +300,6 @@ bool Kernel::HasFeatures() {
         if (Supports(candidate)) return true;
     }
     return false;
-}
-
-std::string Kernel::InspectDevices() {
-    DispatcherScope dispatchScope(dispatcher);
-    picojson::object inspect;
-    picojson::array devices;
-    for (const auto &device: instance->enumeratePhysicalDevices()) {
-        picojson::object data;
-        const auto properties = device.getProperties();
-        data.emplace(std::make_pair("device_name", (std::string) properties.deviceName));
-        if (properties.deviceType == vk::PhysicalDeviceType::eCpu) {
-            data.emplace(std::make_pair("device_type", "cpu"));
-        } else if (properties.deviceType == vk::PhysicalDeviceType::eIntegratedGpu) {
-            data.emplace(std::make_pair("device_type", "integrated_gpu"));
-        } else if (properties.deviceType == vk::PhysicalDeviceType::eDiscreteGpu) {
-            data.emplace(std::make_pair("device_type", "discrete_gpu"));
-        } else if (properties.deviceType == vk::PhysicalDeviceType::eVirtualGpu) {
-            data.emplace(std::make_pair("device_type", "virtual_gpu"));
-        } else {
-            data.emplace(std::make_pair("device_type", "other"));
-        }
-        data.emplace(std::make_pair("api_version", (double) properties.apiVersion));
-        data.emplace(std::make_pair("driver_version", (double) properties.driverVersion));
-        data.emplace(std::make_pair("vendor_id", (double) properties.vendorID));
-        data.emplace(std::make_pair("device_id", (double) properties.deviceID));
-        picojson::array extensions;
-        for (const auto extension: device.enumerateDeviceExtensionProperties()) {
-            extensions.emplace_back((std::string) extension.extensionName);
-        }
-        data.emplace(std::make_pair("extensions", extensions));
-        devices.push_back(picojson::value(data));
-    }
-    inspect.emplace(std::make_pair("devices", devices));
-    return picojson::value(inspect).serialize();
 }
 
 std::vector<char> Kernel::ReadFile(const std::string &fileName) {

@@ -80,7 +80,6 @@ target_link_libraries(
 )
 
 include_directories(
-        vendor
         vendor/Vulkan-Headers/include
         vendor/glm
 )
