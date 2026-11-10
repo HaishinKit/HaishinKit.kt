@@ -11,6 +11,7 @@ import android.provider.MediaStore
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.geometry.Offset
 import androidx.core.net.toUri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.DefaultLifecycleObserver
@@ -56,6 +57,8 @@ class CameraViewModel(
     val selectedCamera: StateFlow<CameraDevice?>
         get() = _selectedCamera.asStateFlow()
     var videoEffectItems: List<VideoEffectItem>
+
+    internal val screenObjectDragController: ScreenObjectDragController
 
     private var cameraDeviceManager: CameraDeviceManager =
         CameraDeviceManager(context = application.applicationContext)
@@ -106,6 +109,8 @@ class CameraViewModel(
         lottie.playAnimation()
         mixer.screen.addChild(lottie)
 
+        screenObjectDragController = ScreenObjectDragController(mixer.screen, listOf(image, text, lottie))
+
         mixer.registerOutput(recorder)
         RendererPreference.register(this)
     }
@@ -139,6 +144,40 @@ class CameraViewModel(
         } finally {
             replacement?.stream?.dispose()
         }
+    }
+
+    internal fun addScreenObject(
+        kind: ExampleScreenObjectKind,
+        position: Offset,
+    ) {
+        val target =
+            when (kind) {
+                ExampleScreenObjectKind.TEXT ->
+                    TextScreenObject().apply {
+                        value = "New text"
+                        size = 60f
+                    }
+                ExampleScreenObjectKind.IMAGE ->
+                    ImageScreenObject().apply {
+                        bitmap = BitmapFactory.decodeResource(application.applicationContext.resources, R.drawable.game_jikkyou)
+                        frame = Rect(0, 0, 180, 180)
+                    }
+                ExampleScreenObjectKind.ANIMATION ->
+                    LottieScreen(application.applicationContext).apply {
+                        frame = Rect(0, 0, 200, 200)
+                        setAnimation(R.raw.a1707149669115)
+                        playAnimation()
+                    }
+            }
+        screenObjectDragController.register(target, position)
+        mixer.screen.addChild(target)
+    }
+
+    internal fun removeFocusedScreenObject() {
+        val target = screenObjectDragController.focusedObject ?: return
+        (target as? LottieScreen)?.cancelAnimation()
+        mixer.screen.removeChild(target)
+        screenObjectDragController.unregister(target)
     }
 
     fun selectAudioDevice() {
