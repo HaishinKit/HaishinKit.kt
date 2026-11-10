@@ -54,7 +54,7 @@ class MediaProjectionService :
         }
     }
     private val session: StreamSession by lazy {
-        StreamSession.Builder(applicationContext, Preference.shared.toStreamUri()).build()
+        Preference.shared.sessionSettings().create(applicationContext).apply { stream.audioSetting.sampleRate = 48_000 }
     }
     private val notificationManager by lazy { NotificationManagerCompat.from(this) }
     private val mediaProjectionManager by lazy {
@@ -130,7 +130,7 @@ class MediaProjectionService :
                 }
             }
         launch {
-            mixer.attachAudio(0, AudioRecordSource(applicationContext))
+            mixer.attachAudio(0, AudioRecordSource(applicationContext).apply { sampleRate = 48_000 })
             intent?.getParcelableExtra<Intent>(EXTRA_RESULT_DATA)?.let {
                 mediaProjectionManager.getMediaProjection(Activity.RESULT_OK, it)?.let {
                     val source =

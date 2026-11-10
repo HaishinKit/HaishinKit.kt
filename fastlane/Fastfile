@@ -13,6 +13,14 @@ lane :review do
   gradle(task: ':vulkan:assembleDebug')
   gradle(task: ':vulkan:assembleDebugAndroidTest')
   gradle(task: ':haishinkit:testDebugUnitTest')
+  gradle(task: ':app:testDebugUnitTest')
+  gradle(task: ':rtc:assembleDebug')
+  gradle(task: ':rtc:assembleDebugAndroidTest')
+  rtc_test_source = File.expand_path('../rtc/src/main/cpp', __dir__)
+  rtc_test_build = File.expand_path('../build/rtc-native-tests', __dir__)
+  sh('cmake', '-S', rtc_test_source, '-B', rtc_test_build, '-DCMAKE_BUILD_TYPE=Release')
+  sh('cmake', '--build', rtc_test_build, '--target', 'haishinkit_rtc', '--parallel', '2')
+  gradle(task: ':rtc:testDebugUnitTest', flags: "-PrtcNativeLibraryDir=#{Shellwords.escape(rtc_test_build)}")
   danger(
     danger_id: 'danger',
     dangerfile: 'Dangerfile',

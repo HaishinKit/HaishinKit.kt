@@ -1,0 +1,11 @@
+HaishinKit RTC includes libdatachannel 0.24.3 (MPL-2.0) and its pinned
+libjuice (MPL-2.0), libsrtp (BSD-3-Clause), usrsctp (BSD-3-Clause),
+plog (MIT), nlohmann/json (MIT), and Mbed TLS 3.6.5 (Apache-2.0) dependencies.
+License texts are included in this directory.
+
+Unmodified libdatachannel source and dependency revisions:
+https://github.com/paullouisageneau/libdatachannel/tree/c6696d157b5612df2a741d9a03b192b47ab6cefb
+https://github.com/paullouisageneau/libdatachannel/blob/c6696d157b5612df2a741d9a03b192b47ab6cefb/.gitmodules
+Mbed TLS source:
+https://github.com/Mbed-TLS/mbedtls/releases/tag/mbedtls-3.6.5
+The HaishinKit build enables MBEDTLS_SSL_DTLS_SRTP via a user config header.

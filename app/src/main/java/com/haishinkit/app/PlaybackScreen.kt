@@ -25,8 +25,11 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.haishinkit.compose.HaishinKitView
 import com.haishinkit.compose.rememberStreamSessionState
+import com.haishinkit.rtc.RTCSession
+import com.haishinkit.rtc.RTCStream
 import com.haishinkit.srt.SrtStream
 import com.haishinkit.stream.StreamSession
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.launch
 
 @Suppress("unused")
@@ -46,13 +49,18 @@ fun PlaybackScreen(
         Text(viewModel.sessionError ?: "Preparing stream...", modifier = modifier.safeDrawingPadding().padding(16.dp))
         return
     }
+    LaunchedEffect(currentSession) {
+        (currentSession as? RTCSession)?.failure?.filterNotNull()?.collect { cause ->
+            errorMessage = cause.message ?: "WHEP connection failed."
+        }
+    }
     val session = rememberStreamSessionState(currentSession)
     val readyState by session.readyState.collectAsState()
     val toggleConnection: () -> Unit = {
         errorMessage = null
         scope.launch {
             if (session.readyState.value != StreamSession.ReadyState.CLOSED) {
-                session.close()
+                session.close().onFailure { errorMessage = it.message ?: "Could not close the stream." }
             } else {
                 viewModel.sessionError?.let {
                     errorMessage = it
@@ -93,7 +101,7 @@ fun PlaybackScreen(
                     readyState = readyState,
                     startLabel = "PLAY",
                     onClick = toggleConnection,
-                    canCancelConnection = session.stream is SrtStream,
+                    canCancelConnection = session.stream is SrtStream || session.stream is RTCStream,
                 )
             }
         }

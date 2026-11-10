@@ -35,6 +35,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
@@ -60,7 +62,9 @@ fun PreferenceScreen(
         val keyboardController = LocalSoftwareKeyboardController.current
         var streamUrl by remember { mutableStateOf(Preference.shared.streamURL) }
         TextField(
-            label = { Text("Stream URL (RTMP / SRT)") },
+            label = { Text("Publish URL (RTMP / SRT / WHIP)") },
+            singleLine = true,
+            supportingText = { Text("For WHIP, enter the complete http(s) publishing endpoint.") },
             value = streamUrl,
             onValueChange = {
                 streamUrl = it
@@ -78,7 +82,7 @@ fun PreferenceScreen(
         var streamName by remember { mutableStateOf(Preference.shared.streamName) }
         TextField(
             label = { Text("RTMP StreamName") },
-            enabled = !streamUrl.startsWith("srt:"),
+            enabled = streamUrl.trim().substringBefore(':').lowercase() in setOf("rtmp", "rtmps"),
             value = streamName,
             onValueChange = {
                 streamName = it
@@ -93,7 +97,53 @@ fun PreferenceScreen(
                 Modifier
                     .fillMaxWidth(),
         )
+        val rtc = streamUrl.trim().substringBefore(':').lowercase() in setOf("http", "https")
+        if (rtc) {
+            Text("Publish uses WHIP. Playback uses WHEP.", style = MaterialTheme.typography.titleMedium)
+            var whepUrl by remember { mutableStateOf(Preference.shared.whepURL) }
+            TextField(
+                label = { Text("WHEP playback URL") },
+                value = whepUrl,
+                onValueChange = {
+                    whepUrl = it
+                    Preference.shared.whepURL = it
+                },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Done),
+                keyboardActions = KeyboardActions(onDone = { keyboardController?.hide() }),
+                modifier = Modifier.fillMaxWidth(),
+            )
+            var token by remember { mutableStateOf(Preference.shared.bearerToken) }
+            TextField(
+                label = { Text("Bearer token (optional)") },
+                value = token,
+                onValueChange = {
+                    token = it
+                    Preference.shared.bearerToken = it
+                },
+                visualTransformation = PasswordVisualTransformation(),
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Done),
+                keyboardActions = KeyboardActions(onDone = { keyboardController?.hide() }),
+                supportingText = { Text("Used for both WHIP and WHEP. Enter the token without the Bearer prefix.") },
+                modifier = Modifier.fillMaxWidth(),
+            )
+            var iceServers by remember { mutableStateOf(Preference.shared.iceServers) }
+            TextField(
+                label = { Text("STUN / TURN servers (optional)") },
+                value = iceServers,
+                onValueChange = {
+                    iceServers = it
+                    Preference.shared.iceServers = it
+                },
+                minLines = 2,
+                supportingText = { Text("One URL per line, for example stun:stun.example.com:3478. Use TURN when required by your network.") },
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Text("Open Publish to send the camera, or Playback to watch the WHEP stream. Settings are kept for this app session.")
+        }
         val context = LocalContext.current
+
         val scope = rememberCoroutineScope()
         val currentRenderer = remember { RendererPreference.selected(context) }
         var selectedRenderer by remember { mutableStateOf(currentRenderer) }

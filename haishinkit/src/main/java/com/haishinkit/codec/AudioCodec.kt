@@ -88,7 +88,9 @@ class AudioCodec : Codec() {
     override fun createMediaFormat(mime: String): MediaFormat =
         MediaFormat.createAudioFormat(mime, sampleRate, channelCount).apply {
             if (mode == MODE_ENCODE) {
-                setInteger(MediaFormat.KEY_AAC_PROFILE, aacProfile)
+                if (mime == MediaFormat.MIMETYPE_AUDIO_AAC) {
+                    setInteger(MediaFormat.KEY_AAC_PROFILE, aacProfile)
+                }
                 setInteger(MediaFormat.KEY_BIT_RATE, bitRate)
             } else {
                 setInteger(MediaFormat.KEY_MAX_INPUT_SIZE, DEFAULT_KEY_MAX_INPUT_SIZE)
