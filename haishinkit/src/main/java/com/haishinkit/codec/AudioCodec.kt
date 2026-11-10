@@ -95,11 +95,11 @@ class AudioCodec : Codec() {
             }
         }
 
-    @Synchronized
-    override fun dispose() {
-        inputIndices.clear()
-        buffer.clear()
-        super.dispose()
+    override fun onDisposed() {
+        synchronized(this) {
+            inputIndices.clear()
+            buffer.clear()
+        }
     }
 
     private fun drainInputs() {

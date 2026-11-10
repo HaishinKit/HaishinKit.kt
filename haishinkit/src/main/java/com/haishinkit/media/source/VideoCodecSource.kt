@@ -10,8 +10,6 @@ import java.lang.ref.WeakReference
 class VideoCodecSource(
     val videoCodec: VideoCodec,
 ) : VideoSource {
-    private var transform = WeakReference<VideoCodec>(videoCodec)
-
     override var surface: Surface? = null
         set(value) {
             field = value
@@ -19,6 +17,10 @@ class VideoCodecSource(
         }
     override var videoSize: Size = Size(0, 0)
     override val imageOrientation: ImageOrientation = ImageOrientation.UP
+    override val videoCropRect
+        get() = videoCodec.videoCropRect
+
+    private var transform = WeakReference<VideoCodec>(videoCodec)
 
     override suspend fun open(mixer: MediaMixer): Result<Unit> {
         return Result.success(Unit)

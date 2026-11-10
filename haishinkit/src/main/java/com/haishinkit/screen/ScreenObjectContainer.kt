@@ -154,11 +154,13 @@ open class ScreenObjectContainer(
         children.clear()
     }
 
-    internal open fun getChildren(): List<ScreenObject> {
-        return children
+    /** Returns a snapshot of the direct children in drawing order. */
+    open fun getChildren(): List<ScreenObject> {
+        return children.toList()
     }
 
-    internal open fun <T : ScreenObject> findByClass(clazz: Class<T>): List<T> {
+    /** Finds descendants of the requested type, including nested containers. */
+    open fun <T : ScreenObject> findByClass(clazz: Class<T>): List<T> {
         val objects =
             children
                 .mapNotNull {

@@ -28,12 +28,13 @@ add_library(
         # Provides a relative path to your source file(s).
         src/main/cpp/haishinkit.hpp
         src/main/cpp/Graphics/Kernel.cpp
+        src/main/cpp/Graphics/SceneRenderer.cpp
         src/main/cpp/Graphics/ImageStorage.cpp
         src/main/cpp/Graphics/DynamicLoader.cpp
         src/main/cpp/Graphics/CommandBuffer.cpp
         src/main/cpp/Graphics/Queue.cpp
         src/main/cpp/Graphics/FpsController.cpp
-        src/main/cpp/Graphics/PixelTransform.cpp
+        src/main/cpp/Graphics/VkPixelTransform.cpp
         src/main/cpp/Graphics/SwapChain.cpp
         src/main/cpp/Graphics/Pipeline.cpp
         src/main/cpp/Graphics/Texture.cpp
@@ -69,11 +70,13 @@ find_library(
 target_link_libraries(
         # Specifies the target library.
         hkvulkan
+        PRIVATE
         # Links the target library to the log library
         # included in the NDK.
         -landroid
         ${log-lib}
         mediandk
+        jnigraphics
 )
 
 include_directories(
@@ -84,3 +87,6 @@ include_directories(
 
 target_compile_features(hkvulkan PRIVATE cxx_std_17)
 target_compile_options(hkvulkan PRIVATE -include ${CMAKE_CURRENT_SOURCE_DIR}/src/main/cpp/Graphics/VulkanDispatcher.h)
+
+include(SpirvTools.cmake)
+target_link_libraries(hkvulkan PRIVATE SPIRV-Tools-static)

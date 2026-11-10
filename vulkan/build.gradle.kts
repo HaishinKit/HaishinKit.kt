@@ -96,7 +96,7 @@ abstract class CompileVulkanShaders : DefaultTask() {
     fun compile() {
         val destination = outputDirectory.dir("shaders").get().asFile
         destination.mkdirs()
-        shaders.forEach { shader ->
+        shaders.filter { it.extension == "vert" || it.extension == "frag" }.forEach { shader ->
             execOperations.exec {
                 commandLine(compiler.get().asFile, shader, "-o", destination.resolve("${shader.name}.spv"))
             }
@@ -106,7 +106,7 @@ abstract class CompileVulkanShaders : DefaultTask() {
 
 val compileVulkanShaders =
     tasks.register<CompileVulkanShaders>("compileVulkanShaders") {
-        shaders.from(fileTree("src/main/shaders") { include("*.vert", "*.frag") })
+        shaders.from(fileTree("src/main/shaders") { include("*.vert", "*.frag", "*.glsl") })
         val host =
             when {
                 System.getProperty("os.name").startsWith("Mac") -> "darwin-x86_64"

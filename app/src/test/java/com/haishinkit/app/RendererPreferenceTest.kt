@@ -1,6 +1,7 @@
 package com.haishinkit.app
 
 import com.haishinkit.graphics.PixelTransform
+import com.haishinkit.screen.Screen
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -18,6 +19,7 @@ class RendererPreferenceTest {
     fun savedVulkanSelectionFallsBackOnOlderAndroidWithoutLoadingNativeCode() {
         val context = RuntimeEnvironment.getApplication()
         val factory = PixelTransform.factory
+        val screenFactory = Screen.factory
         try {
             RendererPreference.save(context, Renderer.VULKAN)
             assertEquals(Renderer.VULKAN, RendererPreference.selected(context))
@@ -29,6 +31,7 @@ class RendererPreferenceTest {
         } finally {
             RendererPreference.save(context, Renderer.OPENGL)
             PixelTransform.factory = factory
+            Screen.factory = screenFactory
         }
     }
 

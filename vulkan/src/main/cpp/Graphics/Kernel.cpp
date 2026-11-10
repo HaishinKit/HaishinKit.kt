@@ -1,4 +1,5 @@
 #include "Kernel.h"
+#include "SpirvValidation.h"
 #include "VulkanLock.h"
 #include "SwapChain.h"
 #include "Texture.h"
@@ -509,4 +510,21 @@ void Kernel::ReadPixels(void *buffer) {
 
     device->unmapMemory(dstImageMemory);
     device->free(dstImageMemory);
+}
+
+vk::ShaderModule Kernel::LoadShaderStrict(const std::string &fileName) {
+    DispatcherScope scope(dispatcher);
+    if (!assetManager) throw std::runtime_error("No shader asset manager");
+    AAsset *asset = AAssetManager_open(assetManager, fileName.c_str(), AASSET_MODE_BUFFER);
+    if (!asset) throw std::runtime_error("Missing Vulkan shader asset: " + fileName);
+    const auto length = AAsset_getLength(asset);
+    std::vector<uint32_t> code((length + 3) / 4);
+    const auto read = AAsset_read(asset, code.data(), length);
+    AAsset_close(asset);
+    if (read != length || length < 20 || length % 4 != 0 || code[0] != 0x07230203)
+        throw std::runtime_error("Invalid SPIR-V shader asset: " + fileName);
+    std::string diagnostic;
+    if (!ValidateSpirv(code, diagnostic))
+        throw std::runtime_error("Invalid SPIR-V shader asset: " + fileName + " (" + diagnostic + ")");
+    return device->createShaderModule(vk::ShaderModuleCreateInfo().setCode(code));
 }

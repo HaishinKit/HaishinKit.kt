@@ -1,5 +1,6 @@
 package com.haishinkit.media.source
 
+import android.graphics.Rect
 import android.util.Size
 import android.view.Surface
 import com.haishinkit.graphics.ImageOrientation
@@ -31,4 +32,12 @@ interface VideoSource : Source {
      * when rendered or encoded.
      */
     val imageOrientation: ImageOrientation
+
+    /**
+     * Valid pixels in the underlying hardware buffer, with exclusive right/bottom coordinates.
+     * Supply this when a producer crops from a nonzero origin: ImageReader can report only the
+     * cropped dimensions and lose that origin. Null uses the reader's reported crop.
+     */
+    val videoCropRect: Rect?
+        get() = null
 }

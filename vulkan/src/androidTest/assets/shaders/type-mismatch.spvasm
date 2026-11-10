@@ -1,0 +1,18 @@
+; Assembles successfully but is semantically invalid: stores a float through a vec4 pointer.
+OpCapability Shader
+OpMemoryModel Logical GLSL450
+OpEntryPoint Fragment %main "main" %color
+OpExecutionMode %main OriginUpperLeft
+OpDecorate %color Location 0
+%void = OpTypeVoid
+%fn = OpTypeFunction %void
+%float = OpTypeFloat 32
+%vector = OpTypeVector %float 4
+%pointer = OpTypePointer Output %vector
+%color = OpVariable %pointer Output
+%one = OpConstant %float 1
+%main = OpFunction %void None %fn
+%entry = OpLabel
+OpStore %color %one
+OpReturn
+OpFunctionEnd

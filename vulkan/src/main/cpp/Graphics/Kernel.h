@@ -55,6 +55,8 @@ namespace Graphics {
 
         vk::ShaderModule LoadShader(const std::string &fileName);
 
+        vk::ShaderModule LoadShaderStrict(const std::string &fileName);
+
         void SelectPhysicalDevice();
 
         vk::UniqueImageView CreateImageView(vk::Image image, vk::Format);

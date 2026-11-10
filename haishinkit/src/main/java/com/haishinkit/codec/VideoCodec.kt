@@ -1,6 +1,7 @@
 package com.haishinkit.codec
 
 import android.content.Context
+import android.graphics.Rect
 import android.media.MediaCodec
 import android.media.MediaCodecInfo
 import android.media.MediaFormat
@@ -10,6 +11,7 @@ import android.util.Size
 import com.haishinkit.graphics.PixelTransform
 import com.haishinkit.graphics.VideoGravity
 import com.haishinkit.util.FeatureUtil
+import com.haishinkit.util.MediaFormatUtil
 import kotlin.properties.Delegates
 
 /**
@@ -147,6 +149,10 @@ class VideoCodec(
             frameRate = DEFAULT_FRAME_RATE
         }
     }
+
+    /** Crop in the decoder's underlying buffer; right/bottom are exclusive. */
+    val videoCropRect: Rect?
+        get() = MediaFormatUtil.getCropRect(currentOutputFormat)
 
     override var inputMimeType = MediaFormat.MIMETYPE_VIDEO_RAW
     override var outputMimeType = DEFAULT_PROFILE_LEVEL.mime

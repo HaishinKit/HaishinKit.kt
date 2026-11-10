@@ -81,10 +81,17 @@ abstract class Screen(
 
         const val TYPE = "screen"
 
+        /** Select before constructing mixers or streams. Existing screens retain their backend. */
+        @Volatile
+        var factory: (Context) -> Screen = ::createOpenGL
+
         /**
          * Creates a screen with a dedicated rendering thread and a default size of 1280 × 720 pixels.
          */
-        fun create(context: Context): Screen =
+        fun create(context: Context): Screen = factory(context)
+
+        /** Creates the OpenGL screen without consulting [factory]. */
+        fun createOpenGL(context: Context): Screen =
             com.haishinkit.gles.screen.ThreadScreen(context).apply {
                 frame = Rect(0, 0, DEFAULT_WIDTH, DEFAULT_HEIGHT)
             }

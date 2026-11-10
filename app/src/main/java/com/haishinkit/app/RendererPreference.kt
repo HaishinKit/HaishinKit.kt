@@ -3,7 +3,9 @@ package com.haishinkit.app
 import android.content.Context
 import android.os.Build
 import com.haishinkit.graphics.PixelTransform
+import com.haishinkit.screen.Screen
 import com.haishinkit.vulkan.VkPixelTransform
+import com.haishinkit.vulkan.VkScreen
 
 enum class Renderer(val label: String) {
     OPENGL("OpenGL"),
@@ -33,8 +35,15 @@ object RendererPreference {
     }
 
     fun configure(context: Context) {
+        val useVulkan = selected(context) == Renderer.VULKAN && isVulkanAvailable()
+        Screen.factory =
+            if (useVulkan) {
+                VkScreen::create
+            } else {
+                Screen::createOpenGL
+            }
         PixelTransform.factory =
-            if (selected(context) == Renderer.VULKAN && isVulkanAvailable()) {
+            if (useVulkan) {
                 VkPixelTransform::create
             } else {
                 PixelTransform::createOpenGL

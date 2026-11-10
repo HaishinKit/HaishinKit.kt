@@ -93,23 +93,31 @@ abstract class Codec :
      * The android.media.MediaCodec instance.
      */
     open var codec: MediaCodec? = null
-        get() {
-            if (field == null) {
-                field =
-                    if (mode == MODE_ENCODE) {
-                        MediaCodec.createEncoderByType(outputMimeType)
-                    } else {
-                        MediaCodec.createDecoderByType(inputMimeType)
-                    }
+        get() =
+            synchronized(this) {
+                if (field == null) {
+                    field =
+                        if (mode == MODE_ENCODE) {
+                            MediaCodec.createEncoderByType(outputMimeType)
+                        } else {
+                            MediaCodec.createDecoderByType(inputMimeType)
+                        }
+                }
+                field
             }
-            return field
-        }
-        set(value) {
-            if (value == field) return
-            field?.stop()
-            field?.release()
-            field = value
-        }
+        set(value) =
+            synchronized(lifecycleLock) {
+                val previous =
+                    synchronized(this) state@{
+                        if (value === field) return@state null
+                        field.also { field = value }
+                    }
+                try {
+                    previous?.stop()
+                } finally {
+                    previous?.release()
+                }
+            }
 
     /**
      * The processing mode: [MODE_ENCODE] or [MODE_DECODE]. Set before starting the codec.
@@ -159,17 +167,17 @@ abstract class Codec :
     abstract var outputMimeType: String
 
     override val isRunning = AtomicBoolean(false)
+
+    /** Most recent format of the active codec; cleared when it is disposed. */
+    protected val currentOutputFormat: MediaFormat?
+        get() = outputFormat
+
+    // Never acquire this lock while holding the codec monitor. Worker-facing callbacks execute
+    // under this lock instead, so producer attachment can still acquire the codec monitor.
+    private val lifecycleLock = Any()
+
+    @Volatile
     private var outputFormat: MediaFormat? = null
-        set(value) {
-            if (field != value && value != null) {
-                Log.i(TAG, value.toString())
-                field = value
-                value.getString("mime")?.let { mime ->
-                    listener?.onFormatChanged(mime, value)
-                }
-            }
-            field = value
-        }
     private var backgroundHandler: Handler? = null
         get() {
             if (field == null) {
@@ -185,53 +193,66 @@ abstract class Codec :
             field = value
         }
 
-    @Synchronized
-    final override fun startRunning() {
-        if (isRunning.get()) return
-        if (BuildConfig.DEBUG) {
-            Log.d(TAG, "startRunning($inputMimeType)")
-        }
-        try {
-            val codec = codec ?: return
-            configure(codec)
-            outputFormat?.let { format ->
-                format.getString("mime")?.let { mime ->
-                    listener?.onFormatChanged(mime, format)
-                }
+    final override fun startRunning() =
+        synchronized(lifecycleLock) {
+            if (isRunning.get()) return@synchronized
+            if (BuildConfig.DEBUG) {
+                Log.d(TAG, "startRunning($inputMimeType)")
             }
-            codec.start()
-            isRunning.set(true)
-        } catch (e: MediaCodec.CodecException) {
-            Log.w(TAG, "", e)
+            try {
+                val codec = codec ?: return@synchronized
+                configure(codec)
+                outputFormat?.let { format ->
+                    format.getString("mime")?.let { mime ->
+                        listener?.onFormatChanged(mime, format)
+                    }
+                }
+                // Publish RUNNING before input callbacks can acquire the state monitor.
+                synchronized(this) {
+                    codec.start()
+                    isRunning.set(true)
+                }
+            } catch (e: MediaCodec.CodecException) {
+                Log.w(TAG, "", e)
+            }
         }
-    }
 
-    @Synchronized
-    final override fun stopRunning() {
-        if (!isRunning.get()) return
-        if (BuildConfig.DEBUG) {
-            Log.d(TAG, "stopRunning($inputMimeType)")
+    final override fun stopRunning() =
+        synchronized(lifecycleLock) {
+            if (!isRunning.get()) return@synchronized
+            if (BuildConfig.DEBUG) {
+                Log.d(TAG, "stopRunning($inputMimeType)")
+            }
+            try {
+                isRunning.set(false)
+                dispose()
+            } catch (e: MediaCodec.CodecException) {
+                Log.w(TAG, "", e)
+            } catch (e: IllegalStateException) {
+                Log.w(TAG, "", e)
+            }
         }
-        try {
-            isRunning.set(false)
-            dispose()
-        } catch (e: MediaCodec.CodecException) {
-            Log.w(TAG, "", e)
-        } catch (e: IllegalStateException) {
-            Log.w(TAG, "", e)
-        }
-    }
 
     /**
      * Releases the Android codec, callback thread, and cached output format.
      */
-    @Synchronized
-    open fun dispose() {
-        isRunning.set(false)
-        codec = null
-        backgroundHandler = null
-        outputFormat = null
-    }
+    open fun dispose() =
+        synchronized(lifecycleLock) {
+            synchronized(this) { isRunning.set(false) }
+            try {
+                // VideoCodec may synchronously detach a Vulkan output here. Do not hold this monitor.
+                codec = null
+            } finally {
+                synchronized(this) {
+                    backgroundHandler = null
+                    outputFormat = null
+                }
+                onDisposed()
+            }
+        }
+
+    /** Clears subclass state while lifecycle transitions remain serialized. */
+    protected open fun onDisposed() {}
 
     /**
      * Installs callbacks and configures the codec with its media format, options, surface, and processing mode.
@@ -286,15 +307,14 @@ abstract class Codec :
         }
     }
 
-    @Synchronized
     override fun onOutputBufferAvailable(
         codec: MediaCodec,
         index: Int,
         info: MediaCodec.BufferInfo,
-    ) {
-        if (!isRunning.get() || codec !== this.codec) return
+    ) = synchronized(lifecycleLock) {
+        if (!isRunning.get() || codec !== this.codec) return@synchronized
         try {
-            val buffer = codec.getOutputBuffer(index) ?: if (mode == MODE_DECODE && surface != null) ByteBuffer.allocate(0) else return
+            val buffer = codec.getOutputBuffer(index) ?: if (mode == MODE_DECODE && surface != null) ByteBuffer.allocate(0) else return@synchronized
             if (listener?.onSampleOutput(outputMimeType, index, info, buffer) == true) {
                 codec.releaseOutputBuffer(index, false)
             }
@@ -339,13 +359,19 @@ abstract class Codec :
             }
         }
 
-    @Synchronized
     override fun onOutputFormatChanged(
         codec: MediaCodec,
         format: MediaFormat,
-    ) {
-        if (!isRunning.get() || codec !== this.codec) return
-        outputFormat = format
+    ) = synchronized(lifecycleLock) lifecycle@{
+        val changed =
+            synchronized(this) {
+                if (!isRunning.get() || codec !== this.codec) return@lifecycle
+                (outputFormat !== format).also { outputFormat = format }
+            }
+        if (changed) {
+            Log.i(TAG, format.toString())
+            format.getString("mime")?.let { mime -> listener?.onFormatChanged(mime, format) }
+        }
     }
 
     protected abstract fun createMediaFormat(mime: String): MediaFormat
