@@ -62,27 +62,25 @@ void Pipeline::SetUp(Kernel &kernel, std::vector<vk::Sampler> &samplers, VideoEf
                     .setSetLayouts(descriptorSetLayouts)
     );
 
-    pipelineLayout = kernel.device->createPipelineLayoutUnique(
-            vk::PipelineLayoutCreateInfo()
-                    .setSetLayoutCount(descriptorSetLayouts.size())
-                    .setSetLayouts(descriptorSetLayouts)
-                    .setPushConstantRangeCount(1)
-                    .setPPushConstantRanges(&vk::PushConstantRange()
-                            .setOffset(0)
-                            .setStageFlags(vk::ShaderStageFlagBits::eVertex)
-                            .setSize(sizeof(Graphics::PushConstants)))
-    );
+    vk::PushConstantRange pushConstantRange;
+    pushConstantRange.setOffset(0)
+        .setStageFlags(vk::ShaderStageFlagBits::eVertex)
+        .setSize(sizeof(Graphics::PushConstants));
+    pipelineLayout =
+        kernel.device->createPipelineLayoutUnique(vk::PipelineLayoutCreateInfo()
+                                                      .setSetLayoutCount(descriptorSetLayouts.size())
+                                                      .setSetLayouts(descriptorSetLayouts)
+                                                      .setPushConstantRangeCount(1)
+                                                      .setPPushConstantRanges(&pushConstantRange));
 
     std::vector<vk::DescriptorBufferInfo> bufferInfo = videoEffect->GetDescriptorBufferInfo();
     if (!bufferInfo.empty()) {
-        kernel.device->updateDescriptorSets(
-                vk::WriteDescriptorSet()
-                        .setDstSet(descriptorSets[1])
-                        .setDescriptorCount(1)
-                        .setDescriptorType(vk::DescriptorType::eUniformBuffer)
-                        .setBufferInfo(bufferInfo),
-                nullptr
-        );
+        kernel.device->updateDescriptorSets(vk::WriteDescriptorSet()
+                                                .setDstSet(descriptorSets[1])
+                                                .setDescriptorCount(1)
+                                                .setDescriptorType(vk::DescriptorType::eUniformBuffer)
+                                                .setBufferInfo(bufferInfo),
+                                            nullptr);
     }
 
     pipelineCache = kernel.device->createPipelineCacheUnique(vk::PipelineCacheCreateInfo());
@@ -125,63 +123,52 @@ void Pipeline::SetUp(Kernel &kernel, std::vector<vk::Sampler> &samplers, VideoEf
     const auto bindingDescription = Vertex::CreateBindingDescription();
     vk::Extent2D imageExtent = kernel.swapChain.GetImageExtent();
 
-    pipeline = kernel.device->createGraphicsPipelineUnique(
-            pipelineCache.get(),
-            vk::GraphicsPipelineCreateInfo()
-                    .setStageCount(shaderStages.size())
-                    .setStages(shaderStages)
-                    .setPVertexInputState(&vk::PipelineVertexInputStateCreateInfo()
-                            .setVertexBindingDescriptionCount(1)
-                            .setPVertexBindingDescriptions(&bindingDescription)
-                            .setVertexAttributeDescriptions(vertexInputAttributeDescriptions)
-                    )
-                    .setPInputAssemblyState(&vk::PipelineInputAssemblyStateCreateInfo()
-                            .setTopology(vk::PrimitiveTopology::eTriangleStrip)
-                            .setPrimitiveRestartEnable(false)
-                    )
-                    .setPViewportState(&vk::PipelineViewportStateCreateInfo()
-                            .setViewportCount(1)
-                            .setViewports(vk::Viewport()
-                                                  .setX(0)
-                                                  .setY(0)
-                                                  .setWidth(imageExtent.width)
-                                                  .setHeight(imageExtent.height)
-                                                  .setMinDepth(0.0f)
-                                                  .setMaxDepth(1.0f)
-                            )
-                            .setScissorCount(1)
-                            .setScissors(
-                                    vk::Rect2D()
-                                            .setExtent(imageExtent)
-                                            .setOffset(vk::Offset2D(0, 0))
-                            )
-                    )
-                    .setPRasterizationState(&vk::PipelineRasterizationStateCreateInfo()
-                            .setDepthClampEnable(false)
-                            .setRasterizerDiscardEnable(false)
-                            .setPolygonMode(vk::PolygonMode::eFill)
-                            .setCullMode(vk::CullModeFlagBits::eNone)
-                            .setFrontFace(vk::FrontFace::eClockwise)
-                            .setDepthBiasEnable(false)
-                            .setLineWidth(1)
-                    )
-                    .setPMultisampleState(&vk::PipelineMultisampleStateCreateInfo()
-                            .setRasterizationSamples(vk::SampleCountFlagBits::e1)
-                            .setSampleShadingEnable(false)
-                            .setAlphaToCoverageEnable(false)
-                            .setAlphaToCoverageEnable(false)
-                    )
-                    .setPColorBlendState(&vk::PipelineColorBlendStateCreateInfo()
-                            .setLogicOp(vk::LogicOp::eCopy)
-                            .setAttachmentCount(1)
-                            .setAttachments(colorBlendAttachmentStates)
-                    )
-                    .setPDynamicState(&vk::PipelineDynamicStateCreateInfo()
-                            .setDynamicStates(dynamicStates)
-                    )
-                    .setLayout(pipelineLayout.get())
-                    .setRenderPass(kernel.swapChain.renderPass.get())
-    ).value;
+    vk::PipelineVertexInputStateCreateInfo pipelineVertexInputStateCreateInfo;
+    pipelineVertexInputStateCreateInfo.setVertexBindingDescriptionCount(1)
+        .setPVertexBindingDescriptions(&bindingDescription)
+        .setVertexAttributeDescriptions(vertexInputAttributeDescriptions);
+    vk::PipelineInputAssemblyStateCreateInfo pipelineInputAssemblyStateCreateInfo;
+    pipelineInputAssemblyStateCreateInfo.setTopology(vk::PrimitiveTopology::eTriangleStrip)
+        .setPrimitiveRestartEnable(false);
+    const auto viewport = vk::Viewport(0, 0, imageExtent.width, imageExtent.height, 0.0f, 1.0f);
+    const auto scissor = vk::Rect2D(vk::Offset2D(0, 0), imageExtent);
+    vk::PipelineViewportStateCreateInfo pipelineViewportStateCreateInfo;
+    pipelineViewportStateCreateInfo.setViewportCount(1).setViewports(viewport).setScissorCount(1).setScissors(
+        scissor);
+    vk::PipelineRasterizationStateCreateInfo pipelineRasterizationStateCreateInfo;
+    pipelineRasterizationStateCreateInfo.setDepthClampEnable(false)
+        .setRasterizerDiscardEnable(false)
+        .setPolygonMode(vk::PolygonMode::eFill)
+        .setCullMode(vk::CullModeFlagBits::eNone)
+        .setFrontFace(vk::FrontFace::eClockwise)
+        .setDepthBiasEnable(false)
+        .setLineWidth(1);
+    vk::PipelineMultisampleStateCreateInfo pipelineMultisampleStateCreateInfo;
+    pipelineMultisampleStateCreateInfo.setRasterizationSamples(vk::SampleCountFlagBits::e1)
+        .setSampleShadingEnable(false)
+        .setAlphaToCoverageEnable(false)
+        .setAlphaToCoverageEnable(false);
+    vk::PipelineColorBlendStateCreateInfo pipelineColorBlendStateCreateInfo;
+    pipelineColorBlendStateCreateInfo.setLogicOp(vk::LogicOp::eCopy)
+        .setAttachmentCount(1)
+        .setAttachments(colorBlendAttachmentStates);
+    vk::PipelineDynamicStateCreateInfo pipelineDynamicStateCreateInfo;
+    pipelineDynamicStateCreateInfo.setDynamicStates(dynamicStates);
+    pipeline = kernel.device
+                   ->createGraphicsPipelineUnique(
+                       pipelineCache.get(), vk::GraphicsPipelineCreateInfo()
+                                                .setStageCount(shaderStages.size())
+                                                .setStages(shaderStages)
+                                                .setPVertexInputState(&pipelineVertexInputStateCreateInfo)
+                                                .setPInputAssemblyState(&pipelineInputAssemblyStateCreateInfo)
+                                                .setPViewportState(&pipelineViewportStateCreateInfo)
+                                                .setPRasterizationState(&pipelineRasterizationStateCreateInfo)
+                                                .setPMultisampleState(&pipelineMultisampleStateCreateInfo)
+                                                .setPColorBlendState(&pipelineColorBlendStateCreateInfo)
+                                                .setPDynamicState(&pipelineDynamicStateCreateInfo)
+                                                .setLayout(pipelineLayout.get())
+                                                .setRenderPass(kernel.swapChain.renderPass.get()))
+                   .value;
 
     kernel.device->destroy(vert);
     kernel.device->destroy(frag);
