@@ -2,6 +2,7 @@
 #include "SpirvValidation.h"
 #include "VulkanLock.h"
 #include "SwapChain.h"
+#include "DeviceInspection.h"
 #include "Texture.h"
 #include "stdexcept"
 #include <jni.h>
@@ -300,6 +301,32 @@ bool Kernel::HasFeatures() {
         if (Supports(candidate)) return true;
     }
     return false;
+}
+
+std::string Kernel::InspectDevices() {
+    DispatcherScope dispatchScope(dispatcher);
+    std::lock_guard<std::recursive_mutex> guard(VulkanLock());
+    std::vector<DeviceInspection> devices;
+    if (instance) {
+        for (const auto &device : instance->enumeratePhysicalDevices()) {
+            const auto properties = device.getProperties();
+            std::string type;
+            switch (properties.deviceType) {
+            case vk::PhysicalDeviceType::eCpu: type = "cpu"; break;
+            case vk::PhysicalDeviceType::eIntegratedGpu: type = "integrated_gpu"; break;
+            case vk::PhysicalDeviceType::eDiscreteGpu: type = "discrete_gpu"; break;
+            case vk::PhysicalDeviceType::eVirtualGpu: type = "virtual_gpu"; break;
+            default: type = "other"; break;
+            }
+            DeviceInspection inspection{properties.deviceName.data(), type, properties.apiVersion,
+                                        properties.driverVersion, properties.vendorID, properties.deviceID, {}};
+            for (const auto &extension : device.enumerateDeviceExtensionProperties()) {
+                inspection.extensions.emplace_back(extension.extensionName.data());
+            }
+            devices.push_back(std::move(inspection));
+        }
+    }
+    return SerializeDeviceInspection(devices);
 }
 
 std::vector<char> Kernel::ReadFile(const std::string &fileName) {
