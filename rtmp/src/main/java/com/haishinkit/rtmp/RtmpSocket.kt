@@ -6,6 +6,7 @@ import com.haishinkit.net.NetSocketImpl
 import com.haishinkit.rtmp.event.Event
 import java.nio.BufferUnderflowException
 import java.nio.ByteBuffer
+import java.util.concurrent.TimeUnit
 
 internal class RtmpSocket(
     val connection: RtmpConnection,
@@ -34,6 +35,11 @@ internal class RtmpSocket(
         get() = socket?.totalBytesIn?.get() ?: 0
     val totalBytesOut: Long
         get() = socket?.totalBytesOut?.get() ?: 0
+    @Volatile
+    var handshakeDurationMillis: Long? = null
+        private set
+
+    private var handshakeStartedAtNanos = 0L
     private var socket: NetSocket? = null
     private val handshake: RtmpHandshake by lazy {
         RtmpHandshake()
@@ -51,6 +57,7 @@ internal class RtmpSocket(
         dstPort: Int,
         isSecure: Boolean,
     ) {
+        handshakeDurationMillis = null
         readyState = ReadyState.Uninitialized
         socket?.listener = null
         socket = NetSocketImpl()
@@ -103,7 +110,9 @@ internal class RtmpSocket(
         chunkSizeS = RtmpChunk.DEFAULT_SIZE
         handshake.clear()
         readyState = ReadyState.VersionSent
-        socket?.doOutput(handshake.c0C1Packet)
+        val c0C1Packet = handshake.c0C1Packet
+        handshakeStartedAtNanos = System.nanoTime()
+        socket?.doOutput(c0C1Packet)
     }
 
     override fun onClose(disconnected: Boolean) {
@@ -132,6 +141,7 @@ internal class RtmpSocket(
                 }
                 handshake.s2Packet = buffer
                 buffer.position(RtmpHandshake.SIGNAL_SIZE)
+                handshakeDurationMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - handshakeStartedAtNanos)
                 readyState = ReadyState.HandshakeDone
                 isConnected = true
                 connection.uri?.let {

@@ -147,6 +147,14 @@ class RtmpConnection : EventDispatcher(null) {
         get() = socket.totalBytesOut
 
     /**
+     * Elapsed time in milliseconds from queuing C0/C1 to receiving the full S2 packet.
+     * This includes local queuing and server processing time. It is null until the
+     * handshake completes and is reset when the next connection attempt starts.
+     */
+    val handshakeDurationMillis: Long?
+        get() = socket.handshakeDurationMillis
+
+    /**
      * The object encoding for this RTMPConnection instance.
      */
     internal val objectEncoding = RtmpObjectEncoding.AMF0
