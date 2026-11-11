@@ -55,11 +55,11 @@ sockaddr_storage SrtSocket::GetLocalAddress() const {
     return address;
 }
 
-SRT_TRACEBSTATS SrtSocket::GetPerformanceData() const {
+SRT_TRACEBSTATS SrtSocket::GetPerformanceData(bool resetInterval) const {
     std::lock_guard<std::mutex> lock(mutex);
     CheckOpen();
     SRT_TRACEBSTATS result{};
-    if (srt_bstats(socket, &result, 0) == SRT_ERROR) Fail("bstats");
+    if (srt_bstats(socket, &result, resetInterval ? 1 : 0) == SRT_ERROR) Fail("bstats");
     return result;
 }
 
