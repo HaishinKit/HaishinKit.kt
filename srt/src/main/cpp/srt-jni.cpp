@@ -293,19 +293,92 @@ JNIEXPORT jobject JNICALL Java_com_haishinkit_srt_SrtSocket_nativeLocalAddress(J
     return call(env, jobject{nullptr}, [&] { return javaAddress(env, find(context)->GetLocalAddress()); });
 }
 
-JNIEXPORT jobject JNICALL Java_com_haishinkit_srt_SrtSocket_nativePerformanceData(JNIEnv* env, jobject, jlong context) {
+JNIEXPORT jobject JNICALL Java_com_haishinkit_srt_SrtSocket_nativePerformanceData(
+    JNIEnv* env, jobject, jlong context, jboolean resetInterval) {
     return call(env, jobject{nullptr}, [&]() -> jobject {
-        const auto perf = find(context)->GetPerformanceData();
+        const auto perf = find(context)->GetPerformanceData(resetInterval == JNI_TRUE);
         const auto type = env->FindClass("com/haishinkit/srt/SrtPerformanceData");
         if (!type) return nullptr;
-        const auto constructor = env->GetMethodID(type, "<init>", "(JJIIDDD)V");
+        const auto constructor = env->GetMethodID(type, "<init>", "(JJIIDDDJJJIIIIIIIJIIIJJJJJJJIIIIIIIIJIDJIIIJJJJJJJDIIIDIIDIIIIIIIIIIIIIIII)V");
         if (!constructor) return nullptr;
         return env->NewObject(type, constructor,
-            static_cast<jlong>(perf.byteSentTotal), static_cast<jlong>(perf.byteRecvTotal),
-            static_cast<jint>(perf.byteSndBuf), static_cast<jint>(perf.byteRcvBuf),
-            perf.msRTT, perf.mbpsSendRate, perf.mbpsRecvRate);
+            static_cast<jlong>(perf.byteSentTotal),
+            static_cast<jlong>(perf.byteRecvTotal),
+            static_cast<jint>(perf.byteSndBuf),
+            static_cast<jint>(perf.byteRcvBuf),
+            static_cast<jdouble>(perf.msRTT),
+            static_cast<jdouble>(perf.mbpsSendRate),
+            static_cast<jdouble>(perf.mbpsRecvRate),
+            static_cast<jlong>(perf.msTimeStamp),
+            static_cast<jlong>(perf.pktSentTotal),
+            static_cast<jlong>(perf.pktRecvTotal),
+            static_cast<jint>(perf.pktSndLossTotal),
+            static_cast<jint>(perf.pktRcvLossTotal),
+            static_cast<jint>(perf.pktRetransTotal),
+            static_cast<jint>(perf.pktSentACKTotal),
+            static_cast<jint>(perf.pktRecvACKTotal),
+            static_cast<jint>(perf.pktSentNAKTotal),
+            static_cast<jint>(perf.pktRecvNAKTotal),
+            static_cast<jlong>(perf.usSndDurationTotal),
+            static_cast<jint>(perf.pktSndDropTotal),
+            static_cast<jint>(perf.pktRcvDropTotal),
+            static_cast<jint>(perf.pktRcvUndecryptTotal),
+            static_cast<jlong>(perf.byteRcvLossTotal),
+            static_cast<jlong>(perf.byteRetransTotal),
+            static_cast<jlong>(perf.byteSndDropTotal),
+            static_cast<jlong>(perf.byteRcvDropTotal),
+            static_cast<jlong>(perf.byteRcvUndecryptTotal),
+            static_cast<jlong>(perf.pktSent),
+            static_cast<jlong>(perf.pktRecv),
+            static_cast<jint>(perf.pktSndLoss),
+            static_cast<jint>(perf.pktRcvLoss),
+            static_cast<jint>(perf.pktRetrans),
+            static_cast<jint>(perf.pktRcvRetrans),
+            static_cast<jint>(perf.pktSentACK),
+            static_cast<jint>(perf.pktRecvACK),
+            static_cast<jint>(perf.pktSentNAK),
+            static_cast<jint>(perf.pktRecvNAK),
+            static_cast<jlong>(perf.usSndDuration),
+            static_cast<jint>(perf.pktReorderDistance),
+            static_cast<jdouble>(perf.pktRcvAvgBelatedTime),
+            static_cast<jlong>(perf.pktRcvBelated),
+            static_cast<jint>(perf.pktSndDrop),
+            static_cast<jint>(perf.pktRcvDrop),
+            static_cast<jint>(perf.pktRcvUndecrypt),
+            static_cast<jlong>(perf.byteSent),
+            static_cast<jlong>(perf.byteRecv),
+            static_cast<jlong>(perf.byteRcvLoss),
+            static_cast<jlong>(perf.byteRetrans),
+            static_cast<jlong>(perf.byteSndDrop),
+            static_cast<jlong>(perf.byteRcvDrop),
+            static_cast<jlong>(perf.byteRcvUndecrypt),
+            static_cast<jdouble>(perf.usPktSndPeriod),
+            static_cast<jint>(perf.pktFlowWindow),
+            static_cast<jint>(perf.pktCongestionWindow),
+            static_cast<jint>(perf.pktFlightSize),
+            static_cast<jdouble>(perf.mbpsBandwidth),
+            static_cast<jint>(perf.byteAvailSndBuf),
+            static_cast<jint>(perf.byteAvailRcvBuf),
+            static_cast<jdouble>(perf.mbpsMaxBW),
+            static_cast<jint>(perf.byteMSS),
+            static_cast<jint>(perf.pktSndBuf),
+            static_cast<jint>(perf.msSndBuf),
+            static_cast<jint>(perf.msSndTsbPdDelay),
+            static_cast<jint>(perf.pktRcvBuf),
+            static_cast<jint>(perf.msRcvBuf),
+            static_cast<jint>(perf.msRcvTsbPdDelay),
+            static_cast<jint>(perf.pktSndFilterExtraTotal),
+            static_cast<jint>(perf.pktRcvFilterExtraTotal),
+            static_cast<jint>(perf.pktRcvFilterSupplyTotal),
+            static_cast<jint>(perf.pktRcvFilterLossTotal),
+            static_cast<jint>(perf.pktSndFilterExtra),
+            static_cast<jint>(perf.pktRcvFilterExtra),
+            static_cast<jint>(perf.pktRcvFilterSupply),
+            static_cast<jint>(perf.pktRcvFilterLoss),
+            static_cast<jint>(perf.pktReorderTolerance));
     });
 }
+
 
 JNIEXPORT jlong JNICALL Java_com_haishinkit_srt_SrtSocket_nativeAwait(
     JNIEnv* env, jobject, jlong context, jint events, jobject callback) {
