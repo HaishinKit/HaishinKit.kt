@@ -47,14 +47,21 @@ class ScreenObjectEditor(
         if (contains(target)) return
         if (position != null) {
             require(position.x.isFinite() && position.y.isFinite()) { "position must be finite" }
-            val width = target.frame.width().coerceAtLeast(0)
-            val height = target.frame.height().coerceAtLeast(0)
+            val requestedWidth = target.frame.width()
+            val requestedHeight = target.frame.height()
+            val measured =
+                (target as? TextScreenObject)?.measureText(
+                    if (requestedWidth > 0) requestedWidth else screen.frame.width() + requestedWidth,
+                    if (requestedHeight > 0) requestedHeight else screen.frame.height() + requestedHeight,
+                )
+            val width = measured?.width ?: requestedWidth.coerceAtLeast(0)
+            val height = measured?.height ?: requestedHeight.coerceAtLeast(0)
             val left = (position.x - width / 2f).coerceIn(0f, max(0f, screen.frame.width().toFloat() - width))
             val top = (position.y - height / 2f).coerceIn(0f, max(0f, screen.frame.height().toFloat() - height))
             target.horizontalAlignment = ScreenObject.HORIZONTAL_ALIGNMENT_LEFT
             target.verticalAlignment = ScreenObject.VERTICAL_ALIGNMENT_TOP
             target.layoutMargin.set(top.roundToInt(), left.roundToInt(), 0, 0)
-            target.frame = Rect(0, 0, target.frame.width(), target.frame.height())
+            target.frame = Rect(0, 0, requestedWidth, requestedHeight)
             target.invalidateLayout()
         }
         objects.add(target)
@@ -84,6 +91,15 @@ class ScreenObjectEditor(
     /** Discards cached geometry so subsequent operations use the object's next rendered bounds. */
     fun invalidateBounds(target: ScreenObject) {
         editedBounds.remove(target)
+    }
+
+    /** Fits edited objects within the composition after its size changes. */
+    fun fitEditedObjectsToScreen() {
+        if (screen.frame.width() <= 0 || screen.frame.height() <= 0) return
+        for ((target, bounds) in editedBounds) {
+            val scale = min(1f, min(screen.frame.width() / bounds.width(), screen.frame.height() / bounds.height()))
+            transform(target, PointF(bounds.left, bounds.top), scale = scale)
+        }
     }
 
     /** Moves the object's top-left corner, preserving its current size and clamping its position. */
@@ -139,13 +155,19 @@ class ScreenObjectEditor(
         width: Float,
         height: Float,
     ) {
-        val left = origin.x.coerceIn(0f, max(0f, screen.frame.width().toFloat() - width))
-        val top = origin.y.coerceIn(0f, max(0f, screen.frame.height().toFloat() - height))
-        editedBounds[target] = RectF(left, top, left + width, top + height)
+        val frameWidth = max(width, 1f)
+        val frameHeight = max(height, 1f)
+        val left = origin.x.coerceIn(0f, max(0f, screen.frame.width().toFloat() - frameWidth))
+        val top = origin.y.coerceIn(0f, max(0f, screen.frame.height().toFloat() - frameHeight))
+        editedBounds[target] = RectF(left, top, left + frameWidth, top + frameHeight)
         target.horizontalAlignment = ScreenObject.HORIZONTAL_ALIGNMENT_LEFT
         target.verticalAlignment = ScreenObject.VERTICAL_ALIGNMENT_TOP
         target.layoutMargin.set(0, 0, 0, 0)
-        target.frame = Rect(left.roundToInt(), top.roundToInt(), (left + width).roundToInt(), (top + height).roundToInt())
+        val roundedWidth = frameWidth.roundToInt()
+        val roundedHeight = frameHeight.roundToInt()
+        val roundedLeft = min(left.roundToInt(), max(0, screen.frame.width() - roundedWidth))
+        val roundedTop = min(top.roundToInt(), max(0, screen.frame.height() - roundedHeight))
+        target.frame = Rect(roundedLeft, roundedTop, roundedLeft + roundedWidth, roundedTop + roundedHeight)
         target.invalidateLayout()
     }
 }

@@ -90,6 +90,48 @@ class ScreenObjectEditorTest {
     }
 
     @Test
+    fun subpixelResizeStaysFixedAndFitsTheComposition() {
+        val screen = ScreenObjectContainer().apply { frame = Rect(0, 0, 500, 500) }
+        val target = ScreenObjectContainer().apply { bounds.set(0, 499, 2000, 500) }
+        val editor = ScreenObjectEditor(screen, listOf(target))
+
+        assertTrue(editor.transform(target, PointF(0f, 499f), PointF(0f, 500f), 0.25f))
+
+        assertEquals(Rect(0, 499, 500, 500), target.frame)
+        assertEquals(RectF(0f, 499f, 500f, 500f), editor.getBounds(target))
+    }
+
+    @Test
+    fun newlyInsertedTextFitsAtTheCompositionEdge() {
+        val screen = ScreenObjectContainer().apply { frame = Rect(0, 0, 500, 500) }
+        val text = TextScreenObject().apply { value = "New text" }
+        val expected = text.measureText(500, 500)
+        val editor = ScreenObjectEditor(screen)
+
+        editor.register(text, PointF(499f, 499f))
+        screen.addChild(text)
+        screen.layout(MockRenderer())
+
+        assertTrue(expected.height > 1)
+        assertEquals(expected.height, text.bounds.height())
+        assertEquals(500, text.bounds.bottom)
+    }
+
+    @Test
+    fun fitsEditedBoundsAfterCompositionShrinks() {
+        val screen = ScreenObjectContainer().apply { frame = Rect(0, 0, 800, 1000) }
+        val target = ScreenObjectContainer().apply { bounds.set(100, 100, 500, 500) }
+        val editor = ScreenObjectEditor(screen, listOf(target))
+        editor.moveTo(target, PointF(100f, 600f))
+        screen.frame = Rect(0, 0, 800, 300)
+
+        editor.fitEditedObjectsToScreen()
+
+        assertEquals(Rect(100, 0, 400, 300), target.frame)
+        assertEquals(RectF(100f, 0f, 400f, 300f), editor.getBounds(target))
+    }
+
+    @Test
     fun repeatedTransformsKeepFractionalGeometryBeforeLayout() {
         val screen = ScreenObjectContainer().apply { frame = Rect(0, 0, 1000, 1000) }
         val target = ScreenObjectContainer().apply { bounds.set(200, 200, 400, 400) }

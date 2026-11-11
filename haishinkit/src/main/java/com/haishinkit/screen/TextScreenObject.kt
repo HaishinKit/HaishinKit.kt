@@ -8,6 +8,7 @@ import android.graphics.Typeface
 import android.text.Layout
 import android.text.StaticLayout
 import android.text.TextPaint
+import android.util.Size
 import androidx.core.graphics.createBitmap
 import androidx.core.graphics.toColorInt
 import kotlin.math.ceil
@@ -89,23 +90,43 @@ class TextScreenObject(
         }
         super.getBounds(rect)
         paint.textSize = size
+        val measured = measureText(rect.width(), rect.height(), paint)
         paint.color = color
-        val availableWidth = max(rect.width(), 1)
-        val availableHeight = max(rect.height(), 0)
-        val layout = makeTextLayout(availableWidth)
-        val width = (0 until layout.lineCount).maxOfOrNull { ceil(layout.getLineWidth(it)).toInt() } ?: 0
-        val height = min(layout.height, availableHeight)
-        textLayout = makeTextLayout(max(min(width, availableWidth), 1))
-        if (width <= 0 || height <= 0) {
+        textLayout = makeTextLayout(max(measured.width, 1))
+        if (measured.width <= 0 || measured.height <= 0) {
             rect.setEmpty()
         } else {
-            super.getBounds(rect, min(width, availableWidth), height)
+            super.getBounds(rect, measured.width, measured.height)
         }
     }
 
+    internal fun measureText(
+        width: Int,
+        height: Int,
+    ): Size {
+        val measurementPaint = TextPaint(ANTI_ALIAS_FLAG)
+        measurementPaint.typeface = Typeface.DEFAULT_BOLD
+        measurementPaint.textSize = size
+        return measureText(width, height, measurementPaint)
+    }
+
+    private fun measureText(
+        width: Int,
+        height: Int,
+        textPaint: TextPaint,
+    ): Size {
+        if (value.isEmpty()) return Size(0, 0)
+        val availableWidth = max(width, 1)
+        val layout = makeTextLayout(availableWidth, textPaint)
+        val textWidth = (0 until layout.lineCount).maxOfOrNull { ceil(layout.getLineWidth(it)).toInt() } ?: 0
+        return Size(min(textWidth, availableWidth), min(layout.height, max(height, 0)))
+    }
+
     @Suppress("DEPRECATION")
-    private fun makeTextLayout(width: Int): StaticLayout =
-        StaticLayout(value, paint, width, Layout.Alignment.ALIGN_NORMAL, 1f, 0f, false)
+    private fun makeTextLayout(
+        width: Int,
+        textPaint: TextPaint = paint,
+    ): StaticLayout = StaticLayout(value, textPaint, width, Layout.Alignment.ALIGN_NORMAL, 1f, 0f, false)
 
     override fun layout(renderer: Renderer) {
         getBounds(bounds)

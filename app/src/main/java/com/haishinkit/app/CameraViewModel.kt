@@ -204,6 +204,7 @@ class CameraViewModel(
     }
 
     fun onConfigurationChanged(configuration: Configuration) {
+        val previousFrame = mixer.screen.frame
         when (configuration.orientation) {
             Configuration.ORIENTATION_PORTRAIT -> {
                 mixer.screen.frame =
@@ -231,6 +232,7 @@ class CameraViewModel(
             Configuration.ORIENTATION_UNDEFINED -> {
             }
         }
+        if (mixer.screen.frame != previousFrame) screenObjectDragController.fitEditedObjectsToScreen()
     }
 
     fun takeSnapShot(context: Context) {

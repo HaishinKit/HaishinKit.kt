@@ -127,6 +127,11 @@ internal class ScreenObjectDragController(
         selected = null
     }
 
+    fun fitEditedObjectsToScreen() {
+        end()
+        editor.fitEditedObjectsToScreen()
+    }
+
     fun screenPosition(
         position: Offset,
         previewSize: IntSize,
