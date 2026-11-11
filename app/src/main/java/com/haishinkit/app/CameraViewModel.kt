@@ -8,6 +8,7 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Rect
 import android.provider.MediaStore
+import android.util.Size
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -204,35 +205,14 @@ class CameraViewModel(
     }
 
     fun onConfigurationChanged(configuration: Configuration) {
-        val previousFrame = mixer.screen.frame
-        when (configuration.orientation) {
-            Configuration.ORIENTATION_PORTRAIT -> {
-                mixer.screen.frame =
-                    Rect(
-                        0,
-                        0,
-                        Screen.DEFAULT_HEIGHT,
-                        Screen.DEFAULT_WIDTH,
-                    )
+        val composition =
+            when (configuration.orientation) {
+                Configuration.ORIENTATION_PORTRAIT -> Size(Screen.DEFAULT_HEIGHT, Screen.DEFAULT_WIDTH)
+                Configuration.ORIENTATION_LANDSCAPE -> Size(Screen.DEFAULT_WIDTH, Screen.DEFAULT_HEIGHT)
+                else -> return
             }
-
-            Configuration.ORIENTATION_LANDSCAPE -> {
-                mixer.screen.frame =
-                    Rect(
-                        0,
-                        0,
-                        Screen.DEFAULT_WIDTH,
-                        Screen.DEFAULT_HEIGHT,
-                    )
-            }
-
-            Configuration.ORIENTATION_SQUARE -> {
-            }
-
-            Configuration.ORIENTATION_UNDEFINED -> {
-            }
-        }
-        if (mixer.screen.frame != previousFrame) screenObjectDragController.fitEditedObjectsToScreen()
+        mixer.screen.frame = Rect(0, 0, composition.width, composition.height)
+        screenObjectDragController.fitObjectsToScreen(composition)
     }
 
     fun takeSnapShot(context: Context) {

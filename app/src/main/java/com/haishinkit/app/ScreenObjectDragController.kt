@@ -127,9 +127,9 @@ internal class ScreenObjectDragController(
         selected = null
     }
 
-    fun fitEditedObjectsToScreen() {
+    fun fitObjectsToScreen(composition: Size) {
         end()
-        editor.fitEditedObjectsToScreen()
+        editor.fitObjectsToScreen(composition)
     }
 
     fun screenPosition(

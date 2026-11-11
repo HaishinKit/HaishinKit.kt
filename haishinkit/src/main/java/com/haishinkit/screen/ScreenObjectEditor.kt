@@ -3,6 +3,7 @@ package com.haishinkit.screen
 import android.graphics.PointF
 import android.graphics.Rect
 import android.graphics.RectF
+import android.util.Size
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
@@ -27,6 +28,9 @@ class ScreenObjectEditor(
 ) {
     private val objects = objects.distinct().toMutableList()
     private val editedBounds = mutableMapOf<ScreenObject, RectF>()
+    private val positionedObjects = mutableSetOf<ScreenObject>()
+    private val compositionSize: Size
+        get() = Size(screen.frame.width(), screen.frame.height())
 
     init {
         require(minimumSize.isFinite() && minimumSize > 0f) { "minimumSize must be finite and positive" }
@@ -47,22 +51,10 @@ class ScreenObjectEditor(
         if (contains(target)) return
         if (position != null) {
             require(position.x.isFinite() && position.y.isFinite()) { "position must be finite" }
-            val requestedWidth = target.frame.width()
-            val requestedHeight = target.frame.height()
-            val measured =
-                (target as? TextScreenObject)?.measureText(
-                    if (requestedWidth > 0) requestedWidth else screen.frame.width() + requestedWidth,
-                    if (requestedHeight > 0) requestedHeight else screen.frame.height() + requestedHeight,
-                )
-            val width = measured?.width ?: requestedWidth.coerceAtLeast(0)
-            val height = measured?.height ?: requestedHeight.coerceAtLeast(0)
-            val left = (position.x - width / 2f).coerceIn(0f, max(0f, screen.frame.width().toFloat() - width))
-            val top = (position.y - height / 2f).coerceIn(0f, max(0f, screen.frame.height().toFloat() - height))
-            target.horizontalAlignment = ScreenObject.HORIZONTAL_ALIGNMENT_LEFT
-            target.verticalAlignment = ScreenObject.VERTICAL_ALIGNMENT_TOP
-            target.layoutMargin.set(top.roundToInt(), left.roundToInt(), 0, 0)
-            target.frame = Rect(0, 0, requestedWidth, requestedHeight)
-            target.invalidateLayout()
+            val composition = compositionSize
+            val size = placementSize(target, composition)
+            place(target, PointF(position.x - size.width / 2f, position.y - size.height / 2f), size, composition)
+            positionedObjects.add(target)
         }
         objects.add(target)
     }
@@ -71,6 +63,7 @@ class ScreenObjectEditor(
     fun unregister(target: ScreenObject) {
         objects.remove(target)
         editedBounds.remove(target)
+        positionedObjects.remove(target)
     }
 
     /** Returns the frontmost visible registered object at [point], or `null` outside the composition. */
@@ -93,12 +86,26 @@ class ScreenObjectEditor(
         editedBounds.remove(target)
     }
 
-    /** Fits edited objects within the composition after its size changes. */
-    fun fitEditedObjectsToScreen() {
-        if (screen.frame.width() <= 0 || screen.frame.height() <= 0) return
+    /** Fits positioned and edited objects to the requested composition size. */
+    fun fitObjectsToScreen(composition: Size) {
+        if (composition.width <= 0 || composition.height <= 0) return
         for ((target, bounds) in editedBounds) {
-            val scale = min(1f, min(screen.frame.width() / bounds.width(), screen.frame.height() / bounds.height()))
-            transform(target, PointF(bounds.left, bounds.top), scale = scale)
+            fitBounds(target, PointF(bounds.left, bounds.top), bounds.width(), bounds.height(), composition)
+        }
+        for (target in positionedObjects) {
+            if (target in editedBounds) continue
+            val origin =
+                PointF(
+                    target.frame.left.toFloat() + target.layoutMargin.left,
+                    target.frame.top.toFloat() + target.layoutMargin.top,
+                )
+            val width = target.frame.width()
+            val height = target.frame.height()
+            if (width > 0 && height > 0 && (width > composition.width || height > composition.height)) {
+                fitBounds(target, origin, width.toFloat(), height.toFloat(), composition)
+            } else {
+                place(target, origin, placementSize(target, composition), composition)
+            }
         }
     }
 
@@ -149,24 +156,66 @@ class ScreenObjectEditor(
 
     private fun boundsOf(target: ScreenObject): RectF = editedBounds[target] ?: RectF(target.bounds)
 
+    private fun placementSize(
+        target: ScreenObject,
+        composition: Size,
+    ): Size {
+        val width = target.frame.width()
+        val height = target.frame.height()
+        return if (target is TextScreenObject) {
+            target.measureText(if (width > 0) width else composition.width + width, if (height > 0) height else composition.height + height)
+        } else {
+            Size(if (width > 0) width else target.bounds.width().coerceAtLeast(0), if (height > 0) height else target.bounds.height().coerceAtLeast(0))
+        }
+    }
+
+    private fun place(
+        target: ScreenObject,
+        origin: PointF,
+        size: Size,
+        composition: Size,
+    ) {
+        val left = origin.x.coerceIn(0f, max(0, composition.width - size.width).toFloat())
+        val top = origin.y.coerceIn(0f, max(0, composition.height - size.height).toFloat())
+        target.horizontalAlignment = ScreenObject.HORIZONTAL_ALIGNMENT_LEFT
+        target.verticalAlignment = ScreenObject.VERTICAL_ALIGNMENT_TOP
+        target.layoutMargin.set(top.roundToInt(), left.roundToInt(), 0, 0)
+        target.frame = Rect(0, 0, target.frame.width(), target.frame.height())
+        target.invalidateLayout()
+    }
+
+    private fun fitBounds(
+        target: ScreenObject,
+        origin: PointF,
+        width: Float,
+        height: Float,
+        composition: Size,
+    ) {
+        val scale = min(1f, min(composition.width / width, composition.height / height))
+        if (target is TextScreenObject && scale != 1f) target.size *= scale
+        applyBounds(target, origin, width * scale, height * scale, composition)
+    }
+
     private fun applyBounds(
         target: ScreenObject,
         origin: PointF,
         width: Float,
         height: Float,
+        composition: Size = compositionSize,
     ) {
         val frameWidth = max(width, 1f)
         val frameHeight = max(height, 1f)
-        val left = origin.x.coerceIn(0f, max(0f, screen.frame.width().toFloat() - frameWidth))
-        val top = origin.y.coerceIn(0f, max(0f, screen.frame.height().toFloat() - frameHeight))
+        val left = origin.x.coerceIn(0f, max(0f, composition.width - frameWidth))
+        val top = origin.y.coerceIn(0f, max(0f, composition.height - frameHeight))
+        positionedObjects.add(target)
         editedBounds[target] = RectF(left, top, left + frameWidth, top + frameHeight)
         target.horizontalAlignment = ScreenObject.HORIZONTAL_ALIGNMENT_LEFT
         target.verticalAlignment = ScreenObject.VERTICAL_ALIGNMENT_TOP
         target.layoutMargin.set(0, 0, 0, 0)
         val roundedWidth = frameWidth.roundToInt()
         val roundedHeight = frameHeight.roundToInt()
-        val roundedLeft = min(left.roundToInt(), max(0, screen.frame.width() - roundedWidth))
-        val roundedTop = min(top.roundToInt(), max(0, screen.frame.height() - roundedHeight))
+        val roundedLeft = min(left.roundToInt(), max(0, composition.width - roundedWidth))
+        val roundedTop = min(top.roundToInt(), max(0, composition.height - roundedHeight))
         target.frame = Rect(roundedLeft, roundedTop, roundedLeft + roundedWidth, roundedTop + roundedHeight)
         target.invalidateLayout()
     }

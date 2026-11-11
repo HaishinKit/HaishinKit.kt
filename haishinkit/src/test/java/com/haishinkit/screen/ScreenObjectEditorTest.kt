@@ -3,6 +3,7 @@ package com.haishinkit.screen
 import android.graphics.PointF
 import android.graphics.Rect
 import android.graphics.RectF
+import android.util.Size
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -123,12 +124,33 @@ class ScreenObjectEditorTest {
         val target = ScreenObjectContainer().apply { bounds.set(100, 100, 500, 500) }
         val editor = ScreenObjectEditor(screen, listOf(target))
         editor.moveTo(target, PointF(100f, 600f))
-        screen.frame = Rect(0, 0, 800, 300)
-
-        editor.fitEditedObjectsToScreen()
+        editor.fitObjectsToScreen(Size(800, 300))
 
         assertEquals(Rect(100, 0, 400, 300), target.frame)
         assertEquals(RectF(100f, 0f, 400f, 300f), editor.getBounds(target))
+    }
+
+    @Test
+    fun refitsUntouchedRegistrationsAndPreservesAutomaticTextSize() {
+        val screen = ScreenObjectContainer().apply { frame = Rect(0, 0, 1280, 1280) }
+        val image = ScreenObjectContainer().apply { frame = Rect(0, 0, 180, 180) }
+        val text = TextScreenObject().apply { value = "New text" }
+        val editor = ScreenObjectEditor(screen)
+        val composition = Size(720, 720)
+        editor.register(image, PointF(1200f, 1200f))
+        editor.register(text, PointF(1200f, 1200f))
+        screen.addChild(image)
+        screen.addChild(text)
+        screen.layout(MockRenderer())
+
+        editor.fitObjectsToScreen(composition)
+        screen.frame = Rect(0, 0, composition.width, composition.height)
+        screen.layout(MockRenderer())
+
+        assertEquals(Rect(540, 540, 720, 720), image.bounds)
+        assertEquals(Rect(), text.frame)
+        assertTrue(text.bounds.width() > 0 && text.bounds.height() > 0)
+        assertTrue(text.bounds.right <= 720 && text.bounds.bottom <= 720)
     }
 
     @Test
