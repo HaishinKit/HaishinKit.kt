@@ -398,9 +398,7 @@ class RtmpConnection : EventDispatcher(null) {
             if (statisticsTimer != null || !socket.isHandshakeDone) return
             val timer = Timer()
             statisticsTimer = timer
-            var previousTime = System.nanoTime()
-            var previousBytesIn = socket.totalBytesIn
-            var previousBytesOut = socket.totalBytesOut
+            val monitor = NetworkMonitor(System.nanoTime(), socket.totalBytesIn, socket.totalBytesOut)
 
             timer.schedule(0, STATISTICS_INTERVAL_MILLIS) {
                 for (stream in streams) stream.value.on()
@@ -408,22 +406,8 @@ class RtmpConnection : EventDispatcher(null) {
             timer.schedule(STATISTICS_INTERVAL_MILLIS, STATISTICS_INTERVAL_MILLIS) {
                 synchronized(statisticsGuard) sample@{
                     if (statisticsTimer !== timer) return@sample
-                    val now = System.nanoTime()
-                    val elapsedSeconds = (now - previousTime) / 1_000_000_000.0
-                    if (elapsedSeconds <= 0) return@sample
-                    val bytesIn = socket.totalBytesIn
-                    val bytesOut = socket.totalBytesOut
-                    networkReportState.value =
-                        NetworkMonitorReport(
-                            totalBytesIn = bytesIn,
-                            totalBytesOut = bytesOut,
-                            currentQueueBytesOut = socket.queueBytesOut,
-                            currentBytesInPerSecond = ((bytesIn - previousBytesIn) / elapsedSeconds).toLong(),
-                            currentBytesOutPerSecond = ((bytesOut - previousBytesOut) / elapsedSeconds).toLong(),
-                        )
-                    previousTime = now
-                    previousBytesIn = bytesIn
-                    previousBytesOut = bytesOut
+                    val report = monitor.sample(System.nanoTime(), socket.totalBytesIn, socket.totalBytesOut, socket.queueBytesOut)
+                    if (report != null) networkReportState.value = report
                 }
             }
         }
