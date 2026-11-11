@@ -15,7 +15,7 @@ class PlaybackViewModel(
     var sessionError: String? by mutableStateOf(null)
         private set
 
-    private var sessionUri: android.net.Uri? = null
+    private var sessionSettings: Preference.SessionSettings? = null
 
     init {
         RendererPreference.register(this)
@@ -27,10 +27,11 @@ class PlaybackViewModel(
             previous.stream.dispose()
         }
         session = null
-        sessionUri = null
+        sessionSettings = null
     }
 
     override fun onCleared() {
+        session?.stream?.dispose()
         RendererPreference.unregister(this)
         super.onCleared()
     }
@@ -38,21 +39,19 @@ class PlaybackViewModel(
     suspend fun refreshSession(): Result<Unit> {
         var replacement: StreamSession? = null
         try {
-            val uri = Preference.shared.toStreamUri()
-            if (uri == sessionUri && session != null) {
+            val settings = Preference.shared.sessionSettings(StreamSession.Mode.PLAYBACK)
+            if (settings == sessionSettings && session != null) {
                 sessionError = null
                 return Result.success(Unit)
             }
-            val candidate =
-                StreamSession.Builder(getApplication<Application>().applicationContext, uri)
-                    .setMode(StreamSession.Mode.PLAYBACK).build()
+            val candidate = settings.create(getApplication<Application>().applicationContext)
             replacement = candidate
             session?.let { previous ->
                 previous.close()
                 previous.stream.dispose()
             }
             session = candidate
-            sessionUri = uri
+            sessionSettings = settings
             replacement = null
             sessionError = null
             return Result.success(Unit)

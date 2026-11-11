@@ -132,7 +132,10 @@ internal class SrtSocket private constructor(handle: Long, timeoutMs: Int) : Clo
             }
         }
 
-    fun performanceData(): SrtPerformanceData = nativePerformanceData(handle)
+    /** Returns a fresh native snapshot without resetting the statistics interval. */
+    fun performanceData(): SrtPerformanceData = getPerformanceData(resetInterval = false)
+
+    internal fun getPerformanceData(resetInterval: Boolean): SrtPerformanceData = nativePerformanceData(handle, resetInterval)
 
     /** Releases the native owner; packets queued in libsrt are not guaranteed to be delivered. */
     override fun close() = nativeClose(handle)
@@ -223,7 +226,10 @@ internal class SrtSocket private constructor(handle: Long, timeoutMs: Int) : Clo
 
     private external fun nativeReceive(context: Long): ByteArray?
 
-    private external fun nativePerformanceData(context: Long): SrtPerformanceData
+    private external fun nativePerformanceData(
+        context: Long,
+        resetInterval: Boolean,
+    ): SrtPerformanceData
 
     private external fun nativeClose(context: Long)
 

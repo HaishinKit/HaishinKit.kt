@@ -40,7 +40,7 @@ public:
 
     SRT_SOCKSTATUS GetStatus() const;
     sockaddr_storage GetLocalAddress() const;
-    SRT_TRACEBSTATS GetPerformanceData() const;
+    SRT_TRACEBSTATS GetPerformanceData(bool resetInterval = false) const;
     void Connect(const sockaddr_storage& remote, const sockaddr_storage* local, bool rendezvous);
     bool PollConnect();
     void Listen(const sockaddr_storage& local);

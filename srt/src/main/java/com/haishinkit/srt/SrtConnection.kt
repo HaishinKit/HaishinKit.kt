@@ -116,17 +116,6 @@ class SrtConnection(scope: CoroutineScope, options: Options = Options()) : Close
             }
         }
 
-    /** A fresh native statistics snapshot while OPEN; null in all other states. */
-    val performanceData: SrtPerformanceData?
-        get() {
-            val socket = synchronized(guard) { if (state.value == ReadyState.OPEN) active?.socket else null } ?: return null
-            return try {
-                socket.performanceData()
-            } catch (error: IllegalStateException) {
-                if (socket.status == SrtSocket.Status.CLOSED) null else throw error
-            }
-        }
-
     /**
      * Cold, unbuffered message flow for a single collector. Each collection uses
      * the currently open peer. Completion or cancellation closes that peer.
@@ -250,6 +239,20 @@ class SrtConnection(scope: CoroutineScope, options: Options = Options()) : Close
                 throw error
             }
         }
+
+    /**
+     * Takes a fresh statistics snapshot for the open peer, or returns null if it is not open.
+     * If [resetInterval] is true, starts a new interval after taking the snapshot.
+     * The interval is shared by all callers on this peer. Cumulative counters are preserved.
+     */
+    fun getPerformanceData(resetInterval: Boolean): SrtPerformanceData? {
+        val socket = synchronized(guard) { if (state.value == ReadyState.OPEN) active?.socket else null } ?: return null
+        return try {
+            socket.getPerformanceData(resetInterval)
+        } catch (error: IllegalStateException) {
+            if (socket.status == SrtSocket.Status.CLOSED) null else throw error
+        }
+    }
 
     /**
      * Sends transport bytes as messages of at most 1316 bytes, applying native backpressure.

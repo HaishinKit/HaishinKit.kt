@@ -103,6 +103,7 @@ internal class RtmpVideoMessage(
     }
 
     override fun decode(buffer: ByteBuffer): RtmpMessage {
+        compositeTime = 0
         if (length == 0) return this
         val first = buffer.get().toUInt()
         isExHeader = (first and 0b10000000u) != 0u
@@ -113,9 +114,7 @@ internal class RtmpVideoMessage(
             fourCC = buffer.getInt()
             if (fourCC == RtmpMuxer.FLV_VIDEO_FOUR_CC_HVC1 && packetType == RtmpMuxer.FLV_VIDEO_PACKET_TYPE_CODED_FRAMES) {
                 head += 3
-                buffer.get()
-                buffer.get()
-                buffer.get()
+                compositeTime = getCompositeTime(buffer)
             }
             if (head < length) {
                 val payload = ByteArray(length - head)
@@ -129,9 +128,7 @@ internal class RtmpVideoMessage(
                 data =
                     if (codec == RtmpMuxer.FLV_VIDEO_CODEC_AVC) {
                         packetType = buffer.get()
-                        buffer.get()
-                        buffer.get()
-                        buffer.get()
+                        compositeTime = getCompositeTime(buffer)
                         val payload = ByteArray(length - 5)
                         buffer.get(payload)
                         ByteBuffer.wrap(payload)
@@ -250,6 +247,14 @@ internal class RtmpVideoMessage(
                 }
             }
         }
+    }
+
+    private fun getCompositeTime(buffer: ByteBuffer): Int {
+        val value =
+            ((buffer.get().toInt() and 0xFF) shl 16) or
+                ((buffer.get().toInt() and 0xFF) shl 8) or
+                (buffer.get().toInt() and 0xFF)
+        return (value shl 8) shr 8
     }
 
     companion object {

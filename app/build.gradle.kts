@@ -10,7 +10,7 @@ android {
 
     defaultConfig {
         applicationId = "com.haishinkit.app"
-        minSdk = 23
+        minSdk = 29
         targetSdk = 37
         versionCode = 1
         versionName = "1.0"
@@ -51,6 +51,7 @@ dependencies {
     implementation(project(":vulkan"))
     implementation(project(":rtmp"))
     implementation(project(":srt"))
+    implementation(project(":rtc"))
     implementation(project(":lottie"))
     implementation(project(":compose"))
     implementation(libs.accompanist.permissions)

@@ -53,9 +53,12 @@ import com.haishinkit.compose.rememberMediaRecorderState
 import com.haishinkit.compose.rememberStreamSessionState
 import com.haishinkit.graphics.VideoGravity
 import com.haishinkit.graphics.effect.DefaultVideoEffect
-import com.haishinkit.screen.TextScreenObject
+import com.haishinkit.rtc.RTCSession
+import com.haishinkit.rtc.RTCStream
+ import com.haishinkit.screen.TextScreenObject
 import com.haishinkit.srt.SrtStream
 import com.haishinkit.stream.StreamSession
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.launch
 import java.io.File
 
@@ -104,6 +107,11 @@ fun CameraScreen(
     if (currentSession == null) {
         Text(viewModel.sessionError ?: "Preparing stream...", modifier = modifier.safeDrawingPadding().padding(16.dp))
         return
+    }
+    LaunchedEffect(currentSession) {
+        (currentSession as? RTCSession)?.failure?.filterNotNull()?.collect { cause ->
+            Toast.makeText(context, cause.message ?: "WHIP connection failed.", Toast.LENGTH_LONG).show()
+        }
     }
     val sessionState = rememberStreamSessionState(currentSession)
     val sessionReadyState by sessionState.readyState.collectAsState()
@@ -285,14 +293,14 @@ fun CameraScreen(
                 isRecording = recorderState.isRecording,
                 isConnected = sessionActive,
                 readyState = sessionReadyState,
-                canCancelConnection = sessionState.stream is SrtStream,
+                canCancelConnection = sessionState.stream is SrtStream || sessionState.stream is RTCStream,
                 onClickScreenShot = {
                     viewModel.takeSnapShot(context)
                 },
                 onClickConnect = {
                     scope.launch {
                         if (sessionActive) {
-                            sessionState.close()
+                            sessionState.close().onFailure { Toast.makeText(context, it.message, Toast.LENGTH_LONG).show() }
                         } else {
                             viewModel.sessionError?.let {
                                 Toast.makeText(context, it, Toast.LENGTH_SHORT).show()

@@ -64,7 +64,7 @@ class CameraViewModel(
         CameraDeviceManager(context = application.applicationContext)
     private var mixer: MediaMixer = MediaMixer(application.applicationContext)
     private val _selectedCamera = MutableStateFlow<CameraDevice?>(null)
-    private var sessionUri: android.net.Uri? = null
+    private var sessionSettings: Preference.SessionSettings? = null
 
     private val sceneManager: SceneManager by lazy {
         val manager = SceneManager(mixer.screen)
@@ -111,6 +111,7 @@ class CameraViewModel(
 
         screenObjectDragController = ScreenObjectDragController(mixer.screen, listOf(image, text, lottie))
 
+        recorder.audioSetting.sampleRate = 48_000
         mixer.registerOutput(recorder)
         RendererPreference.register(this)
     }
@@ -118,13 +119,14 @@ class CameraViewModel(
     suspend fun refreshSession(): Result<Unit> {
         var replacement: StreamSession? = null
         try {
-            val uri = Preference.shared.toStreamUri()
-            if (uri == sessionUri && session != null) {
+            val settings = Preference.shared.sessionSettings()
+            if (settings == sessionSettings && session != null) {
                 sessionError = null
                 return Result.success(Unit)
             }
-            val candidate = StreamSession.Builder(application.applicationContext, uri).build()
+            val candidate = settings.create(application.applicationContext)
             replacement = candidate
+            candidate.stream.audioSetting.sampleRate = 48_000
             session?.let { previous ->
                 previous.close()
                 mixer.unregisterOutput(previous.stream)
@@ -132,7 +134,7 @@ class CameraViewModel(
             }
             mixer.registerOutput(candidate.stream)
             session = candidate
-            sessionUri = uri
+            sessionSettings = settings
             replacement = null
             sessionError = null
             return Result.success(Unit)
@@ -182,7 +184,7 @@ class CameraViewModel(
 
     fun selectAudioDevice() {
         viewModelScope.launch {
-            mixer.attachAudio(0, AudioRecordSource(application.applicationContext))
+            mixer.attachAudio(0, AudioRecordSource(application.applicationContext).apply { sampleRate = 48_000 })
         }
     }
 
@@ -277,10 +279,11 @@ class CameraViewModel(
             previous.stream.dispose()
         }
         session = null
-        sessionUri = null
+        sessionSettings = null
     }
 
     override fun onCleared() {
+        session?.stream?.dispose()
         RendererPreference.unregister(this)
         super.onCleared()
         cameraDeviceManager.release()

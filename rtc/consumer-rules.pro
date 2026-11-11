@@ -1,0 +1,1 @@
+-keep class com.haishinkit.rtc.NativePeer { *; }

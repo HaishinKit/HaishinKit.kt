@@ -187,7 +187,7 @@ class RtmpConnection : EventDispatcher(null) {
         if (!isConnected) {
             return
         }
-        val listArguments = mutableListOf<Any?>(arguments.size)
+        val listArguments = ArrayList<Any?>(arguments.size)
         for (`object` in arguments) {
             listArguments.add(`object`)
         }
