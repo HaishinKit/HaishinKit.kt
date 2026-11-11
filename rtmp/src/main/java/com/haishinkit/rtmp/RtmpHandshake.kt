@@ -30,7 +30,7 @@ internal class RtmpHandshake {
 
     var s2Packet: ByteBuffer = ByteBuffer.allocate(SIGNAL_SIZE)
         set(value) {
-            field = ByteBuffer.wrap(value.array(), 0, SIGNAL_SIZE)
+            field = value.slice().apply { limit(SIGNAL_SIZE) }
         }
 
     fun clear() {
