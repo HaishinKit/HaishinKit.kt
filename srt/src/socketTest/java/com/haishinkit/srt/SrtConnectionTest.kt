@@ -98,22 +98,22 @@ class SrtConnectionTest {
                     caller.send(payload)
                     val chunks = List(3) { listener.receive() }
                     assertArrayEquals(payload, chunks.fold(byteArrayOf()) { all, next -> all + next })
-                    val peek = checkNotNull(caller.performanceData)
-                    val sent = checkNotNull(caller.samplePerformanceData())
-                    val received = checkNotNull(listener.performanceData)
+                    val peek = checkNotNull(caller.samplePerformanceData(resetInterval = false))
+                    val sent = checkNotNull(caller.samplePerformanceData(resetInterval = true))
+                    val received = checkNotNull(listener.samplePerformanceData(resetInterval = false))
                     assertTrue(peek.pktSent > 0)
                     assertTrue(sent.bytesSent >= payload.size)
                     assertTrue(received.bytesReceived >= payload.size)
                     assertTrue(sent.pktSent > 0)
                     assertTrue(sent.pktSentTotal >= chunks.size)
                     assertTrue(received.pktRecvTotal >= chunks.size)
-                    val idle = checkNotNull(caller.samplePerformanceData())
+                    val idle = checkNotNull(caller.samplePerformanceData(resetInterval = true))
                     assertEquals(0L, idle.pktSent)
                     assertEquals(sent.bytesSent, idle.bytesSent)
                     assertEquals(sent.pktSentTotal, idle.pktSentTotal)
                     caller.close()
-                    assertNull(caller.performanceData)
-                    assertNull(caller.samplePerformanceData())
+                    assertNull(caller.samplePerformanceData(resetInterval = false))
+                    assertNull(caller.samplePerformanceData(resetInterval = true))
                 }
             }
         }
@@ -127,7 +127,7 @@ class SrtConnectionTest {
                     listener.readyState.first { it == SrtConnection.ReadyState.CLOSED }
                     assertFalse(listener.isConnected)
                     assertNull(listener.uri)
-                    assertNull(listener.performanceData)
+                    assertNull(listener.samplePerformanceData(resetInterval = false))
                 }
             }
         }
@@ -230,7 +230,7 @@ class SrtConnectionTest {
                         assertTrue(failure.isFailure)
                         assertEquals(SrtConnection.ReadyState.CLOSED, connection.readyState.value)
                         assertNull(connection.uri)
-                        assertNull(connection.performanceData)
+                        assertNull(connection.samplePerformanceData(resetInterval = false))
                         assertTrue(coroutineContext[Job]!!.isActive)
                     }
                 }

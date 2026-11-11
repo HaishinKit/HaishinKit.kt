@@ -116,10 +116,6 @@ class SrtConnection(scope: CoroutineScope, options: Options = Options()) : Close
             }
         }
 
-    /** A fresh statistics snapshot for the open peer. Reading does not reset the interval. */
-    val performanceData: SrtPerformanceData?
-        get() = readPerformanceData(resetInterval = false)
-
     /**
      * Cold, unbuffered message flow for a single collector. Each collection uses
      * the currently open peer. Completion or cancellation closes that peer.
@@ -245,11 +241,18 @@ class SrtConnection(scope: CoroutineScope, options: Options = Options()) : Close
         }
 
     /**
-     * Takes a fresh snapshot and resets the interval counters for the open peer.
-     * Returns null when the connection is not open. Cumulative counters are preserved.
-     * Calls on the same peer share the interval, so use one sampler per connection.
+     * Takes a fresh statistics snapshot for the open peer, or returns null if it is not open.
+     * If [resetInterval] is true, starts a new interval after taking the snapshot.
+     * The interval is shared by all callers on this peer. Cumulative counters are preserved.
      */
-    fun samplePerformanceData(): SrtPerformanceData? = readPerformanceData(resetInterval = true)
+    fun samplePerformanceData(resetInterval: Boolean): SrtPerformanceData? {
+        val socket = synchronized(guard) { if (state.value == ReadyState.OPEN) active?.socket else null } ?: return null
+        return try {
+            socket.samplePerformanceData(resetInterval)
+        } catch (error: IllegalStateException) {
+            if (socket.status == SrtSocket.Status.CLOSED) null else throw error
+        }
+    }
 
     /**
      * Sends transport bytes as messages of at most 1316 bytes, applying native backpressure.
@@ -382,15 +385,6 @@ class SrtConnection(scope: CoroutineScope, options: Options = Options()) : Close
         socket: SrtSocket,
     ) {
         if (socket.status == SrtSocket.Status.CLOSED) closeAttempt(attempt)
-    }
-
-    private fun readPerformanceData(resetInterval: Boolean): SrtPerformanceData? {
-        val socket = synchronized(guard) { if (state.value == ReadyState.OPEN) active?.socket else null } ?: return null
-        return try {
-            if (resetInterval) socket.samplePerformanceData() else socket.performanceData()
-        } catch (error: IllegalStateException) {
-            if (socket.status == SrtSocket.Status.CLOSED) null else throw error
-        }
     }
 
     private fun closeAttempt(

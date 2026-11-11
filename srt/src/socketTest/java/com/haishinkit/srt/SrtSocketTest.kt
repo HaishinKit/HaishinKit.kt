@@ -48,9 +48,12 @@ class SrtSocketTest {
                     assertEquals(listOf(1316, 1316, 17), messages.map { it.size })
                     assertArrayEquals(data, messages.fold(byteArrayOf()) { result, next -> result + next })
                     assertTrue(sender.performanceData().bytesSent >= data.size)
-                    assertTrue(receiver.performanceData().bytesReceived >= data.size)
-                    // Taking another snapshot must not reset cumulative counters.
-                    assertTrue(receiver.performanceData().bytesReceived >= data.size)
+                    val first = receiver.performanceData()
+                    assertTrue(first.bytesReceived >= data.size)
+                    assertTrue(first.pktRecv > 0)
+                    val second = receiver.performanceData()
+                    assertTrue(second.bytesReceived >= first.bytesReceived)
+                    assertTrue(second.pktRecv >= first.pktRecv)
                 }
             }
         }
