@@ -54,7 +54,7 @@ class ScreenObjectEditor(
             target.horizontalAlignment = ScreenObject.HORIZONTAL_ALIGNMENT_LEFT
             target.verticalAlignment = ScreenObject.VERTICAL_ALIGNMENT_TOP
             target.layoutMargin.set(top.roundToInt(), left.roundToInt(), 0, 0)
-            target.frame = Rect(0, 0, width, height)
+            target.frame = Rect(0, 0, target.frame.width(), target.frame.height())
             target.invalidateLayout()
         }
         objects.add(target)
@@ -120,7 +120,7 @@ class ScreenObjectEditor(
         val height = bounds.height()
         val maximum = min(screen.frame.width() / width, screen.frame.height() / height)
         val minimum = min(max(minimumSize / width, minimumSize / height), maximum)
-        val actualScale = scale.coerceIn(minimum, maximum)
+        val actualScale = if (scale == 1f) scale else scale.coerceIn(minimum, maximum)
         if (target is TextScreenObject && actualScale != 1f) target.size *= actualScale
         val origin =
             PointF(
@@ -146,5 +146,6 @@ class ScreenObjectEditor(
         target.verticalAlignment = ScreenObject.VERTICAL_ALIGNMENT_TOP
         target.layoutMargin.set(0, 0, 0, 0)
         target.frame = Rect(left.roundToInt(), top.roundToInt(), (left + width).roundToInt(), (top + height).roundToInt())
+        target.invalidateLayout()
     }
 }

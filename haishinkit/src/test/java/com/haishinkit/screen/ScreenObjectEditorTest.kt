@@ -44,6 +44,52 @@ class ScreenObjectEditorTest {
     }
 
     @Test
+    fun translationPreservesNarrowTextSize() {
+        val screen = ScreenObjectContainer().apply { frame = Rect(0, 0, 200, 200) }
+        val text = TextScreenObject().apply { bounds.set(20, 20, 30, 70) }
+        val fontSize = text.size
+        val editor = ScreenObjectEditor(screen, listOf(text))
+
+        assertTrue(editor.transform(text, PointF(20f, 20f), PointF(40f, 50f)))
+
+        assertEquals(Rect(40, 50, 50, 100), text.frame)
+        assertEquals(fontSize, text.size, 0f)
+    }
+
+    @Test
+    fun movingToOriginInvalidatesLayoutWhenOnlyAlignmentChanges() {
+        val screen = ScreenObjectContainer().apply { frame = Rect(0, 0, 200, 200) }
+        val target =
+            ScreenObjectContainer().apply {
+                frame = Rect(0, 0, 40, 50)
+                horizontalAlignment = ScreenObject.HORIZONTAL_ALIGNMENT_RIGHT
+                verticalAlignment = ScreenObject.VERTICAL_ALIGNMENT_BOTTOM
+            }
+        val renderer = MockRenderer()
+        screen.addChild(target)
+        screen.layout(renderer)
+        assertEquals(Rect(160, 150, 200, 200), target.bounds)
+        val editor = ScreenObjectEditor(screen, listOf(target))
+
+        assertTrue(editor.moveTo(target, PointF()))
+
+        assertEquals(Rect(0, 0, 40, 50), target.frame)
+        screen.layout(renderer)
+        assertEquals(Rect(0, 0, 40, 50), target.bounds)
+    }
+
+    @Test
+    fun registrationPreservesSignedAutomaticDimensions() {
+        val screen = ScreenObjectContainer().apply { frame = Rect(0, 0, 200, 200) }
+        val target = ScreenObjectContainer().apply { frame = Rect(10, 20, -30, 70) }
+        val editor = ScreenObjectEditor(screen)
+
+        editor.register(target, PointF(50f, 50f))
+
+        assertEquals(Rect(0, 0, -40, 50), target.frame)
+    }
+
+    @Test
     fun repeatedTransformsKeepFractionalGeometryBeforeLayout() {
         val screen = ScreenObjectContainer().apply { frame = Rect(0, 0, 1000, 1000) }
         val target = ScreenObjectContainer().apply { bounds.set(200, 200, 400, 400) }

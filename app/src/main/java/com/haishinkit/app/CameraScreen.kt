@@ -55,7 +55,7 @@ import com.haishinkit.graphics.VideoGravity
 import com.haishinkit.graphics.effect.DefaultVideoEffect
 import com.haishinkit.rtc.RTCSession
 import com.haishinkit.rtc.RTCStream
- import com.haishinkit.screen.TextScreenObject
+import com.haishinkit.screen.TextScreenObject
 import com.haishinkit.srt.SrtStream
 import com.haishinkit.stream.StreamSession
 import kotlinx.coroutines.flow.filterNotNull
@@ -147,65 +147,67 @@ fun CameraScreen(
         }
     }
 
-    Box(
-        modifier =
-            modifier.pointerInput(viewModel, configuration.orientation) {
-                val controller = viewModel.screenObjectDragController
-                awaitEachGesture {
-                    val down = awaitFirstDown()
-                    val hitObject = controller.begin(down.position, size)
-                    down.consume()
-                    var isTap = true
-                    var isTransforming = false
-                    try {
-                        do {
-                            val event = awaitPointerEvent()
-                            if (event.changes.any { it.isConsumed }) break
-                            if (event.changes.size > 1 ||
-                                event.changes.any { (it.position - down.position).getDistance() > viewConfiguration.touchSlop } ||
-                                event.changes.any { it.uptimeMillis - down.uptimeMillis > viewConfiguration.longPressTimeoutMillis }
-                            ) {
-                                isTap = false
-                            }
-                            if (!isTap && hitObject) {
-                                val previous = if (!isTransforming && event.changes.size == 1) down.position else event.calculateCentroid(useCurrent = false)
-                                controller.transform(previous, event.calculateCentroid(), event.calculateZoom(), size)
-                                isTransforming = true
-                            }
-                            if (isTap && event.changes.none { it.pressed }) {
-                                if (hitObject) {
-                                    editingText = controller.textForEditing()
-                                } else {
-                                    controller.clearFocus()
-                                    insertionPosition = controller.screenPosition(down.position, size)
+    Box(modifier) {
+        Box(
+            modifier =
+                Modifier.fillMaxSize().pointerInput(viewModel, configuration.orientation) {
+                    val controller = viewModel.screenObjectDragController
+                    awaitEachGesture {
+                        val down = awaitFirstDown()
+                        val hitObject = controller.begin(down.position, size)
+                        down.consume()
+                        var isTap = true
+                        var isTransforming = false
+                        try {
+                            do {
+                                val event = awaitPointerEvent()
+                                if (event.changes.any { it.isConsumed }) break
+                                if (event.changes.size > 1 ||
+                                    event.changes.any { (it.position - down.position).getDistance() > viewConfiguration.touchSlop } ||
+                                    event.changes.any { it.uptimeMillis - down.uptimeMillis > viewConfiguration.longPressTimeoutMillis }
+                                ) {
+                                    isTap = false
                                 }
-                            }
-                            event.changes.forEach { it.consume() }
-                        } while (event.changes.any { it.pressed })
-                    } finally {
-                        controller.end()
-                    }
-                }
-            }
-                .pointerInput(viewModel, configuration.orientation) {
-                    awaitPointerEventScope {
-                        while (true) {
-                            val event = awaitPointerEvent()
-                            if (event.type != PointerEventType.Scroll) continue
-                            val change = event.changes.firstOrNull() ?: continue
-                            if (!change.isConsumed && viewModel.screenObjectDragController.scroll(change.position, change.scrollDelta.y, size)) {
-                                change.consume()
-                            }
+                                if (!isTap && hitObject) {
+                                    val previous = if (!isTransforming && event.changes.size == 1) down.position else event.calculateCentroid(useCurrent = false)
+                                    controller.transform(previous, event.calculateCentroid(), event.calculateZoom(), size)
+                                    isTransforming = true
+                                }
+                                if (isTap && event.changes.none { it.pressed }) {
+                                    if (hitObject) {
+                                        editingText = controller.textForEditing()
+                                    } else {
+                                        controller.clearFocus()
+                                        insertionPosition = controller.screenPosition(down.position, size)
+                                    }
+                                }
+                                event.changes.forEach { it.consume() }
+                            } while (event.changes.any { it.pressed })
+                        } finally {
+                            controller.end()
                         }
                     }
-                },
-    ) {
-        key(currentSession.stream) {
-            HaishinKitView(
-                stream = currentSession.stream,
-                videoGravity = VideoGravity.RESIZE_ASPECT_FILL,
-                modifier = Modifier.fillMaxSize(),
-            )
+                }
+                    .pointerInput(viewModel, configuration.orientation) {
+                        awaitPointerEventScope {
+                            while (true) {
+                                val event = awaitPointerEvent()
+                                if (event.type != PointerEventType.Scroll) continue
+                                val change = event.changes.firstOrNull() ?: continue
+                                if (!change.isConsumed && viewModel.screenObjectDragController.scroll(change.position, change.scrollDelta.y, size)) {
+                                    change.consume()
+                                }
+                            }
+                        }
+                    },
+        ) {
+            key(currentSession.stream) {
+                HaishinKitView(
+                    stream = currentSession.stream,
+                    videoGravity = VideoGravity.RESIZE_ASPECT_FILL,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
         }
 
         ScreenObjectSelectionOverlay(
