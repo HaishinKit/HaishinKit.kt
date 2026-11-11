@@ -140,36 +140,35 @@ internal class RtmpSocket(
         transport.doOutput(c0C1Packet)
     }
 
+    @Synchronized
     private fun onInput(
         transport: NetSocket,
         buffer: ByteBuffer,
     ) {
-        synchronized(this) {
-            if (socket !== transport) return
-            if (readyState == ReadyState.VersionSent) {
-                if (buffer.remaining() < RtmpHandshake.SIGNAL_SIZE + 1) return
-                handshake.s0S1Packet = buffer
-                transport.doOutput(handshake.c2Packet)
-                buffer.position(RtmpHandshake.SIGNAL_SIZE + 1)
-                readyState = ReadyState.AckSent
-            }
+        if (socket !== transport) return
+        if (readyState == ReadyState.VersionSent) {
+            if (buffer.remaining() < RtmpHandshake.SIGNAL_SIZE + 1) return
+            handshake.s0S1Packet = buffer
+            transport.doOutput(handshake.c2Packet)
+            buffer.position(RtmpHandshake.SIGNAL_SIZE + 1)
+            readyState = ReadyState.AckSent
+        }
 
-            if (readyState == ReadyState.AckSent) {
-                if (buffer.remaining() < RtmpHandshake.SIGNAL_SIZE) return
-                handshake.s2Packet = buffer
-                buffer.position(buffer.position() + RtmpHandshake.SIGNAL_SIZE)
-                handshakeDurationMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - handshakeStartedAtNanos)
-                readyState = ReadyState.HandshakeDone
-                isConnected = true
-                connection.uri?.let {
-                    connection.doOutput(RtmpChunk.ZERO, connection.createConnectionMessage(it))
-                }
+        if (readyState == ReadyState.AckSent) {
+            if (buffer.remaining() < RtmpHandshake.SIGNAL_SIZE) return
+            handshake.s2Packet = buffer
+            buffer.position(buffer.position() + RtmpHandshake.SIGNAL_SIZE)
+            handshakeDurationMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - handshakeStartedAtNanos)
+            readyState = ReadyState.HandshakeDone
+            isConnected = true
+            connection.uri?.let {
+                connection.doOutput(RtmpChunk.ZERO, connection.createConnectionMessage(it))
             }
         }
 
-        if (socket !== transport || readyState != ReadyState.HandshakeDone || !buffer.hasRemaining()) return
+        if (!buffer.hasRemaining()) return
         try {
-            connection.listen(buffer)
+            connection.listen(buffer) { socket === transport && readyState == ReadyState.HandshakeDone }
         } catch (e: IndexOutOfBoundsException) {
             if (VERBOSE) Log.d(TAG, "", e)
         } catch (e: BufferUnderflowException) {

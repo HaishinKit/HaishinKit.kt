@@ -277,7 +277,12 @@ class RtmpConnection : EventDispatcher(null) {
         message.release()
     }
 
-    internal tailrec fun listen(buffer: ByteBuffer) {
+    internal tailrec fun listen(
+        buffer: ByteBuffer,
+        isCurrent: () -> Boolean,
+    ) {
+        // A message callback can synchronously close or replace the transport.
+        if (!isCurrent()) return
         val rollback = buffer.position()
         try {
             val first = buffer.get()
@@ -340,7 +345,7 @@ class RtmpConnection : EventDispatcher(null) {
             throw e
         }
         if (buffer.hasRemaining()) {
-            listen(buffer)
+            listen(buffer, isCurrent)
         }
     }
 

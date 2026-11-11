@@ -2,6 +2,9 @@ package com.haishinkit.rtmp
 
 import com.haishinkit.net.NetSocket
 import com.haishinkit.net.NetSocketImpl
+import com.haishinkit.rtmp.event.Event
+import com.haishinkit.rtmp.event.IEventListener
+import com.haishinkit.rtmp.message.RtmpCommandMessage
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
@@ -53,6 +56,45 @@ class RtmpHandshakeDurationTest {
 
         newListener.onInput(ByteBuffer.allocate(packetSize))
         assertNotNull(connection.handshakeDurationMillis)
+    }
+
+    @Test
+    fun stopsParsingOldInputWhenMessageCallbackReconnects() {
+        val connection = RtmpConnection()
+        val socket = connection.socket
+        val oldListener = startHandshake(socket)
+        val packetSize = RtmpHandshake.SIGNAL_SIZE
+        oldListener.onInput(ByteBuffer.allocate(1 + 2 * packetSize))
+        connection.addEventListener(
+            Event.RTMP_STATUS,
+            object : IEventListener {
+                override fun handleEvent(event: Event) {
+                    connection.close()
+                    startHandshake(socket)
+                }
+            },
+        )
+        val command = RtmpCommandMessage(RtmpObjectEncoding.AMF0)
+        command.commandName = "_result"
+        val payload = ByteBuffer.allocate(128)
+        command.encode(payload)
+        val messageSize = 12 + payload.position()
+        val input = ByteBuffer.allocate(messageSize + 16)
+        input.putInt(3 shl 24)
+        input.putInt((payload.position() shl 8) or command.type.toInt())
+        input.putInt(0)
+        input.put(payload.array(), 0, payload.position())
+        input.putInt(2 shl 24)
+        input.putInt((4 shl 8) or 1)
+        input.putInt(0)
+        input.putInt(4096)
+        input.flip()
+
+        oldListener.onInput(input)
+
+        assertNull(connection.handshakeDurationMillis)
+        assertEquals(messageSize, input.position())
+        assertEquals(RtmpChunk.DEFAULT_SIZE, socket.chunkSizeC)
     }
 
     private fun startHandshake(socket: RtmpSocket): NetSocket.Listener {
