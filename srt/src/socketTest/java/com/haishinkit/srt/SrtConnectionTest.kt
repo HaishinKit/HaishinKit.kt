@@ -15,7 +15,6 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.flow.toList
@@ -99,17 +98,22 @@ class SrtConnectionTest {
                     caller.send(payload)
                     val chunks = List(3) { listener.receive() }
                     assertArrayEquals(payload, chunks.fold(byteArrayOf()) { all, next -> all + next })
-                    val sent = awaitStatistics(caller) { it.bytesSent >= payload.size }
-                    val received = awaitStatistics(listener) { it.bytesReceived >= payload.size }
+                    val peek = checkNotNull(caller.performanceData)
+                    val sent = checkNotNull(caller.samplePerformanceData())
+                    val received = checkNotNull(listener.performanceData)
+                    assertTrue(peek.pktSent > 0)
+                    assertTrue(sent.bytesSent >= payload.size)
+                    assertTrue(received.bytesReceived >= payload.size)
                     assertTrue(sent.pktSent > 0)
                     assertTrue(sent.pktSentTotal >= chunks.size)
                     assertTrue(received.pktRecvTotal >= chunks.size)
-                    val idle = awaitStatistics(caller) { it.msTimeStamp > sent.msTimeStamp && it.pktSent == 0L }
-                    assertTrue(idle.msTimeStamp - sent.msTimeStamp >= 900)
+                    val idle = checkNotNull(caller.samplePerformanceData())
+                    assertEquals(0L, idle.pktSent)
                     assertEquals(sent.bytesSent, idle.bytesSent)
                     assertEquals(sent.pktSentTotal, idle.pktSentTotal)
                     caller.close()
                     assertNull(caller.performanceData)
+                    assertNull(caller.samplePerformanceData())
                 }
             }
         }
@@ -263,16 +267,6 @@ class SrtConnectionTest {
                 }
             }
         }
-
-    private suspend fun awaitStatistics(
-        connection: SrtConnection,
-        matches: (SrtPerformanceData) -> Boolean,
-    ): SrtPerformanceData {
-        while (true) {
-            connection.performanceData?.let { if (matches(it)) return it }
-            delay(20)
-        }
-    }
 
     private suspend fun connectedPair(
         options: SrtConnection.Options = SrtConnection.Options(),

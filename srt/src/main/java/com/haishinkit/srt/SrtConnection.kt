@@ -8,7 +8,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.currentCoroutineContext
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -18,7 +17,6 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.Closeable
-import java.io.IOException
 import java.net.Inet6Address
 import java.net.InetAddress
 import java.net.InetSocketAddress
@@ -118,17 +116,9 @@ class SrtConnection(scope: CoroutineScope, options: Options = Options()) : Close
             }
         }
 
-    /**
-     * The latest statistics snapshot for the open peer, sampled about once per second.
-     * Returns null before the first sample or when the connection is not open.
-     * Each sample resets the native interval counters. Reading this property returns
-     * the cached snapshot without resetting the interval.
-     */
+    /** A fresh statistics snapshot for the open peer. Reading does not reset the interval. */
     val performanceData: SrtPerformanceData?
-        get() =
-            synchronized(guard) {
-                if (state.value == ReadyState.OPEN) active?.performanceData else null
-            }
+        get() = readPerformanceData(resetInterval = false)
 
     /**
      * Cold, unbuffered message flow for a single collector. Each collection uses
@@ -204,16 +194,7 @@ class SrtConnection(scope: CoroutineScope, options: Options = Options()) : Close
                 state.value = ReadyState.CONNECTING
             }
             try {
-                val monitor =
-                    scope.launch(start = CoroutineStart.LAZY) {
-                        val peer = attempt.peer.await()
-                        val statistics = launch { samplePerformanceData(attempt, peer) }
-                        try {
-                            peer.awaitDisconnected()
-                        } finally {
-                            statistics.cancel()
-                        }
-                    }
+                val monitor = scope.launch(start = CoroutineStart.LAZY) { attempt.peer.await().awaitDisconnected() }
                 try {
                     synchronized(guard) {
                         checkCurrent(attempt)
@@ -262,6 +243,13 @@ class SrtConnection(scope: CoroutineScope, options: Options = Options()) : Close
                 throw error
             }
         }
+
+    /**
+     * Takes a fresh snapshot and resets the interval counters for the open peer.
+     * Returns null when the connection is not open. Cumulative counters are preserved.
+     * Calls on the same peer share the interval, so use one sampler per connection.
+     */
+    fun samplePerformanceData(): SrtPerformanceData? = readPerformanceData(resetInterval = true)
 
     /**
      * Sends transport bytes as messages of at most 1316 bytes, applying native backpressure.
@@ -396,24 +384,12 @@ class SrtConnection(scope: CoroutineScope, options: Options = Options()) : Close
         if (socket.status == SrtSocket.Status.CLOSED) closeAttempt(attempt)
     }
 
-    private suspend fun samplePerformanceData(
-        attempt: Attempt,
-        socket: SrtSocket,
-    ) {
-        while (true) {
-            delay(1_000)
-            val snapshot =
-                try {
-                    socket.samplePerformanceData()
-                } catch (_: IllegalStateException) {
-                    return
-                } catch (_: IOException) {
-                    continue
-                }
-            synchronized(guard) {
-                if (active !== attempt || attempt.closing) return
-                attempt.performanceData = snapshot
-            }
+    private fun readPerformanceData(resetInterval: Boolean): SrtPerformanceData? {
+        val socket = synchronized(guard) { if (state.value == ReadyState.OPEN) active?.socket else null } ?: return null
+        return try {
+            if (resetInterval) socket.samplePerformanceData() else socket.performanceData()
+        } catch (error: IllegalStateException) {
+            if (socket.status == SrtSocket.Status.CLOSED) null else throw error
         }
     }
 
@@ -448,7 +424,6 @@ class SrtConnection(scope: CoroutineScope, options: Options = Options()) : Close
         var socket: SrtSocket? = null
         var listener: SrtSocket? = null
         var monitor: Job? = null
-        var performanceData: SrtPerformanceData? = null
         var closing = false
     }
 
