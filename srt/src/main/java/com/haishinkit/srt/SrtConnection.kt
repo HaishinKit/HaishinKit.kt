@@ -245,10 +245,10 @@ class SrtConnection(scope: CoroutineScope, options: Options = Options()) : Close
      * If [resetInterval] is true, starts a new interval after taking the snapshot.
      * The interval is shared by all callers on this peer. Cumulative counters are preserved.
      */
-    fun samplePerformanceData(resetInterval: Boolean): SrtPerformanceData? {
+    fun getPerformanceData(resetInterval: Boolean): SrtPerformanceData? {
         val socket = synchronized(guard) { if (state.value == ReadyState.OPEN) active?.socket else null } ?: return null
         return try {
-            socket.samplePerformanceData(resetInterval)
+            socket.getPerformanceData(resetInterval)
         } catch (error: IllegalStateException) {
             if (socket.status == SrtSocket.Status.CLOSED) null else throw error
         }
