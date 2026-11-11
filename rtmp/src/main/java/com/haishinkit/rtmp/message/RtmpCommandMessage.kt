@@ -43,19 +43,22 @@ internal class RtmpCommandMessage(
         return this
     }
 
-    override fun execute(connection: RtmpConnection): RtmpMessage {
+    override fun execute(
+        connection: RtmpConnection,
+        dispatch: (() -> Unit) -> Unit,
+    ): RtmpMessage {
         val responders = connection.responders
 
         if (responders.containsKey(transactionID)) {
             val responder = responders[transactionID]
             when (commandName) {
                 "_result" -> {
-                    responder?.onResult(arguments)
+                    if (responder != null) dispatch { responder.onResult(arguments) }
                     return this
                 }
 
                 "_error" -> {
-                    responder?.onStatus(arguments)
+                    if (responder != null) dispatch { responder.onStatus(arguments) }
                     return this
                 }
             }
@@ -70,19 +73,13 @@ internal class RtmpCommandMessage(
 
             "onStatus" -> {
                 val stream = connection.streams[streamID]
-                stream?.dispatchEventWith(
-                    Event.RTMP_STATUS,
-                    false,
-                    if (arguments.isEmpty()) null else arguments[0],
-                )
+                val data = arguments.firstOrNull()
+                if (stream != null) dispatch { stream.dispatchEventWith(Event.RTMP_STATUS, false, data) }
             }
 
             else -> {
-                connection.dispatchEventWith(
-                    Event.RTMP_STATUS,
-                    false,
-                    if (arguments.isEmpty()) null else arguments[0],
-                )
+                val data = arguments.firstOrNull()
+                dispatch { connection.dispatchEventWith(Event.RTMP_STATUS, false, data) }
             }
         }
 

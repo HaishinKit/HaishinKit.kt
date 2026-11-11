@@ -32,7 +32,10 @@ internal open class RtmpMessage(
         TODO("$TAG#decode")
     }
 
-    open fun execute(connection: RtmpConnection): RtmpMessage {
+    open fun execute(
+        connection: RtmpConnection,
+        dispatch: (() -> Unit) -> Unit,
+    ): RtmpMessage {
         TODO("$TAG#execute")
     }
 

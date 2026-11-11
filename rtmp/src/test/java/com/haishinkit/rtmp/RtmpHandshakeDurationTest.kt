@@ -8,8 +8,12 @@ import com.haishinkit.rtmp.message.RtmpCommandMessage
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.nio.ByteBuffer
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 
 class RtmpHandshakeDurationTest {
     @Test
@@ -74,16 +78,8 @@ class RtmpHandshakeDurationTest {
                 }
             },
         )
-        val command = RtmpCommandMessage(RtmpObjectEncoding.AMF0)
-        command.commandName = "_result"
-        val payload = ByteBuffer.allocate(128)
-        command.encode(payload)
-        val messageSize = 12 + payload.position()
-        val input = ByteBuffer.allocate(messageSize + 16)
-        input.putInt(3 shl 24)
-        input.putInt((payload.position() shl 8) or command.type.toInt())
-        input.putInt(0)
-        input.put(payload.array(), 0, payload.position())
+        val input = statusMessage(trailingBytes = 16)
+        val messageSize = input.position()
         input.putInt(2 shl 24)
         input.putInt((4 shl 8) or 1)
         input.putInt(0)
@@ -97,18 +93,95 @@ class RtmpHandshakeDurationTest {
         assertEquals(RtmpChunk.DEFAULT_SIZE, socket.chunkSizeC)
     }
 
-    private fun startHandshake(socket: RtmpSocket): NetSocket.Listener {
-        val transport =
-            object : NetSocket by NetSocketImpl() {
-                override fun connect(
-                    dstName: String,
-                    dstPort: Int,
-                    isSecure: Boolean,
-                ) = Unit
+    @Test
+    fun statusListenerCanWaitForCloseOnAnotherThread() {
+        val connection = RtmpConnection()
+        val listener = startHandshake(connection.socket)
+        val executor = Executors.newSingleThreadExecutor()
+        try {
+            listener.onInput(ByteBuffer.allocate(1 + 2 * RtmpHandshake.SIGNAL_SIZE))
+            connection.addEventListener(
+                Event.RTMP_STATUS,
+                object : IEventListener {
+                    override fun handleEvent(event: Event) {
+                        executor.submit { connection.close() }.get(3, TimeUnit.SECONDS)
+                    }
+                },
+            )
+            listener.onInput(statusMessage().apply { flip() })
+            assertEquals(false, connection.isConnected)
+        } finally {
+            executor.shutdownNow()
+        }
+    }
 
-                override fun doOutput(buffer: ByteBuffer) = Unit
+    @Test
+    fun ignoresFailureAfterTransportReplacement() {
+        val connection = RtmpConnection()
+        val closing = CountDownLatch(1)
+        val finishClose = CountDownLatch(1)
+        val transport =
+            object : TestTransport() {
+                override fun close(disconnected: Boolean) {
+                    if (disconnected) {
+                        closing.countDown()
+                        assertTrue(finishClose.await(3, TimeUnit.SECONDS))
+                    }
+                }
             }
+        val listener = startHandshake(connection.socket, transport)
+        val statuses = mutableListOf<Any?>()
+        connection.addEventListener(
+            Event.RTMP_STATUS,
+            object : IEventListener {
+                override fun handleEvent(event: Event) {
+                    statuses.add(event.data)
+                }
+            },
+        )
+        val executor = Executors.newSingleThreadExecutor()
+        try {
+            val close = executor.submit { listener.onClose(true) }
+            assertTrue(closing.await(3, TimeUnit.SECONDS))
+            startHandshake(connection.socket)
+            finishClose.countDown()
+            close.get(3, TimeUnit.SECONDS)
+            assertTrue(statuses.isEmpty())
+        } finally {
+            finishClose.countDown()
+            executor.shutdownNow()
+        }
+    }
+
+    private fun startHandshake(
+        socket: RtmpSocket,
+        transport: NetSocket = TestTransport(),
+    ): NetSocket.Listener {
         socket.connect("localhost", 1935, false, transport)
         return checkNotNull(transport.listener).also { it.onConnect() }
+    }
+
+    private fun statusMessage(trailingBytes: Int = 0): ByteBuffer {
+        val command = RtmpCommandMessage(RtmpObjectEncoding.AMF0)
+        command.commandName = "_result"
+        val payload = ByteBuffer.allocate(128)
+        command.encode(payload)
+        val payloadSize = payload.position()
+        val input = ByteBuffer.allocate(12 + payloadSize + trailingBytes)
+        input.putInt(3 shl 24)
+        input.putInt((payloadSize shl 8) or command.type.toInt())
+        input.putInt(0)
+        input.put(payload.array(), 0, payloadSize)
+        return input
+    }
+
+    private open class TestTransport : NetSocket by NetSocketImpl() {
+        override fun connect(
+            dstName: String,
+            dstPort: Int,
+            isSecure: Boolean,
+        ) = Unit
+
+        override fun doOutput(buffer: ByteBuffer) = Unit
     }
 }

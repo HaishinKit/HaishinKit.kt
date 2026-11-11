@@ -79,7 +79,7 @@ internal class RtmpSocket(
 
                 override fun onSocketError() {
                     if (closeTransport(transport, false)) {
-                        connection.dispatchEventWith(Event.IO_ERROR, false)
+                        connection.dispatchEventWith(Event.IO_ERROR, false, null) { socket === transport }
                         Log.i(TAG, "a connection was failed")
                     }
                 }
@@ -117,7 +117,7 @@ internal class RtmpSocket(
             }
         transport?.close(disconnected)
         if (disconnected) {
-            connection.dispatchEventWith(Event.RTMP_STATUS, false, code.data(""))
+            connection.dispatchEventWith(Event.RTMP_STATUS, false, code.data("")) { socket === transport }
         }
         synchronized(this) {
             if (socket === transport) {
@@ -140,12 +140,39 @@ internal class RtmpSocket(
         transport.doOutput(c0C1Packet)
     }
 
-    @Synchronized
     private fun onInput(
         transport: NetSocket,
         buffer: ByteBuffer,
     ) {
-        if (socket !== transport) return
+        synchronized(this) {
+            if (socket !== transport) return
+            readHandshake(transport, buffer)
+        }
+        try {
+            while (buffer.hasRemaining()) {
+                var callback: (() -> Unit)? = null
+                synchronized(this) {
+                    if (!canReadChunks(transport) || !connection.readChunk(buffer) { callback = it }) return
+                }
+                // Listeners and responders can close or replace the connection.
+                if (canReadChunks(transport)) callback?.invoke()
+            }
+        } catch (e: IndexOutOfBoundsException) {
+            if (VERBOSE) Log.d(TAG, "", e)
+        } catch (e: BufferUnderflowException) {
+            if (VERBOSE) Log.d(TAG, "", e)
+        } catch (e: IllegalArgumentException) {
+            if (VERBOSE) Log.w(TAG, "", e)
+            throw e
+        }
+    }
+
+    private fun canReadChunks(transport: NetSocket): Boolean = socket === transport && readyState == ReadyState.HandshakeDone
+
+    private fun readHandshake(
+        transport: NetSocket,
+        buffer: ByteBuffer,
+    ) {
         if (readyState == ReadyState.VersionSent) {
             if (buffer.remaining() < RtmpHandshake.SIGNAL_SIZE + 1) return
             handshake.s0S1Packet = buffer
@@ -164,18 +191,6 @@ internal class RtmpSocket(
             connection.uri?.let {
                 connection.doOutput(RtmpChunk.ZERO, connection.createConnectionMessage(it))
             }
-        }
-
-        if (!buffer.hasRemaining()) return
-        try {
-            connection.listen(buffer) { socket === transport && readyState == ReadyState.HandshakeDone }
-        } catch (e: IndexOutOfBoundsException) {
-            if (VERBOSE) Log.d(TAG, "", e)
-        } catch (e: BufferUnderflowException) {
-            if (VERBOSE) Log.d(TAG, "", e)
-        } catch (e: IllegalArgumentException) {
-            if (VERBOSE) Log.w(TAG, "", e)
-            throw e
         }
     }
 

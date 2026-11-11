@@ -277,12 +277,10 @@ class RtmpConnection : EventDispatcher(null) {
         message.release()
     }
 
-    internal tailrec fun listen(
+    internal fun readChunk(
         buffer: ByteBuffer,
-        isCurrent: () -> Boolean,
-    ) {
-        // A message callback can synchronously close or replace the transport.
-        if (!isCurrent()) return
+        dispatch: (() -> Unit) -> Unit,
+    ): Boolean {
         val rollback = buffer.position()
         try {
             val first = buffer.get()
@@ -301,11 +299,11 @@ class RtmpConnection : EventDispatcher(null) {
                     buffer.position(buffer.position() + remaining)
                 } else {
                     buffer.position(rollback)
-                    return
+                    return false
                 }
                 if (!payload.hasRemaining()) {
                     payload.flip()
-                    message.decode(payload).execute(this)
+                    message.decode(payload).execute(this, dispatch)
                 }
             } else {
                 val message = chunk.decode(chunkStreamID, this, buffer)
@@ -325,7 +323,7 @@ class RtmpConnection : EventDispatcher(null) {
                     }
                 }
                 if (message.length <= chunkSizeC) {
-                    message.decode(buffer).execute(this)
+                    message.decode(buffer).execute(this, dispatch)
                 } else {
                     val payload = message.payload
                     if (buffer.position() + chunkSizeC <= buffer.limit()) {
@@ -333,7 +331,7 @@ class RtmpConnection : EventDispatcher(null) {
                         buffer.position(buffer.position() + chunkSizeC)
                     } else {
                         buffer.position(rollback)
-                        return
+                        return false
                     }
                 }
             }
@@ -344,9 +342,7 @@ class RtmpConnection : EventDispatcher(null) {
             buffer.position(rollback)
             throw e
         }
-        if (buffer.hasRemaining()) {
-            listen(buffer, isCurrent)
-        }
+        return true
     }
 
     internal fun createStream(stream: RtmpStream) {
