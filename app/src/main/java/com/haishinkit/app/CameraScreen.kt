@@ -4,6 +4,10 @@ import android.media.MediaMuxer
 import android.os.Environment
 import android.widget.Toast
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.calculateCentroid
+import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -23,12 +27,18 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
@@ -45,6 +55,7 @@ import com.haishinkit.graphics.VideoGravity
 import com.haishinkit.graphics.effect.DefaultVideoEffect
 import com.haishinkit.rtc.RTCSession
 import com.haishinkit.rtc.RTCStream
+import com.haishinkit.screen.TextScreenObject
 import com.haishinkit.srt.SrtStream
 import com.haishinkit.stream.StreamSession
 import kotlinx.coroutines.flow.filterNotNull
@@ -62,6 +73,8 @@ fun CameraScreen(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    var editingText by remember { mutableStateOf<TextScreenObject?>(null) }
+    var insertionPosition by remember { mutableStateOf<Offset?>(null) }
     LaunchedEffect(Unit) {
         viewModel.refreshSession().onFailure { Toast.makeText(context, it.message, Toast.LENGTH_SHORT).show() }
     }
@@ -111,14 +124,96 @@ fun CameraScreen(
         }
     }
 
-    Box(modifier = modifier) {
-        key(currentSession.stream) {
-            HaishinKitView(
-                stream = currentSession.stream,
-                videoGravity = VideoGravity.RESIZE_ASPECT_FILL,
-                modifier = Modifier.fillMaxSize(),
+    insertionPosition?.let { position ->
+        ScreenObjectAddDialog(
+            onAdd = { kind ->
+                viewModel.addScreenObject(kind, position)
+                insertionPosition = null
+            },
+            onDismiss = { insertionPosition = null },
+        )
+    }
+
+    editingText?.let { target ->
+        key(target.id) {
+            ScreenObjectTextEditor(
+                initialValue = target.value,
+                onConfirm = { value ->
+                    viewModel.screenObjectDragController.updateText(target, value)
+                    editingText = null
+                },
+                onDismiss = { editingText = null },
             )
         }
+    }
+
+    Box(modifier) {
+        Box(
+            modifier =
+                Modifier.fillMaxSize().pointerInput(viewModel, configuration.orientation) {
+                    val controller = viewModel.screenObjectDragController
+                    awaitEachGesture {
+                        val down = awaitFirstDown()
+                        val hitObject = controller.begin(down.position, size)
+                        down.consume()
+                        var isTap = true
+                        var isTransforming = false
+                        try {
+                            do {
+                                val event = awaitPointerEvent()
+                                if (event.changes.any { it.isConsumed }) break
+                                if (event.changes.size > 1 ||
+                                    event.changes.any { (it.position - down.position).getDistance() > viewConfiguration.touchSlop } ||
+                                    event.changes.any { it.uptimeMillis - down.uptimeMillis > viewConfiguration.longPressTimeoutMillis }
+                                ) {
+                                    isTap = false
+                                }
+                                if (!isTap && hitObject) {
+                                    val previous = if (!isTransforming && event.changes.size == 1) down.position else event.calculateCentroid(useCurrent = false)
+                                    controller.transform(previous, event.calculateCentroid(), event.calculateZoom(), size)
+                                    isTransforming = true
+                                }
+                                if (isTap && event.changes.none { it.pressed }) {
+                                    if (hitObject) {
+                                        editingText = controller.textForEditing()
+                                    } else {
+                                        controller.clearFocus()
+                                        insertionPosition = controller.screenPosition(down.position, size)
+                                    }
+                                }
+                                event.changes.forEach { it.consume() }
+                            } while (event.changes.any { it.pressed })
+                        } finally {
+                            controller.end()
+                        }
+                    }
+                }
+                    .pointerInput(viewModel, configuration.orientation) {
+                        awaitPointerEventScope {
+                            while (true) {
+                                val event = awaitPointerEvent()
+                                if (event.type != PointerEventType.Scroll) continue
+                                val change = event.changes.firstOrNull() ?: continue
+                                if (!change.isConsumed && viewModel.screenObjectDragController.scroll(change.position, change.scrollDelta.y, size)) {
+                                    change.consume()
+                                }
+                            }
+                        }
+                    },
+        ) {
+            key(currentSession.stream) {
+                HaishinKitView(
+                    stream = currentSession.stream,
+                    videoGravity = VideoGravity.RESIZE_ASPECT_FILL,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
+        }
+
+        ScreenObjectSelectionOverlay(
+            controller = viewModel.screenObjectDragController,
+            onDelete = { viewModel.removeFocusedScreenObject() },
+        )
 
         Column(
             modifier =

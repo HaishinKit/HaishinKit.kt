@@ -8,9 +8,11 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Rect
 import android.provider.MediaStore
+import android.util.Size
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.geometry.Offset
 import androidx.core.net.toUri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.DefaultLifecycleObserver
@@ -56,6 +58,8 @@ class CameraViewModel(
     val selectedCamera: StateFlow<CameraDevice?>
         get() = _selectedCamera.asStateFlow()
     var videoEffectItems: List<VideoEffectItem>
+
+    internal val screenObjectDragController: ScreenObjectDragController
 
     private var cameraDeviceManager: CameraDeviceManager =
         CameraDeviceManager(context = application.applicationContext)
@@ -106,6 +110,8 @@ class CameraViewModel(
         lottie.playAnimation()
         mixer.screen.addChild(lottie)
 
+        screenObjectDragController = ScreenObjectDragController(mixer.screen, listOf(image, text, lottie))
+
         recorder.audioSetting.sampleRate = 48_000
         mixer.registerOutput(recorder)
         RendererPreference.register(this)
@@ -143,6 +149,40 @@ class CameraViewModel(
         }
     }
 
+    internal fun addScreenObject(
+        kind: ExampleScreenObjectKind,
+        position: Offset,
+    ) {
+        val target =
+            when (kind) {
+                ExampleScreenObjectKind.TEXT ->
+                    TextScreenObject().apply {
+                        value = "New text"
+                        size = 60f
+                    }
+                ExampleScreenObjectKind.IMAGE ->
+                    ImageScreenObject().apply {
+                        bitmap = BitmapFactory.decodeResource(application.applicationContext.resources, R.drawable.game_jikkyou)
+                        frame = Rect(0, 0, 180, 180)
+                    }
+                ExampleScreenObjectKind.ANIMATION ->
+                    LottieScreen(application.applicationContext).apply {
+                        frame = Rect(0, 0, 200, 200)
+                        setAnimation(R.raw.a1707149669115)
+                        playAnimation()
+                    }
+            }
+        screenObjectDragController.register(target, position)
+        mixer.screen.addChild(target)
+    }
+
+    internal fun removeFocusedScreenObject() {
+        val target = screenObjectDragController.focusedObject ?: return
+        (target as? LottieScreen)?.cancelAnimation()
+        mixer.screen.removeChild(target)
+        screenObjectDragController.unregister(target)
+    }
+
     fun selectAudioDevice() {
         viewModelScope.launch {
             mixer.attachAudio(0, AudioRecordSource(application.applicationContext).apply { sampleRate = 48_000 })
@@ -165,33 +205,14 @@ class CameraViewModel(
     }
 
     fun onConfigurationChanged(configuration: Configuration) {
-        when (configuration.orientation) {
-            Configuration.ORIENTATION_PORTRAIT -> {
-                mixer.screen.frame =
-                    Rect(
-                        0,
-                        0,
-                        Screen.DEFAULT_HEIGHT,
-                        Screen.DEFAULT_WIDTH,
-                    )
+        val composition =
+            when (configuration.orientation) {
+                Configuration.ORIENTATION_PORTRAIT -> Size(Screen.DEFAULT_HEIGHT, Screen.DEFAULT_WIDTH)
+                Configuration.ORIENTATION_LANDSCAPE -> Size(Screen.DEFAULT_WIDTH, Screen.DEFAULT_HEIGHT)
+                else -> return
             }
-
-            Configuration.ORIENTATION_LANDSCAPE -> {
-                mixer.screen.frame =
-                    Rect(
-                        0,
-                        0,
-                        Screen.DEFAULT_WIDTH,
-                        Screen.DEFAULT_HEIGHT,
-                    )
-            }
-
-            Configuration.ORIENTATION_SQUARE -> {
-            }
-
-            Configuration.ORIENTATION_UNDEFINED -> {
-            }
-        }
+        mixer.screen.frame = Rect(0, 0, composition.width, composition.height)
+        screenObjectDragController.fitObjectsToScreen(composition)
     }
 
     fun takeSnapShot(context: Context) {
