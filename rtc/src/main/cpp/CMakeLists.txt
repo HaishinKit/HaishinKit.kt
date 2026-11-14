@@ -12,7 +12,16 @@ set(MBEDTLS_FATAL_WARNINGS OFF CACHE BOOL "" FORCE)
 FetchContent_Declare(mbedtls
     URL https://github.com/Mbed-TLS/mbedtls/releases/download/mbedtls-3.6.5/mbedtls-3.6.5.tar.bz2
     URL_HASH SHA256=4a11f1777bb95bf4ad96721cac945a26e04bf19f57d905f241fe77ebeddf46d8)
-FetchContent_MakeAvailable(mbedtls)
+# The release archive includes generated sources. Its optional configuration
+# warning script cannot run with older host interpreters such as JitPack's.
+function(add_rtc_mbedtls)
+    set(CMAKE_POLICY_DEFAULT_CMP0077 NEW)
+    set(GEN_FILES OFF)
+    set(CMAKE_DISABLE_FIND_PACKAGE_Python3 TRUE)
+    FetchContent_MakeAvailable(mbedtls)
+endfunction()
+add_rtc_mbedtls()
+FetchContent_GetProperties(mbedtls)
 add_library(MbedTLS::MbedTLS ALIAS mbedtls)
 # libdatachannel and libsrtp must use the Android-built TLS targets.
 set(MBEDTLS_INCLUDE_DIRS "${mbedtls_SOURCE_DIR}/include")
@@ -26,8 +35,22 @@ set(TEST_APPS OFF CACHE BOOL "" FORCE)
 FetchContent_Declare(datachannel
     GIT_REPOSITORY https://github.com/paullouisageneau/libdatachannel.git
     GIT_TAG c6696d157b5612df2a741d9a03b192b47ab6cefb
+    GIT_SUBMODULES deps/json deps/libsrtp deps/plog deps/usrsctp
     GIT_SUBMODULES_RECURSE TRUE)
-FetchContent_MakeAvailable(datachannel)
+FetchContent_GetProperties(datachannel)
+if(NOT datachannel_POPULATED)
+    FetchContent_Populate(datachannel)
+    if(NOT FETCHCONTENT_SOURCE_DIR_DATACHANNEL)
+        # Use the exact libdatachannel gitlink revision without relying on
+        # the runner's Git mirror to serve that submodule commit.
+        FetchContent_Declare(rtc_libjuice
+            URL https://codeload.github.com/paullouisageneau/libjuice/tar.gz/22145ec3473c73d811417ac9a6aee0de530aaa3f
+            URL_HASH SHA256=4748aa200992301bea0cea1329de6dfd4ec7ec5885f2aceb0163618993fc7ff7
+            SOURCE_DIR "${datachannel_SOURCE_DIR}/deps/libjuice")
+        FetchContent_Populate(rtc_libjuice)
+    endif()
+    add_subdirectory("${datachannel_SOURCE_DIR}" "${datachannel_BINARY_DIR}")
+endif()
 add_library(haishinkit_rtc SHARED rtc-jni.cpp)
 target_link_libraries(haishinkit_rtc PRIVATE datachannel-static)
 target_compile_features(haishinkit_rtc PRIVATE cxx_std_17)
