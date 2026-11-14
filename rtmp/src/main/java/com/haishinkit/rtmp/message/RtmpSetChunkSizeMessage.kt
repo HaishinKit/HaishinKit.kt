@@ -20,7 +20,10 @@ internal class RtmpSetChunkSizeMessage : RtmpMessage(TYPE_CHUNK_SIZE) {
         return this
     }
 
-    override fun execute(connection: RtmpConnection): RtmpMessage {
+    override fun execute(
+        connection: RtmpConnection,
+        dispatch: (() -> Unit) -> Unit,
+    ): RtmpMessage {
         connection.socket.chunkSizeC = size
         return this
     }
