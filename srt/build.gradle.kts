@@ -38,7 +38,7 @@ android {
     }
     buildFeatures { buildConfig = true }
     packaging {
-        jniLibs.keepDebugSymbols += "**/libsrt.so"
+        jniLibs.keepDebugSymbols += "**/libhksrt.so"
     }
     sourceSets {
         getByName("test").java.srcDir("src/socketTest/java")

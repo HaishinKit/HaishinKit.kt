@@ -259,7 +259,7 @@ internal class SrtSocket private constructor(handle: Long, timeoutMs: Int) : Clo
         private const val ERROR_READY = 8
 
         init {
-            System.loadLibrary("srt")
+            System.loadLibrary("hksrt")
         }
 
         private fun create(options: Options): Long =

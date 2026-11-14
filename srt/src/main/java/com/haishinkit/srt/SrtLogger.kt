@@ -75,7 +75,7 @@ object SrtLogger {
     private val guard = Any()
 
     init {
-        System.loadLibrary("srt")
+        System.loadLibrary("hksrt")
         nativeSetLevel(level.value)
     }
 

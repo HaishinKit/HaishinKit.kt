@@ -1,6 +1,7 @@
 # HaishinKit RTC for Android
 
 WHIP publishing and WHEP playback using libdatachannel and Android MediaCodec.
+The Android AAR packages the JNI library as `libhkrtc.so`.
 Requires Android 10 (API 29) or later. The core, RTMP, and SRT modules keep their
 existing minimum Android versions.
 

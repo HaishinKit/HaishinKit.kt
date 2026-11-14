@@ -1,7 +1,7 @@
 # Android SRT
 
 This module builds libsrt 1.5.7 with Mbed TLS 3.6.5 encryption support and
-packages it in `libsrt.so`, loaded with `System.loadLibrary("srt")`. Internal `SrtSocket` supports live-mode
+packages it in `libhksrt.so`, loaded with `System.loadLibrary("hksrt")`. Internal `SrtSocket` supports live-mode
 connections and message transport. Public `SrtConnection` owns one peer connection;
 `SrtStream` publishes or plays one MPEG-TS program through the existing media pipeline.
 
@@ -29,9 +29,9 @@ From the repository root:
 The AARs are written to `srt/build/outputs/aar/`. The sample app depends on
 `:srt`, so its APK includes the native runtime. Supported ABIs are `arm64-v8a`,
 `armeabi-v7a`, `x86_64`, and `x86`. Native libraries use 16 KB page alignment.
-Debug and Release AARs retain debug symbols in `libsrt.so`; Release uses
+Debug and Release AARs retain debug symbols in `libhksrt.so`; Release uses
 `RelWithDebInfo`. The sample APK also retains them. Consuming apps should set
-`android.packaging.jniLibs.keepDebugSymbols += "**/libsrt.so"` to retain the
+`android.packaging.jniLibs.keepDebugSymbols += "**/libhksrt.so"` to retain the
 symbols when packaging their own APKs.
 
 ## Public connection and stream APIs

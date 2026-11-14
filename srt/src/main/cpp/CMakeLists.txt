@@ -26,6 +26,7 @@ FetchContent_Declare(srt
 FetchContent_MakeAvailable(srt)
 
 add_library(srt SHARED srt-runtime.cpp srt-jni.cpp SRT/SrtSocket.cpp SRT/SrtEventLoop.cpp srt-logger.cpp)
+set_target_properties(srt PROPERTIES OUTPUT_NAME hksrt)
 target_include_directories(srt PRIVATE "${srt_SOURCE_DIR}/srtcore" "${srt_BINARY_DIR}")
 target_link_libraries(srt PRIVATE srt_static)
 target_compile_features(srt PRIVATE cxx_std_17)

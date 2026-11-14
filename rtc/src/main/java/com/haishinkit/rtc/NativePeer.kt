@@ -90,7 +90,7 @@ internal class NativePeer(
         const val TRACK_OPEN = 5
 
         init {
-            System.loadLibrary("haishinkit_rtc")
+            System.loadLibrary("hkrtc")
         }
     }
 }
