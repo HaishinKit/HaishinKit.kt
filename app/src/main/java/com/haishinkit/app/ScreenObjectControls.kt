@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -21,7 +22,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.layout.onSizeChanged
@@ -91,7 +94,7 @@ internal fun ScreenObjectSelectionOverlay(
                     drawRect(Color.White, rect.topLeft, rect.size, style = Stroke(2.dp.toPx()))
                 }
             }
-            TextButton(
+            IconButton(
                 onClick = onDelete,
                 modifier =
                     Modifier
@@ -102,10 +105,14 @@ internal fun ScreenObjectSelectionOverlay(
                             )
                         }
                         .semantics { contentDescription = "Delete object" }
-                        .size(48.dp)
-                        .background(Color(0xFFD32F2F), CircleShape),
+                        .size(48.dp),
             ) {
-                Text("×", color = Color.White)
+                Canvas(Modifier.size(22.dp).background(Color.White, CircleShape)) {
+                    val arm = 3.5.dp.toPx()
+                    val stroke = 1.5.dp.toPx()
+                    drawLine(Color.Black, center - Offset(arm, arm), center + Offset(arm, arm), stroke, StrokeCap.Round)
+                    drawLine(Color.Black, center - Offset(arm, -arm), center + Offset(arm, -arm), stroke, StrokeCap.Round)
+                }
             }
         }
     }
