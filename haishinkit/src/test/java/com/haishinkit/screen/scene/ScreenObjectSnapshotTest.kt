@@ -45,6 +45,18 @@ class ScreenObjectSnapshotTest {
     }
 
     @Test
+    fun roundedCornersDefaultToZeroAndSurviveSnapshotRoundTrip() {
+        val factory = ScreenObjectFactory()
+        val camera = factory.create(fixture().children[0])
+        assertEquals(0f, camera.cornerRadius)
+        camera.cornerRadius = 12.5f
+
+        val snapshot = ScreenObjectSnapshotFactory().create(camera)
+        val decoded = Json.decodeFromString<ScreenObjectSnapshot>(Json.encodeToString(snapshot))
+        assertEquals(12.5f, factory.create(decoded).cornerRadius)
+    }
+
+    @Test
     fun restoresHierarchyAndAllCommonProperties() {
         val snapshot = fixture()
         val root = ScreenObjectFactory().create(snapshot) as ScreenObjectContainer

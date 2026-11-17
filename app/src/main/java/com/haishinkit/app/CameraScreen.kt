@@ -127,7 +127,9 @@ fun CameraScreen(
     insertionPosition?.let { position ->
         ScreenObjectAddDialog(
             onAdd = { kind ->
-                viewModel.addScreenObject(kind, position)
+                viewModel.addScreenObject(kind, position) { message ->
+                    Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+                }
                 insertionPosition = null
             },
             onDismiss = { insertionPosition = null },
@@ -244,7 +246,7 @@ fun CameraScreen(
                 onVideoPermissionStatus = { state ->
                     when (state.status) {
                         PermissionStatus.Granted -> {
-                            viewModel.selectCameraDevice(selectedCamera)
+                            viewModel.selectCameraDevice(viewModel.selectedCamera.value, retry = false)
                         }
 
                         is PermissionStatus.Denied -> {

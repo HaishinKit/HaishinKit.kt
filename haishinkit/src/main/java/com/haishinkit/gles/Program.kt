@@ -56,7 +56,10 @@ internal class Program(
         }
     }
 
-    fun draw(screenObject: ScreenObject) {
+    fun draw(
+        screenObject: ScreenObject,
+        cornerClip: IntArray? = null,
+    ) {
         GLES20.glEnableVertexAttribArray(texCoordHandle)
         Utils.checkGlError("glEnableVertexAttribArray")
         GLES20.glVertexAttribPointer(
@@ -92,7 +95,7 @@ internal class Program(
         GLES20.glBindTexture(screenObject.target, screenObject.textureId)
         Utils.checkGlError("glBindTexture")
 
-        GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4)
+        drawQuad(screenObject, cornerClip)
         Utils.checkGlError("glDrawArrays")
 
         GLES20.glDisableVertexAttribArray(texCoordHandle)
@@ -112,6 +115,26 @@ internal class Program(
         GLES20.glDetachShader(id, fragmentShaper)
         GLES20.glDeleteShader(fragmentShaper)
         GLES20.glDeleteProgram(id)
+    }
+
+    private fun drawQuad(
+        screenObject: ScreenObject,
+        clip: IntArray?,
+    ) {
+        if (clip == null) {
+            GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4)
+            return
+        }
+        val bounds = screenObject.bounds
+        GLES20.glEnable(GLES20.GL_SCISSOR_TEST)
+        try {
+            for (i in clip.indices step 4) {
+                GLES20.glScissor(bounds.left + clip[i], bounds.top + clip[i + 1], clip[i + 2] - clip[i], clip[i + 3] - clip[i + 1])
+                GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4)
+            }
+        } finally {
+            GLES20.glDisable(GLES20.GL_SCISSOR_TEST)
+        }
     }
 
     companion object {

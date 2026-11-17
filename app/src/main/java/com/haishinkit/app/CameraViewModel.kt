@@ -1,12 +1,17 @@
 package com.haishinkit.app
 
+import android.Manifest
 import android.app.Application
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Rect
+import android.hardware.camera2.CameraAccessException
+import android.hardware.camera2.CameraManager
+import android.os.Build
 import android.provider.MediaStore
 import android.util.Size
 import androidx.compose.runtime.getValue
@@ -34,12 +39,15 @@ import com.haishinkit.screen.ImageScreenObject
 import com.haishinkit.screen.Screen
 import com.haishinkit.screen.ScreenObject
 import com.haishinkit.screen.TextScreenObject
+import com.haishinkit.screen.VideoScreenObject
 import com.haishinkit.screen.scene.SceneManager
 import com.haishinkit.stream.StreamSession
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.io.ByteArrayOutputStream
 
 class CameraViewModel(
@@ -65,6 +73,8 @@ class CameraViewModel(
         CameraDeviceManager(context = application.applicationContext)
     private var mixer: MediaMixer = MediaMixer(application.applicationContext)
     private val _selectedCamera = MutableStateFlow<CameraDevice?>(null)
+    private val cameraLock = Mutex()
+    private var frontCameraObject: VideoScreenObject? = null
     private var sessionSettings: Preference.SessionSettings? = null
 
     private val sceneManager: SceneManager by lazy {
@@ -82,7 +92,8 @@ class CameraViewModel(
         _videoEffectItems.add(VideoEffectItem("Mosaic", MosaicVideoEffect()))
         _videoEffectItems.add(VideoEffectItem("Sepia", SepiaVideoEffect()))
         this.videoEffectItems = _videoEffectItems
-        _selectedCamera.value = cameraDeviceManager.getDeviceList().first()
+        val cameras = cameraDeviceManager.getDeviceList()
+        _selectedCamera.value = cameras.firstOrNull { it.position == CameraDevice.Position.BACK } ?: cameras.firstOrNull()
 
         val text = TextScreenObject()
         text.size = 60f
@@ -152,6 +163,7 @@ class CameraViewModel(
     internal fun addScreenObject(
         kind: ExampleScreenObjectKind,
         position: Offset,
+        onError: (String) -> Unit,
     ) {
         val target =
             when (kind) {
@@ -171,6 +183,13 @@ class CameraViewModel(
                         setAnimation(R.raw.a1707149669115)
                         playAnimation()
                     }
+
+                ExampleScreenObjectKind.FRONT_CAMERA -> {
+                    viewModelScope.launch {
+                        cameraLock.withLock { addFrontCamera(position) }?.let(onError)
+                    }
+                    return
+                }
             }
         screenObjectDragController.register(target, position)
         mixer.screen.addChild(target)
@@ -178,6 +197,19 @@ class CameraViewModel(
 
     internal fun removeFocusedScreenObject() {
         val target = screenObjectDragController.focusedObject ?: return
+        if (target === frontCameraObject) {
+            viewModelScope.launch {
+                cameraLock.withLock {
+                    if (target !== frontCameraObject) return@withLock
+                    val camera = _selectedCamera.value ?: return@withLock
+                    val source = Camera2Source(application.applicationContext, camera.id)
+                    mixer.attachVideos(mapOf(0 to source, FRONT_CAMERA_TRACK to null)).onSuccess {
+                        removeFrontCameraObject()
+                    }
+                }
+            }
+            return
+        }
         (target as? LottieScreen)?.cancelAnimation()
         mixer.screen.removeChild(target)
         screenObjectDragController.unregister(target)
@@ -193,13 +225,20 @@ class CameraViewModel(
         mixer.setVideoEffect(0, videoEffect)
     }
 
-    fun selectCameraDevice(cameraDevice: CameraDevice?) {
-        _selectedCamera.value = cameraDevice
+    fun selectCameraDevice(
+        cameraDevice: CameraDevice?,
+        retry: Boolean = true,
+    ) {
         viewModelScope.launch {
-            if (cameraDevice == null) {
-                mixer.attachVideo(0, null)
-            } else {
-                mixer.attachVideo(0, Camera2Source(application.applicationContext, cameraDevice.id))
+            cameraLock.withLock {
+                if (!retry && cameraDevice == _selectedCamera.value && mixer.hasVideo) return@withLock
+                val context = application.applicationContext
+                val permissionGranted = context.checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
+                val source = if (permissionGranted) cameraDevice?.let { Camera2Source(context, it.id) } else null
+                mixer.attachVideos(mapOf(0 to source, FRONT_CAMERA_TRACK to null)).onSuccess {
+                    _selectedCamera.value = cameraDevice
+                    removeFrontCameraObject()
+                }
             }
         }
     }
@@ -270,5 +309,63 @@ class CameraViewModel(
         super.onCleared()
         cameraDeviceManager.release()
         mixer.dispose()
+    }
+
+    private suspend fun addFrontCamera(position: Offset): String? {
+        if (frontCameraObject != null) return "A front camera is already on the screen."
+        val context = application.applicationContext
+        if (context.checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+            return "Allow camera access to add the front camera."
+        }
+        val mainCamera = _selectedCamera.value
+        if (mainCamera?.position != CameraDevice.Position.BACK) {
+            return "Select a back camera before adding the front camera."
+        }
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return "Concurrent cameras require Android 11 or later."
+
+        val manager = context.getSystemService(CameraManager::class.java)
+        val combinations =
+            try {
+                manager.concurrentCameraIds
+            } catch (_: CameraAccessException) {
+                return "Could not check camera availability."
+            }
+        val frontCamera =
+            cameraList.value.firstOrNull { camera ->
+                camera.position == CameraDevice.Position.FRONT &&
+                    combinations.any { mainCamera.id in it && camera.id in it }
+            } ?: return "This back camera cannot run at the same time as a front camera."
+
+        val overlay =
+            VideoScreenObject().apply {
+                cornerRadius = 22f
+                track = FRONT_CAMERA_TRACK
+                frame = Rect(0, 0, 240, 180)
+            }
+        val maximumSize = Size(1280, 720)
+        val result =
+            mixer.attachVideos(
+                mapOf(
+                    0 to Camera2Source(context, mainCamera.id).apply { this.maximumSize = maximumSize },
+                    FRONT_CAMERA_TRACK to Camera2Source(context, frontCamera.id).apply { this.maximumSize = maximumSize },
+                ),
+            )
+        if (result.isFailure) return "Could not start the front camera."
+
+        frontCameraObject = overlay
+        screenObjectDragController.register(overlay, position)
+        mixer.screen.addChild(overlay)
+        return null
+    }
+
+    private fun removeFrontCameraObject() {
+        val overlay = frontCameraObject ?: return
+        frontCameraObject = null
+        mixer.screen.removeChild(overlay)
+        screenObjectDragController.unregister(overlay)
+    }
+
+    private companion object {
+        const val FRONT_CAMERA_TRACK = 1
     }
 }

@@ -59,7 +59,6 @@ internal class Camera2Output(
         }
     private val manager =
         context.getSystemService(Context.CAMERA_SERVICE) as CameraManager
-    private val executor = Executors.newSingleThreadExecutor()
     private var characteristics: CameraCharacteristics? = null
     private val handler: Handler by lazy {
         val thread = HandlerThread(TAG)
@@ -171,8 +170,14 @@ internal class Camera2Output(
 
     override fun onOpened(camera: CameraDevice) {
         isDisconnected = false
+        val pending = continuation
+        if (pending?.isActive != true) {
+            camera.close()
+            continuation = null
+            return
+        }
         device = camera
-        continuation?.resume(Result.success(Unit))
+        pending.resume(Result.success(Unit)) { _, _, _ -> camera.close() }
         continuation = null
     }
 
@@ -180,8 +185,11 @@ internal class Camera2Output(
         if (BuildConfig.DEBUG) {
             Log.d(TAG, "onDisconnected($camera)")
         }
+        camera.close()
         close()
         isDisconnected = true
+        continuation?.resume(Result.failure(IllegalStateException("Camera $cameraId disconnected.")))
+        continuation = null
     }
 
     override fun onError(
@@ -191,20 +199,28 @@ internal class Camera2Output(
         if (BuildConfig.DEBUG) {
             Log.d(TAG, "onError($camera, $error)")
         }
+        camera.close()
         close()
+        continuation?.resume(Result.failure(IllegalStateException("Camera $cameraId failed to open ($error).")))
+        continuation = null
     }
 
-    fun getCameraSize(rect: Rect): Size? {
+    fun getCameraSize(
+        rect: Rect,
+        maximumSize: Size?,
+    ): Size? {
         val scm = characteristics?.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)
-        val sizes = scm?.getOutputSizes(SurfaceTexture::class.java)
-        return sizes
-            ?.filter { size ->
-                (rect.width() <= size.width) && (rect.height() <= size.height)
-            }?.sortedBy { size -> size.width * size.height }
-            ?.get(0) ?: sizes?.get(0)
+        val sizes = scm?.getOutputSizes(SurfaceTexture::class.java) ?: return null
+        if (maximumSize != null) {
+            return sizes.filter { it.width <= maximumSize.width && it.height <= maximumSize.height }
+                .maxByOrNull { it.width * it.height }
+        }
+        return sizes.filter { it.width >= rect.width() && it.height >= rect.height() }
+            .minByOrNull { it.width * it.height } ?: sizes.firstOrNull()
     }
 
     companion object {
+        private val executor = Executors.newSingleThreadExecutor()
         private val TAG = Camera2Output::class.java.simpleName
     }
 }

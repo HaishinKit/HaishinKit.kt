@@ -1,8 +1,13 @@
 package com.haishinkit.screen
 
+import android.graphics.Path
 import android.graphics.Rect
+import android.graphics.RectF
+import android.graphics.Region
+import android.graphics.RegionIterator
 import android.opengl.GLES20
 import android.util.Log
+import androidx.annotation.RestrictTo
 import com.haishinkit.graphics.effect.DefaultVideoEffect
 import com.haishinkit.graphics.effect.VideoEffect
 import java.util.UUID
@@ -99,6 +104,15 @@ abstract class ScreenObject(
     var verticalAlignment: Int = VERTICAL_ALIGNMENT_TOP
 
     /**
+     * The radius of the object's rounded corners, in composition pixels. Zero keeps square
+     * corners. The effective radius is limited to half of the object's shorter side.
+     */
+    var cornerRadius: Float = 0f
+        set(value) {
+            field = if (value.isFinite() && value > 0f) value else 0f
+        }
+
+    /**
      * The effect applied when rendering this object.
      */
     var videoEffect: VideoEffect = DefaultVideoEffect.shared
@@ -130,6 +144,35 @@ abstract class ScreenObject(
             }
             return parent
         }
+
+    private var cornerClip: CornerClip? = null
+
+    /** Returns packed scissor rectangles in local coordinates for the renderers. */
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    fun getCornerClip(): IntArray? {
+        val width = bounds.width()
+        val height = bounds.height()
+        val radius = cornerRadius.coerceAtMost(minOf(width, height) / 2f)
+        if (radius <= 0f) return null
+        cornerClip?.let {
+            if (it.width == width && it.height == height && it.radius == radius) return it.rectangles
+        }
+
+        // A Region decomposes the rounded outline into non-overlapping scanline bands.
+        val path = Path().apply { addRoundRect(RectF(0f, 0f, width.toFloat(), height.toFloat()), radius, radius, Path.Direction.CW) }
+        val clip = Region(0, 0, width, height)
+        val region = Region().apply { setPath(path, clip) }
+        val iterator = RegionIterator(region)
+        val rect = Rect()
+        val rectangles = mutableListOf<Int>()
+        while (iterator.next(rect)) {
+            rectangles.add(rect.left)
+            rectangles.add(rect.top)
+            rectangles.add(rect.right)
+            rectangles.add(rect.bottom)
+        }
+        return rectangles.toIntArray().also { cornerClip = CornerClip(width, height, radius, it) }
+    }
 
     /**
      * Invalidates the current layout and triggers a layout update.
@@ -239,6 +282,13 @@ abstract class ScreenObject(
         }
         return null
     }
+
+    private class CornerClip(
+        val width: Int,
+        val height: Int,
+        val radius: Float,
+        val rectangles: IntArray,
+    )
 
     companion object {
         private val TAG = ScreenObject::class.java.simpleName

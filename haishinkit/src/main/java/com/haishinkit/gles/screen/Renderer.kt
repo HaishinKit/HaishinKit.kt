@@ -21,6 +21,7 @@ internal class Renderer(
     override fun layout(screenObject: ScreenObject) {
         when (screenObject) {
             is VideoScreenObject -> {
+                if (screenObject.textureId <= 0) return
                 GLES20.glBindTexture(screenObject.target, screenObject.textureId)
                 GLES20.glTexParameteri(
                     screenObject.target,
@@ -76,6 +77,7 @@ internal class Renderer(
     }
 
     override fun draw(screenObject: ScreenObject) {
+        if (screenObject is VideoScreenObject && screenObject.textureId <= 0) return
         val program =
             shaderLoader.getProgram(screenObject.target, screenObject.videoEffect) ?: return
         GLES20.glViewport(
@@ -86,7 +88,7 @@ internal class Renderer(
         )
         program.use()
         program.bind(screenObject.videoEffect)
-        program.draw(screenObject)
+        program.draw(screenObject, screenObject.getCornerClip())
     }
 
     fun release() {
