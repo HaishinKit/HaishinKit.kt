@@ -236,7 +236,15 @@ class VkScreen private constructor(context: Context) : Screen(context), Choreogr
                 if (screenObject is VideoScreenObject && screenObject.imageOrientation in MIRRORED) {
                     for (row in 0..3) matrix[row] = -matrix[row]
                 }
-                native.layer(bitmap, buffer, intArrayOf(bounds.left, bounds.top, bounds.width(), bounds.height()) + (input?.crop() ?: IntArray(4)), matrix, shader.assets(), shader.parameters)
+                native.layer(
+                    bitmap,
+                    buffer,
+                    intArrayOf(bounds.left, bounds.top, bounds.width(), bounds.height()) + (input?.crop() ?: IntArray(4)),
+                    screenObject.getCornerClip(),
+                    matrix,
+                    shader.assets(),
+                    shader.parameters,
+                )
             }
         } catch (error: Throwable) {
             try {

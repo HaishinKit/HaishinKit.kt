@@ -13,10 +13,16 @@ import com.haishinkit.media.source.VideoSource
 import com.haishinkit.screen.Screen
 import com.haishinkit.screen.ScreenObjectContainer
 import com.haishinkit.screen.VideoScreenObject
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.coroutines.CoroutineContext
 
@@ -79,7 +85,10 @@ class MediaMixer(
 
     @Volatile
     private var keepAlive = true
-    private var videoSources = mutableMapOf<Int, VideoSource>()
+    private val isDisposed = AtomicBoolean(false)
+    private val videoLock = Mutex()
+    private val openVideoTracks = mutableSetOf<Int>()
+    private val videoSources = ConcurrentHashMap<Int, VideoSource>()
     private var audioSources = mutableMapOf<Int, AudioSource>()
     private val videoContainer: ScreenObjectContainer by lazy {
         ScreenObjectContainer().apply {
@@ -135,28 +144,29 @@ class MediaMixer(
     suspend fun attachVideo(
         track: Int,
         video: VideoSource?,
-    ): Result<Unit> {
-        if (video != null) {
-            attachVideo(track, null)
-            videoSources[track] = video
-            if (video is Camera2Source) {
-                video.isTorchEnabled = isToucheEnabled
+    ): Result<Unit> = attachVideos(mapOf(track to video))
+
+    /**
+     * Replaces the specified tracks together. All new sources are opened before any is
+     * attached to a surface, as required for concurrent Camera2 capture.
+     */
+    suspend fun attachVideos(videos: Map<Int, VideoSource?>): Result<Unit> =
+        videoLock.withLock {
+            check(!isDisposed.get()) { "MediaMixer is disposed." }
+            videos.keys.forEach { track ->
+                videoSources.remove(track)?.let { closeVideo(track, it) }
             }
-            return if (isRunning.get()) {
-                video.open(this).onSuccess {
-                    screen.attachVideo(track, video)
-                }
-            } else {
-                Result.success(Unit)
+            val replacements =
+                videos.mapNotNull { (track, source) ->
+                    source?.let { track to it }
+                }.toMap()
+            replacements.values.filterIsInstance<Camera2Source>().forEach {
+                it.isTorchEnabled = isToucheEnabled
             }
+            val result = if (isRunning.get()) openVideos(replacements) else Result.success(Unit)
+            if (result.isSuccess) videoSources.putAll(replacements)
+            result
         }
-        videoSources.remove(track)?.let {
-            it.surface = null
-            it.close()
-        }
-        screen.attachVideo(track, null)
-        return Result.success(Unit)
-    }
 
     /**
      * Applies an effect to the video screen objects currently assigned to [track].
@@ -183,54 +193,91 @@ class MediaMixer(
      * Starts capture and schedules attached sources to open asynchronously. Does nothing if already running.
      */
     override fun startRunning() {
-        if (isRunning.get()) {
-            return
-        }
+        if (isDisposed.get() || !isRunning.compareAndSet(false, true)) return
         orientationEventListener.enable()
+        keepAlive = true
         launch {
-            videoSources.forEach {
-                val track = it.key
-                val source = it.value
-                source.open(this@MediaMixer).onSuccess {
-                    screen.attachVideo(track, source)
-                }
+            videoLock.withLock {
+                if (isRunning.get()) openVideos(videoSources.filterKeys { it !in openVideoTracks })
             }
             audioSources.values.forEach { it.open(this@MediaMixer) }
         }
-        keepAlive = true
         startAudioCapturing()
-        isRunning.set(true)
     }
 
     /**
      * Stops capture and schedules attached sources to close asynchronously. Does nothing if already stopped.
      */
     override fun stopRunning() {
-        if (!isRunning.get()) {
-            return
-        }
+        if (!isRunning.compareAndSet(true, false)) return
         keepAlive = false
         orientationEventListener.disable()
         launch {
-            videoSources.forEach {
-                val track = it.key
-                val source = it.value
-                source.close()
-                screen.attachVideo(track, null)
+            videoLock.withLock {
+                if (!isRunning.get() && !isDisposed.get()) closeOpenVideos()
             }
             audioSources.values.forEach { it.close() }
         }
-        isRunning.set(false)
     }
 
     /**
      * Stops capture, removes screen children, and clears the attached source lists.
      */
     fun dispose() {
-        stopRunning()
-        screen.dispose()
-        audioSources.clear()
-        videoSources.clear()
+        if (!isDisposed.compareAndSet(false, true)) return
+        isRunning.set(false)
+        keepAlive = false
+        orientationEventListener.disable()
+        launch {
+            videoLock.withLock {
+                closeOpenVideos()
+                videoSources.clear()
+                screen.dispose()
+            }
+            audioSources.values.forEach { it.close() }
+            audioSources.clear()
+        }
+    }
+
+    private suspend fun openVideos(sources: Map<Int, VideoSource>): Result<Unit> {
+        val attempted = mutableListOf<Pair<Int, VideoSource>>()
+        try {
+            sources.forEach { (track, source) ->
+                attempted.add(track to source)
+                source.open(this).getOrThrow()
+            }
+            sources.forEach { (track, source) ->
+                screen.attachVideo(track, source)
+                openVideoTracks.add(track)
+            }
+            return Result.success(Unit)
+        } catch (cause: Exception) {
+            withContext(NonCancellable) {
+                attempted.forEach { (track, source) ->
+                    runCatching { closeVideo(track, source) }.onFailure {
+                        if (it !== cause) cause.addSuppressed(it)
+                    }
+                }
+            }
+            if (cause is CancellationException) throw cause
+            return Result.failure(cause)
+        }
+    }
+
+    private suspend fun closeOpenVideos() {
+        openVideoTracks.toList().forEach { track ->
+            videoSources[track]?.let { closeVideo(track, it) }
+        }
+    }
+
+    private suspend fun closeVideo(
+        track: Int,
+        source: VideoSource,
+    ) {
+        openVideoTracks.remove(track)
+        source.surface = null
+        source.close()
+        screen.attachVideo(track, null)
     }
 
     private fun startAudioCapturing() =

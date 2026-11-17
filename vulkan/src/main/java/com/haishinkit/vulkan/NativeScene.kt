@@ -32,6 +32,7 @@ internal class NativeScene(context: Context) : AutoCloseable {
         bitmap: Bitmap?,
         buffer: HardwareBuffer?,
         bounds: IntArray,
+        cornerClip: IntArray?,
         matrix: FloatArray,
         shader: Array<String>,
         parameters: FloatArray,

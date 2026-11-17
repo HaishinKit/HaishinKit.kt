@@ -109,7 +109,6 @@ struct Program {
         command.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *layout, 0, descriptor, nullptr);
         command.pushConstants(*layout, vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment,
                               0, sizeof(Constants), &constants);
-        command.draw(4, 1, 0, 0);
     }
 };
 
@@ -124,7 +123,7 @@ struct Layer {
     std::unique_ptr<Program> program;
     Constants constants;
     vk::Viewport viewport;
-    vk::Rect2D scissor;
+    std::vector<vk::Rect2D> scissors;
     bool active = false;
     ~Layer() {
         if (bitmapBuffer)
@@ -252,7 +251,8 @@ class SceneRenderer {
         target = std::move(nextTarget);
     }
     void add(JNIEnv *env, jobject bitmap, AHardwareBuffer *buffer, const std::array<int, 8> &bounds,
-             const Constants &constants, const std::string &vertex, const std::string &fragment) {
+             jintArray cornerClip, const Constants &constants, const std::string &vertex,
+             const std::string &fragment) {
         if (!target)
             throw std::runtime_error("begin must precede layer");
         if (cursor == layers.size())
@@ -376,11 +376,27 @@ class SceneRenderer {
 
         l.viewport = vk::Viewport(static_cast<float>(bounds[0]), static_cast<float>(bounds[1]),
                                   static_cast<float>(bounds[2]), static_cast<float>(bounds[3]), 0.f, 1.f);
-        int left = std::max(bounds[0], 0), top = std::max(bounds[1], 0);
-        int right = std::min(bounds[0] + bounds[2], static_cast<int>(target->extent.width));
-        int bottom = std::min(bounds[1] + bounds[3], static_cast<int>(target->extent.height));
-        l.scissor = vk::Rect2D({left, top}, {static_cast<uint32_t>(std::max(0, right - left)),
-                                             static_cast<uint32_t>(std::max(0, bottom - top))});
+        l.scissors.clear();
+        auto addScissor = [&](int left, int top, int right, int bottom) {
+            left = std::max(left + bounds[0], 0);
+            top = std::max(top + bounds[1], 0);
+            right = std::min(right + bounds[0], static_cast<int>(target->extent.width));
+            bottom = std::min(bottom + bounds[1], static_cast<int>(target->extent.height));
+            if (left < right && top < bottom)
+                l.scissors.emplace_back(vk::Offset2D(left, top), vk::Extent2D(right - left, bottom - top));
+        };
+        if (cornerClip) {
+            auto count = env->GetArrayLength(cornerClip);
+            if (count % 4 != 0)
+                throw std::runtime_error("Invalid corner clip");
+            std::vector<jint> rectangles(count);
+            if (count > 0)
+                env->GetIntArrayRegion(cornerClip, 0, count, rectangles.data());
+            for (jsize i = 0; i < count; i += 4)
+                addScissor(rectangles[i], rectangles[i + 1], rectangles[i + 2], rectangles[i + 3]);
+        } else {
+            addScissor(0, 0, bounds[2], bounds[3]);
+        }
         l.active = true;
     }
     void abort() {
@@ -409,10 +425,13 @@ class SceneRenderer {
                                     .setClearValues(clear),
                                 vk::SubpassContents::eInline);
             for (auto &l : layers)
-                if (l->active && l->scissor.extent.width && l->scissor.extent.height) {
+                if (l->active && !l->scissors.empty()) {
                     cmd.setViewport(0, l->viewport);
-                    cmd.setScissor(0, l->scissor);
                     l->program->bind(kernel, cmd, l->storage->GetDescriptorImageInfo(), l->constants);
+                    for (const auto &scissor : l->scissors) {
+                        cmd.setScissor(0, scissor);
+                        cmd.draw(4, 1, 0, 0);
+                    }
                 }
             cmd.endRenderPass();
             for (auto &l : layers)
@@ -460,6 +479,7 @@ class SceneRenderer {
             output->bind(kernel, cmd,
                          vk::DescriptorImageInfo(*linear, *t.view, vk::ImageLayout::eShaderReadOnlyOptimal),
                          constants);
+            cmd.draw(4, 1, 0, 0);
             cmd.endRenderPass();
             cmd.end();
         });
@@ -615,7 +635,7 @@ JNIEXPORT void JNICALL Java_com_haishinkit_vulkan_NativeScene_begin(JNIEnv *env,
 }
 JNIEXPORT void JNICALL Java_com_haishinkit_vulkan_NativeScene_layer(JNIEnv *env, jobject self, jobject bitmap,
                                                                     jobject hardware, jintArray bounds,
-                                                                    jfloatArray matrix, jobjectArray shaders,
+                                                                    jintArray cornerClip, jfloatArray matrix, jobjectArray shaders,
                                                                     jfloatArray params) {
     invoke(env, self, [&](SceneRenderer &s) {
         std::array<int, 8> rect{};
@@ -623,7 +643,7 @@ JNIEXPORT void JNICALL Java_com_haishinkit_vulkan_NativeScene_layer(JNIEnv *env,
             throw std::runtime_error("Invalid layer bounds");
         env->GetIntArrayRegion(bounds, 0, 8, rect.data());
         s.add(env, bitmap, hardware ? AHardwareBuffer_fromHardwareBuffer(env, hardware) : nullptr, rect,
-              constants(env, matrix, params), string(env, shaders, 0), string(env, shaders, 1));
+              cornerClip, constants(env, matrix, params), string(env, shaders, 0), string(env, shaders, 1));
     });
 }
 JNIEXPORT void JNICALL Java_com_haishinkit_vulkan_NativeScene_end(JNIEnv *env, jobject self, jlong time,

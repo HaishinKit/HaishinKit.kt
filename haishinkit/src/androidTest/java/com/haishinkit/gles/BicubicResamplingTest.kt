@@ -1,12 +1,16 @@
 package com.haishinkit.gles
 
+import android.graphics.Bitmap
+import android.graphics.Color
 import android.graphics.Rect
 import android.opengl.EGL14
 import android.opengl.EGLConfig
 import android.opengl.GLES20
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import com.haishinkit.gles.screen.Renderer
 import com.haishinkit.graphics.effect.BicubicVideoEffect
+import com.haishinkit.graphics.effect.MonochromeVideoEffect
 import com.haishinkit.screen.ImageScreenObject
 import com.haishinkit.screen.VideoScreenObject
 import org.junit.After
@@ -98,6 +102,45 @@ class BicubicResamplingTest {
             renderer.release()
             source.release()
             other.release()
+        }
+    }
+
+    @Test
+    fun roundedCornersClipAnImageWithAnEffectAndCanBeReset() {
+        val destination = Framebuffer().apply { bounds = Rect(0, 0, 16, 16) }
+        val renderer = Renderer(InstrumentationRegistry.getInstrumentation().targetContext)
+        val ids = IntArray(1)
+        GLES20.glGenTextures(1, ids, 0)
+        val source = Bitmap.createBitmap(16, 16, Bitmap.Config.ARGB_8888).apply { eraseColor(Color.RED) }
+        val image =
+            ImageScreenObject().apply {
+                textureId = ids[0]
+                frame = Rect(0, 0, 16, 16)
+                bitmap = source
+                videoEffect = MonochromeVideoEffect()
+                cornerRadius = 8f
+            }
+        val pixel = ByteBuffer.allocateDirect(4)
+        try {
+            image.layout(renderer)
+            destination.render {
+                GLES20.glClearColor(0f, 0f, 1f, 1f)
+                GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT)
+                renderer.draw(image)
+                GLES20.glReadPixels(0, 0, 1, 1, GLES20.GL_RGBA, GLES20.GL_UNSIGNED_BYTE, pixel)
+                assertEquals(0, pixel.get(0).toInt() and 255)
+                GLES20.glReadPixels(8, 8, 1, 1, GLES20.GL_RGBA, GLES20.GL_UNSIGNED_BYTE, pixel)
+                assertEquals(76, pixel.get(0).toInt() and 255)
+                image.cornerRadius = 0f
+                renderer.draw(image)
+                GLES20.glReadPixels(0, 0, 1, 1, GLES20.GL_RGBA, GLES20.GL_UNSIGNED_BYTE, pixel)
+                assertEquals(76, pixel.get(0).toInt() and 255)
+            }
+        } finally {
+            source.recycle()
+            GLES20.glDeleteTextures(1, ids, 0)
+            renderer.release()
+            destination.release()
         }
     }
 

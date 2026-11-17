@@ -39,6 +39,8 @@ import kotlinx.serialization.Serializable
  * A map of element-specific properties represented as key-value pairs.
  * Used to store extensible or type-specific attributes.
  *
+ * @property cornerRadius The radius of the object corners in composition pixels.
+ *
  * @property children
  * Child screen object snapshots that form a hierarchical screen structure.
  */
@@ -53,6 +55,7 @@ data class ScreenObjectSnapshot(
     val verticalAlignment: Int,
     val elements: Map<String, String>,
     val children: List<ScreenObjectSnapshot>,
+    val cornerRadius: Float = 0f,
 ) {
     @Serializable
     data class Size(

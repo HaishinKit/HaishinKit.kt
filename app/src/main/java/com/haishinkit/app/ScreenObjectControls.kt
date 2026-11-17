@@ -41,6 +41,7 @@ internal enum class ExampleScreenObjectKind(val label: String) {
     TEXT("Text"),
     IMAGE("Sample image"),
     ANIMATION("Animation"),
+    FRONT_CAMERA("Front camera"),
 }
 
 @Suppress("ktlint:standard:function-naming")

@@ -8,38 +8,34 @@ import com.haishinkit.BuildConfig
 import com.haishinkit.media.source.VideoSource
 
 internal class VideoTextureRegistry : SurfaceTexture.OnFrameAvailableListener {
-    private var textureIds = mutableMapOf<Int, Int>()
-    private var genTextures = intArrayOf(0)
-    private var surfaceTextures = mutableMapOf<Int, SurfaceTexture>()
+    private val textures = mutableMapOf<Int, VideoTexture>()
 
-    fun getTextureIdByTrack(track: Int): Int? {
-        return textureIds[track]
-    }
+    fun get(track: Int): VideoTexture? = textures[track]
 
     fun register(
         track: Int,
         video: VideoSource,
-    ) {
-        GLES20.glGenTextures(1, genTextures, 0)
-        val id = genTextures[0]
-        textureIds[track] = id
-        surfaceTextures[track] =
-            SurfaceTexture(id).apply {
-                setDefaultBufferSize(
-                    video.videoSize.width,
-                    video.videoSize.height,
-                )
+    ): VideoTexture {
+        unregister(track)
+        val ids = IntArray(1)
+        GLES20.glGenTextures(1, ids, 0)
+        val texture =
+            SurfaceTexture(ids[0]).apply {
+                setDefaultBufferSize(video.videoSize.width, video.videoSize.height)
                 setOnFrameAvailableListener(this@VideoTextureRegistry)
-                video.surface = Surface(this)
             }
+        val entry = VideoTexture(ids[0], texture, Surface(texture), video)
+        textures[track] = entry
+        video.surface = entry.surface
+        return entry
     }
 
     fun unregister(track: Int) {
-        val id = textureIds[track]
-        surfaceTextures.remove(id)?.let {
-            it.setOnFrameAvailableListener(null)
-            it.release()
-        }
+        val entry = textures.remove(track) ?: return
+        entry.surface.release()
+        entry.texture.setOnFrameAvailableListener(null)
+        entry.texture.release()
+        GLES20.glDeleteTextures(1, intArrayOf(entry.id), 0)
     }
 
     override fun onFrameAvailable(surfaceTexture: SurfaceTexture?) {
@@ -51,6 +47,13 @@ internal class VideoTextureRegistry : SurfaceTexture.OnFrameAvailableListener {
             }
         }
     }
+
+    class VideoTexture(
+        val id: Int,
+        val texture: SurfaceTexture,
+        val surface: Surface,
+        val source: VideoSource,
+    )
 
     private companion object {
         private val TAG = VideoTextureRegistry::class.java.simpleName

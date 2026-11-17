@@ -94,7 +94,11 @@ class VkSceneTest {
     fun registeredSpirvUsesChangingParametersAndMissingShaderFailsExplicitly() {
         assumeTrue(VkPixelTransform.isSupported())
         val context = InstrumentationRegistry.getInstrumentation().targetContext
-        val screen = VkScreen.create(context).apply { frame = Rect(0, 0, 16, 16) }
+        val screen =
+            VkScreen.create(context).apply {
+                frame = Rect(0, 0, 16, 16)
+                backgroundColor = Color.BLUE
+            }
         val effect = TintEffect(0.25f)
         VulkanEffectRegistry.register(TintEffect::class.java) {
             VulkanShader("shaders/example-tint.frag.spv", parameters = floatArrayOf(it.red, 1f, 1f))
@@ -103,16 +107,20 @@ class VkSceneTest {
             ImageScreenObject().apply {
                 bitmap = Bitmap.createBitmap(16, 16, Bitmap.Config.ARGB_8888).apply { eraseColor(Color.WHITE) }
                 videoEffect = effect
+                cornerRadius = 8f
             }
         screen.addChild(objectToDraw)
         try {
             snapshot(screen).also {
                 assertTrue(abs(Color.red(it.getPixel(8, 8)) - 64) <= 2)
+                assertEquals(Color.BLUE, it.getPixel(0, 0))
                 it.recycle()
             }
             effect.red = 0.75f
+            objectToDraw.cornerRadius = 0f
             snapshot(screen).also {
                 assertTrue(abs(Color.red(it.getPixel(8, 8)) - 191) <= 2)
+                assertTrue(abs(Color.red(it.getPixel(0, 0)) - 191) <= 2)
                 it.recycle()
             }
             objectToDraw.videoEffect = MissingEffect()

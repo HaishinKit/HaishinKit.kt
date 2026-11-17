@@ -28,6 +28,9 @@ class Camera2Source(
             field = value
         }
 
+    /** Maximum capture dimensions in sensor coordinates, or null for the default selection. */
+    var maximumSize: Size? = null
+
     override var surface: Surface? = null
         set(value) {
             if (field == value) return
@@ -61,10 +64,11 @@ class Camera2Source(
     override suspend fun open(mixer: MediaMixer): Result<Unit> {
         val output = Camera2Output(context, this, cameraId)
         this.output = output
-        return output.open().onSuccess {
-            output.getCameraSize(mixer.screen.frame)?.let {
-                videoSize = it
-            }
+        return output.open().mapCatching {
+            videoSize =
+                checkNotNull(output.getCameraSize(mixer.screen.frame, maximumSize)) {
+                    "No compatible capture size for camera $cameraId."
+                }
             output.setTorchEnabled(isTorchEnabled)
         }
     }
