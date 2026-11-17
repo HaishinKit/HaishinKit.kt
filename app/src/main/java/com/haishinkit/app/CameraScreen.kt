@@ -246,7 +246,7 @@ fun CameraScreen(
                 onVideoPermissionStatus = { state ->
                     when (state.status) {
                         PermissionStatus.Granted -> {
-                            viewModel.selectCameraDevice(viewModel.selectedCamera.value)
+                            viewModel.selectCameraDevice(viewModel.selectedCamera.value, retry = false)
                         }
 
                         is PermissionStatus.Denied -> {

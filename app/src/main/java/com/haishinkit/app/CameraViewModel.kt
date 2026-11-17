@@ -201,9 +201,10 @@ class CameraViewModel(
             viewModelScope.launch {
                 cameraLock.withLock {
                     if (target !== frontCameraObject) return@withLock
-                    removeFrontCamera()
-                    _selectedCamera.value?.let { camera ->
-                        mixer.attachVideo(0, Camera2Source(application.applicationContext, camera.id))
+                    val camera = _selectedCamera.value ?: return@withLock
+                    val source = Camera2Source(application.applicationContext, camera.id)
+                    mixer.attachVideos(mapOf(0 to source, FRONT_CAMERA_TRACK to null)).onSuccess {
+                        removeFrontCameraObject()
                     }
                 }
             }
@@ -224,18 +225,20 @@ class CameraViewModel(
         mixer.setVideoEffect(0, videoEffect)
     }
 
-    fun selectCameraDevice(cameraDevice: CameraDevice?) {
+    fun selectCameraDevice(
+        cameraDevice: CameraDevice?,
+        retry: Boolean = true,
+    ) {
         viewModelScope.launch {
             cameraLock.withLock {
-                if (cameraDevice == _selectedCamera.value && mixer.hasVideo) return@withLock
-                removeFrontCamera()
-                _selectedCamera.value = cameraDevice
+                if (!retry && cameraDevice == _selectedCamera.value && mixer.hasVideo) return@withLock
                 val context = application.applicationContext
-                val source =
-                    cameraDevice?.takeIf {
-                        context.checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
-                    }?.let { Camera2Source(context, it.id) }
-                mixer.attachVideo(0, source)
+                val permissionGranted = context.checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
+                val source = if (permissionGranted) cameraDevice?.let { Camera2Source(context, it.id) } else null
+                mixer.attachVideos(mapOf(0 to source, FRONT_CAMERA_TRACK to null)).onSuccess {
+                    _selectedCamera.value = cameraDevice
+                    removeFrontCameraObject()
+                }
             }
         }
     }
@@ -347,10 +350,7 @@ class CameraViewModel(
                     FRONT_CAMERA_TRACK to Camera2Source(context, frontCamera.id).apply { this.maximumSize = maximumSize },
                 ),
             )
-        if (result.isFailure) {
-            mixer.attachVideo(0, Camera2Source(context, mainCamera.id))
-            return "Could not start the front camera."
-        }
+        if (result.isFailure) return "Could not start the front camera."
 
         frontCameraObject = overlay
         screenObjectDragController.register(overlay, position)
@@ -358,12 +358,11 @@ class CameraViewModel(
         return null
     }
 
-    private suspend fun removeFrontCamera() {
+    private fun removeFrontCameraObject() {
         val overlay = frontCameraObject ?: return
         frontCameraObject = null
         mixer.screen.removeChild(overlay)
         screenObjectDragController.unregister(overlay)
-        mixer.attachVideo(FRONT_CAMERA_TRACK, null)
     }
 
     private companion object {

@@ -22,7 +22,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
-import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.coroutines.CoroutineContext
 
@@ -88,7 +87,9 @@ class MediaMixer(
     private val isDisposed = AtomicBoolean(false)
     private val videoLock = Mutex()
     private val openVideoTracks = mutableSetOf<Int>()
-    private val videoSources = ConcurrentHashMap<Int, VideoSource>()
+
+    @Volatile
+    private var videoSources = emptyMap<Int, VideoSource>()
     private var audioSources = mutableMapOf<Int, AudioSource>()
     private val videoContainer: ScreenObjectContainer by lazy {
         ScreenObjectContainer().apply {
@@ -148,24 +149,39 @@ class MediaMixer(
 
     /**
      * Replaces the specified tracks together. All new sources are opened before any is
-     * attached to a surface, as required for concurrent Camera2 capture.
+     * attached to a surface, as required for concurrent Camera2 capture. If replacement fails,
+     * the previous configuration is restored and its closed sources are reopened when running.
      */
     suspend fun attachVideos(videos: Map<Int, VideoSource?>): Result<Unit> =
         videoLock.withLock {
             check(!isDisposed.get()) { "MediaMixer is disposed." }
-            videos.keys.forEach { track ->
-                videoSources.remove(track)?.let { closeVideo(track, it) }
+            val previous = videoSources
+            val replacements = videos.filterValues { it != null }.mapValues { checkNotNull(it.value) }
+            // Streams consult hasVideo before starting their codecs, including during camera open.
+            videoSources = previous - videos.keys + replacements
+            try {
+                videos.keys.forEach { track ->
+                    previous[track]?.let { closeVideo(track, it) }
+                }
+                replacements.values.filterIsInstance<Camera2Source>().forEach {
+                    it.isTorchEnabled = isToucheEnabled
+                }
+                if (isRunning.get()) openVideos(replacements).getOrThrow()
+                Result.success(Unit)
+            } catch (cause: Exception) {
+                videoSources = previous
+                if (isRunning.get()) {
+                    withContext(NonCancellable) {
+                        runCatching {
+                            openVideos(previous.filterKeys { it in videos && it !in openVideoTracks }).getOrThrow()
+                        }.onFailure {
+                            if (it !== cause) cause.addSuppressed(it)
+                        }
+                    }
+                }
+                if (cause is CancellationException) throw cause
+                Result.failure(cause)
             }
-            val replacements =
-                videos.mapNotNull { (track, source) ->
-                    source?.let { track to it }
-                }.toMap()
-            replacements.values.filterIsInstance<Camera2Source>().forEach {
-                it.isTorchEnabled = isToucheEnabled
-            }
-            val result = if (isRunning.get()) openVideos(replacements) else Result.success(Unit)
-            if (result.isSuccess) videoSources.putAll(replacements)
-            result
         }
 
     /**
@@ -231,7 +247,7 @@ class MediaMixer(
         launch {
             videoLock.withLock {
                 closeOpenVideos()
-                videoSources.clear()
+                videoSources = emptyMap()
                 screen.dispose()
             }
             audioSources.values.forEach { it.close() }
