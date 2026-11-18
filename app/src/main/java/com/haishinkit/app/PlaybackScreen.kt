@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.material3.Button
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -23,6 +24,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.haishinkit.compose.HaishinKitView
 import com.haishinkit.compose.rememberStreamSessionState
@@ -44,6 +46,11 @@ fun PlaybackScreen(
 ) {
     val pictureInPicture = LocalContext.current.mainActivity()?.pictureInPicture == true
     val scope = rememberCoroutineScope()
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner, viewModel) {
+        lifecycleOwner.lifecycle.addObserver(viewModel)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(viewModel) }
+    }
     var errorMessage by remember(viewModel.session) { mutableStateOf<String?>(null) }
     LaunchedEffect(Unit) { viewModel.refreshSession().onFailure { errorMessage = it.message ?: "Check the stream URL." } }
     val currentSession = viewModel.session

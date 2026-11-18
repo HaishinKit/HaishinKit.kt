@@ -74,6 +74,7 @@ class CameraViewModel(
     private var mixer: MediaMixer = MediaMixer(application.applicationContext)
     private val _selectedCamera = MutableStateFlow<CameraDevice?>(null)
     private val cameraLock = Mutex()
+    private val audioLock = Mutex()
     private var frontCameraObject: VideoScreenObject? = null
     private var sessionSettings: Preference.SessionSettings? = null
 
@@ -217,7 +218,10 @@ class CameraViewModel(
 
     fun selectAudioDevice() {
         viewModelScope.launch {
-            mixer.attachAudio(0, AudioRecordSource(application.applicationContext).apply { sampleRate = 48_000 })
+            audioLock.withLock {
+                if (mixer.hasAudio) return@withLock
+                mixer.attachAudio(0, AudioRecordSource(application.applicationContext).apply { sampleRate = 48_000 })
+            }
         }
     }
 

@@ -25,6 +25,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        pictureInPicture = isInPictureInPictureMode
         RendererPreference.configure(this)
         enableEdgeToEdge()
         StreamSession.Builder.registerFactory(RtmpStreamSessionFactory)

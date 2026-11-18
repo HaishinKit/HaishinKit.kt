@@ -5,11 +5,15 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.DefaultLifecycleObserver
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.viewModelScope
 import com.haishinkit.stream.StreamSession
+import kotlinx.coroutines.launch
 
 class PlaybackViewModel(
     application: Application,
-) : AndroidViewModel(application), RendererChangeParticipant {
+) : AndroidViewModel(application), DefaultLifecycleObserver, RendererChangeParticipant {
     var session: StreamSession? by mutableStateOf(null)
         private set
     var sessionError: String? by mutableStateOf(null)
@@ -19,6 +23,11 @@ class PlaybackViewModel(
 
     init {
         RendererPreference.register(this)
+    }
+
+    override fun onStop(owner: LifecycleOwner) {
+        val stoppedSession = session ?: return
+        viewModelScope.launch { stoppedSession.close() }
     }
 
     override suspend fun stopForRendererChange() {

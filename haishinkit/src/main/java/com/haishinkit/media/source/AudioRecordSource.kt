@@ -56,7 +56,7 @@ class AudioRecordSource(
     /**
      * The lazily created recorder, or `null` if audio recording permission has not been granted.
      */
-    var audioRecord: AudioRecord? = null
+    val audioRecord: AudioRecord?
         get() {
             if (ActivityCompat.checkSelfPermission(
                     context,
@@ -65,13 +65,13 @@ class AudioRecordSource(
             ) {
                 return null
             }
-            if (field == null) {
-                field = createAudioRecord(audioSource, sampleRate, channel, encoding, minBufferSize)
+            if (cachedAudioRecord == null) {
+                cachedAudioRecord = createAudioRecord(audioSource, sampleRate, channel, encoding, minBufferSize)
             }
-            return field
+            return cachedAudioRecord
         }
-        private set
 
+    private var cachedAudioRecord: AudioRecord? = null
     private var encoding = DEFAULT_ENCODING
     private var sampleCount = DEFAULT_SAMPLE_COUNT
     private var noSignalBuffer = ByteBuffer.allocateDirect(0)
@@ -87,9 +87,14 @@ class AudioRecordSource(
     }
 
     override suspend fun close(): Result<Unit> {
+        val recorder = cachedAudioRecord ?: return Result.success(Unit)
+        cachedAudioRecord = null
         try {
-            audioRecord?.stop()
-            audioRecord?.release()
+            try {
+                recorder.stop()
+            } finally {
+                recorder.release()
+            }
         } catch (e: java.lang.IllegalStateException) {
             Log.w(TAG, e)
             return Result.failure(e)
