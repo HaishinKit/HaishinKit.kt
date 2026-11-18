@@ -50,7 +50,12 @@ object MediaFormatUtil {
         return Rect(left, top, right + 1, bottom + 1)
     }
 
-    fun createAudioTrack(mediaFormat: MediaFormat): AudioTrack {
+    fun createAudioTrack(mediaFormat: MediaFormat): AudioTrack = createAudioTrack(mediaFormat, AudioAttributes.USAGE_MEDIA)
+
+    fun createAudioTrack(
+        mediaFormat: MediaFormat,
+        usage: Int,
+    ): AudioTrack {
         val sampleRate = mediaFormat.getInteger(MediaFormat.KEY_SAMPLE_RATE)
         val channelCount = mediaFormat.getInteger(MediaFormat.KEY_CHANNEL_COUNT)
         val channelMask =
@@ -72,8 +77,8 @@ object MediaFormatUtil {
                     .setAudioAttributes(
                         AudioAttributes
                             .Builder()
-                            .setUsage(AudioAttributes.USAGE_MEDIA)
-                            .setContentType(AudioAttributes.CONTENT_TYPE_MOVIE)
+                            .setUsage(usage)
+                            .setContentType(if (usage == AudioAttributes.USAGE_VOICE_COMMUNICATION) AudioAttributes.CONTENT_TYPE_SPEECH else AudioAttributes.CONTENT_TYPE_MOVIE)
                             .build(),
                     ).setAudioFormat(
                         AudioFormat

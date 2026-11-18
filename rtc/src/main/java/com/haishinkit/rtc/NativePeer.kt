@@ -10,8 +10,10 @@ internal class NativePeer(
     iceServers: Array<String>,
     private val event: (Int, Int, String) -> Unit,
     private val frame: (Boolean, ByteArray, Long) -> Unit,
+    duplex: Boolean = false,
+    dataChannelLabel: String = "",
 ) : Closeable {
-    private var handle = create(publishing, audio, video, iceServers)
+    private var handle = create(publishing, audio, video, iceServers, duplex, dataChannelLabel)
 
     @Synchronized fun offer() = localDescription(handle, "offer")
 
@@ -27,6 +29,8 @@ internal class NativePeer(
         data: ByteArray,
         timeUs: Long,
     ) = sendFrame(handle, audio, data, timeUs)
+
+    @Synchronized fun sendText(text: String) = sendMessage(handle, text)
 
     @Synchronized fun requestKeyframe() = keyframe(handle)
 
@@ -57,6 +61,8 @@ internal class NativePeer(
         audio: Boolean,
         video: Boolean,
         servers: Array<String>,
+        duplex: Boolean,
+        dataChannelLabel: String,
     ): Long
 
     private external fun localDescription(
@@ -77,6 +83,11 @@ internal class NativePeer(
         timeUs: Long,
     )
 
+    private external fun sendMessage(
+        handle: Long,
+        text: String,
+    )
+
     private external fun keyframe(handle: Long)
 
     private external fun destroy(handle: Long)
@@ -88,6 +99,8 @@ internal class NativePeer(
         const val KEYFRAME = 3
         const val BITRATE = 4
         const val TRACK_OPEN = 5
+        const val DATA_OPEN = 6
+        const val DATA_TEXT = 7
 
         init {
             System.loadLibrary("hkrtc")
