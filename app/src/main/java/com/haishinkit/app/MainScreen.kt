@@ -33,6 +33,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -75,6 +76,7 @@ enum class MainScreenTab(
 @Suppress("ktlint:standard:function-naming")
 @Composable
 fun MainScreen(onApplyRenderer: suspend (Renderer) -> Unit) {
+    val pictureInPicture = LocalContext.current.mainActivity()?.pictureInPicture == true
     var changingRenderer by remember { mutableStateOf(false) }
     BackHandler(enabled = changingRenderer) {}
     val navController = rememberNavController()
@@ -83,30 +85,32 @@ fun MainScreen(onApplyRenderer: suspend (Renderer) -> Unit) {
     }
     Scaffold(
         bottomBar = {
-            NavigationBar {
-                MainScreenTab.entries.forEachIndexed { index, item ->
-                    NavigationBarItem(
-                        icon = {
-                            if (selectedItemIndex == index) {
-                                Icon(item.selectedIcon, contentDescription = item.label)
-                            } else {
-                                Icon(item.icon, contentDescription = item.label)
-                            }
-                        },
-                        label = { Text(text = item.label, fontSize = 10.sp) },
-                        selected = selectedItemIndex == index,
-                        enabled = !changingRenderer,
-                        onClick = {
-                            selectedItemIndex = index
-                            navController.navigate(item.id) {
-                                popUpTo(navController.graph.findStartDestination().id) {
-                                    saveState = true
+            if (!pictureInPicture) {
+                NavigationBar {
+                    MainScreenTab.entries.forEachIndexed { index, item ->
+                        NavigationBarItem(
+                            icon = {
+                                if (selectedItemIndex == index) {
+                                    Icon(item.selectedIcon, contentDescription = item.label)
+                                } else {
+                                    Icon(item.icon, contentDescription = item.label)
                                 }
-                                launchSingleTop = true
-                                restoreState = true
-                            }
-                        },
-                    )
+                            },
+                            label = { Text(text = item.label, fontSize = 10.sp) },
+                            selected = selectedItemIndex == index,
+                            enabled = !changingRenderer,
+                            onClick = {
+                                selectedItemIndex = index
+                                navController.navigate(item.id) {
+                                    popUpTo(navController.graph.findStartDestination().id) {
+                                        saveState = true
+                                    }
+                                    launchSingleTop = true
+                                    restoreState = true
+                                }
+                            },
+                        )
+                    }
                 }
             }
         },

@@ -5,7 +5,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.viewModelScope
 import com.haishinkit.stream.StreamSession
+import kotlinx.coroutines.launch
 
 class PlaybackViewModel(
     application: Application,
@@ -19,6 +21,11 @@ class PlaybackViewModel(
 
     init {
         RendererPreference.register(this)
+    }
+
+    fun stopPlayback() {
+        val stoppedSession = session ?: return
+        viewModelScope.launch { stoppedSession.close() }
     }
 
     override suspend fun stopForRendererChange() {
