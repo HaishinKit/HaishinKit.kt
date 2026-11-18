@@ -2,6 +2,7 @@ package com.haishinkit.codec
 
 import android.media.MediaCodec
 import android.media.MediaCodecInfo
+import android.media.MediaCodecList
 import android.media.MediaFormat
 import android.util.Log
 import java.nio.ByteBuffer
@@ -83,6 +84,17 @@ class AudioCodec : Codec() {
             inputIndices.addLast(index)
             drainInputs()
         }
+    }
+
+    override fun createMediaCodec(): MediaCodec {
+        if (mode == MODE_ENCODE && outputMimeType == MediaFormat.MIMETYPE_AUDIO_OPUS) {
+            check(
+                MediaCodecList(MediaCodecList.REGULAR_CODECS).codecInfos.any { info ->
+                    info.isEncoder && info.supportedTypes.any { it.equals(outputMimeType, ignoreCase = true) }
+                },
+            ) { "Opus encoder is unavailable on this device; Android 10+ provides a platform Opus encoder" }
+        }
+        return super.createMediaCodec()
     }
 
     override fun createMediaFormat(mime: String): MediaFormat =

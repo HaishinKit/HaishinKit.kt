@@ -1,6 +1,6 @@
 package com.haishinkit.rtc
 
-import java.util.Base64
+import kotlin.io.encoding.Base64
 
 /** The answer must preserve our offered mids and payload mappings. */
 internal object SDP {
@@ -13,7 +13,7 @@ internal object SDP {
         val fmtp = video.lines.firstOrNull { it.startsWith("a=fmtp:96 ") } ?: return emptyList()
         val parameter = fmtp.substringAfter(' ').split(';').map { it.trim() }.firstOrNull { it.startsWith("sprop-parameter-sets=") } ?: return emptyList()
         return parameter.substringAfter('=').split(',').map { value ->
-            Base64.getDecoder().decode(value).also {
+            Base64.decode(value).also {
                 require(it.isNotEmpty() && it.size <= 65536 && it[0].toInt() and 31 in 7..8) { "Invalid SDP H.264 parameter set" }
             }
         }
