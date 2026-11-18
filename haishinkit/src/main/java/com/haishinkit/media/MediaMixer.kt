@@ -92,14 +92,14 @@ class MediaMixer(
     private var videoSources = emptyMap<Int, VideoSource>()
     private var audioSources = mutableMapOf<Int, AudioSource>()
     private val windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
+    private val defaultVideo: VideoScreenObject by lazy {
+        VideoScreenObject().apply {
+            deviceOrientation = windowManager.defaultDisplay.rotation
+        }
+    }
     private val videoContainer: ScreenObjectContainer by lazy {
         ScreenObjectContainer().apply {
-            addChild(
-                VideoScreenObject().apply {
-                    isRotatesWithContent = true
-                    deviceOrientation = windowManager.defaultDisplay.rotation
-                },
-            )
+            addChild(defaultVideo)
         }
     }
     private val orientationEventListener: OrientationEventListener by lazy {
@@ -167,6 +167,9 @@ class MediaMixer(
                     it.isTorchEnabled = isToucheEnabled
                 }
                 if (isRunning.get()) openVideos(replacements).getOrThrow()
+                // Only camera frames are sensor-relative; projection and decoded frames
+                // already carry their source orientation and must not rotate again.
+                defaultVideo.isRotatesWithContent = videoSources[0] is Camera2Source
                 Result.success(Unit)
             } catch (cause: Exception) {
                 videoSources = previous

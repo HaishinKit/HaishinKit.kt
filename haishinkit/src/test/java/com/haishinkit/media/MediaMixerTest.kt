@@ -5,6 +5,7 @@ import android.util.Size
 import android.view.Surface
 import android.view.WindowManager
 import com.haishinkit.graphics.ImageOrientation
+import com.haishinkit.media.source.Camera2Source
 import com.haishinkit.media.source.VideoSource
 import com.haishinkit.screen.MockScreen
 import com.haishinkit.screen.Screen
@@ -32,12 +33,13 @@ import java.util.concurrent.atomic.AtomicBoolean
 class MediaMixerTest {
     @Test
     fun defaultVideoFollowsDisplayRotationWithoutChangingCustomObjects() =
-        withMixer { mixer ->
+        withMixer(running = false) { mixer ->
             val context = RuntimeEnvironment.getApplication()
             val display = (context.getSystemService(Context.WINDOW_SERVICE) as WindowManager).defaultDisplay
             val originalRotation = display.rotation
             try {
                 shadowOf(display).setRotation(Surface.ROTATION_90)
+                mixer.attachVideo(0, Camera2Source(context)).getOrThrow()
                 val video = mixer.screen.findByClass(VideoScreenObject::class.java).single()
                 assertTrue(video.isRotatesWithContent)
                 assertEquals(Surface.ROTATION_90, video.deviceOrientation)
@@ -46,6 +48,12 @@ class MediaMixerTest {
                 val custom = VideoScreenObject()
                 mixer.screen.addChild(custom)
                 assertFalse(custom.isRotatesWithContent)
+                mixer.attachVideo(0, TestSource()).getOrThrow()
+                assertFalse(video.isRotatesWithContent)
+                mixer.attachVideo(0, Camera2Source(context)).getOrThrow()
+                assertTrue(video.isRotatesWithContent)
+                mixer.attachVideo(0, null).getOrThrow()
+                assertFalse(video.isRotatesWithContent)
             } finally {
                 shadowOf(display).setRotation(originalRotation)
             }
@@ -97,11 +105,14 @@ class MediaMixerTest {
             assertEquals(1, replacement.closeCount)
         }
 
-    private fun withMixer(block: suspend CoroutineScope.(MediaMixer) -> Unit) {
+    private fun withMixer(
+        running: Boolean = true,
+        block: suspend CoroutineScope.(MediaMixer) -> Unit,
+    ) {
         val original = Screen.factory
         try {
             Screen.factory = { MockScreen(it) }
-            val mixer = MediaMixer(RuntimeEnvironment.getApplication(), AtomicBoolean(true))
+            val mixer = MediaMixer(RuntimeEnvironment.getApplication(), AtomicBoolean(running))
             runBlocking {
                 try {
                     withTimeout(5000) { block(mixer) }
