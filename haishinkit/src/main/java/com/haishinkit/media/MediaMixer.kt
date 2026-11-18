@@ -91,21 +91,21 @@ class MediaMixer(
     @Volatile
     private var videoSources = emptyMap<Int, VideoSource>()
     private var audioSources = mutableMapOf<Int, AudioSource>()
+    private val windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
+    private val defaultVideo: VideoScreenObject by lazy {
+        VideoScreenObject().apply {
+            deviceOrientation = windowManager.defaultDisplay.rotation
+        }
+    }
     private val videoContainer: ScreenObjectContainer by lazy {
         ScreenObjectContainer().apply {
-            addChild(VideoScreenObject())
+            addChild(defaultVideo)
         }
     }
     private val orientationEventListener: OrientationEventListener by lazy {
         object : OrientationEventListener(context, SensorManager.SENSOR_DELAY_NORMAL) {
             override fun onOrientationChanged(orientation: Int) {
-                val windowManager =
-                    context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
-                windowManager.defaultDisplay?.orientation?.let { orientation ->
-                    screen.findByClass(VideoScreenObject::class.java).forEach {
-                        it.deviceOrientation = orientation
-                    }
-                }
+                updateDeviceOrientation()
             }
         }
     }
@@ -167,6 +167,9 @@ class MediaMixer(
                     it.isTorchEnabled = isToucheEnabled
                 }
                 if (isRunning.get()) openVideos(replacements).getOrThrow()
+                // Only camera frames are sensor-relative; projection and decoded frames
+                // already carry their source orientation and must not rotate again.
+                defaultVideo.isRotatesWithContent = videoSources[0] is Camera2Source
                 Result.success(Unit)
             } catch (cause: Exception) {
                 videoSources = previous
@@ -210,6 +213,7 @@ class MediaMixer(
      */
     override fun startRunning() {
         if (isDisposed.get() || !isRunning.compareAndSet(false, true)) return
+        updateDeviceOrientation()
         orientationEventListener.enable()
         keepAlive = true
         launch {
@@ -252,6 +256,14 @@ class MediaMixer(
             }
             audioSources.values.forEach { it.close() }
             audioSources.clear()
+        }
+    }
+
+    private fun updateDeviceOrientation() {
+        val rotation = windowManager.defaultDisplay.rotation
+        defaultVideo.deviceOrientation = rotation
+        screen.findByClass(VideoScreenObject::class.java).forEach {
+            it.deviceOrientation = rotation
         }
     }
 
