@@ -17,6 +17,23 @@ import org.robolectric.annotation.Config
 @Config(manifest = Config.NONE, sdk = [28])
 class AudioRecordSourceTest {
     @Test
+    fun readAfterCloseDoesNotAllocateAnotherRecorder() =
+        runBlocking {
+            val application = RuntimeEnvironment.getApplication()
+            shadowOf(application).grantPermissions(Manifest.permission.RECORD_AUDIO)
+            val source = AudioRecordSource(application)
+            requireNotNull(source.audioRecord).startRecording()
+            assertTrue(source.close().isSuccess)
+
+            source.read(0)
+            source.sampleRate = 48_000
+            val reopened = requireNotNull(source.audioRecord)
+            assertEquals(48_000, reopened.sampleRate)
+            reopened.startRecording()
+            assertTrue(source.close().isSuccess)
+        }
+
+    @Test
     fun recordingCanRestartAfterClose() =
         runBlocking {
             val application = RuntimeEnvironment.getApplication()

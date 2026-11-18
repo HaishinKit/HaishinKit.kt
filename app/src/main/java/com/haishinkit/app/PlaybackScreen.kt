@@ -24,6 +24,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.DefaultLifecycleObserver
+import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.haishinkit.compose.HaishinKitView
@@ -44,12 +46,19 @@ fun PlaybackScreen(
     viewModel: PlaybackViewModel = viewModel(),
     modifier: Modifier = Modifier,
 ) {
-    val pictureInPicture = LocalContext.current.mainActivity()?.pictureInPicture == true
+    val activity = LocalContext.current.mainActivity()
+    val pictureInPicture = activity?.pictureInPicture == true
     val scope = rememberCoroutineScope()
     val lifecycleOwner = LocalLifecycleOwner.current
-    DisposableEffect(lifecycleOwner, viewModel) {
-        lifecycleOwner.lifecycle.addObserver(viewModel)
-        onDispose { lifecycleOwner.lifecycle.removeObserver(viewModel) }
+    DisposableEffect(lifecycleOwner, viewModel, activity) {
+        val observer =
+            object : DefaultLifecycleObserver {
+                override fun onStop(owner: LifecycleOwner) {
+                    if (activity?.isChangingConfigurations != true) viewModel.stopPlayback()
+                }
+            }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
     var errorMessage by remember(viewModel.session) { mutableStateOf<String?>(null) }
     LaunchedEffect(Unit) { viewModel.refreshSession().onFailure { errorMessage = it.message ?: "Check the stream URL." } }

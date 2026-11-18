@@ -71,6 +71,7 @@ class AudioRecordSource(
             return cachedAudioRecord
         }
 
+    @Volatile
     private var cachedAudioRecord: AudioRecord? = null
     private var encoding = DEFAULT_ENCODING
     private var sampleCount = DEFAULT_SAMPLE_COUNT
@@ -104,7 +105,7 @@ class AudioRecordSource(
 
     override fun read(track: Int): MediaBuffer {
         byteBuffer.rewind()
-        val result = audioRecord?.read(byteBuffer, sampleCount * 2) ?: -1
+        val result = cachedAudioRecord?.read(byteBuffer, sampleCount * 2) ?: -1
         if (isMuted) {
             if (noSignalBuffer.capacity() < result) {
                 noSignalBuffer = ByteBuffer.allocateDirect(result)
