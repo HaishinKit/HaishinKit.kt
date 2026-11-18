@@ -1,6 +1,6 @@
 # Module rtc
 
-Android 10+ WHIP publishing and WHEP playback using libdatachannel, H.264 and Opus.
+Android 6.0+ WHIP publishing and WHEP playback using libdatachannel, H.264 and Opus.
 
 Use `RTCSession` directly or register `HTTPStreamSessionFactory` with the common
 `StreamSession.Builder`. `RTCStream` integrates the existing MediaMixer and playback

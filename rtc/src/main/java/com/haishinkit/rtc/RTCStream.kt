@@ -5,6 +5,7 @@ import android.graphics.Rect
 import android.media.MediaCodec
 import android.media.MediaCodecInfo
 import android.media.MediaFormat
+import android.os.Build
 import android.os.Bundle
 import android.util.Size
 import android.view.Surface
@@ -124,7 +125,13 @@ class RTCStream internal constructor(context: Context, private val stop: () -> U
                         val options = videoSetting.options.toList()
                         H264EncoderOptions.validate(options)
                         SDP.validateH264Sender(videoSetting.width and -2, videoSetting.height and -2, videoSetting.frameRate, videoSetting.bitRate)
-                        videoCodec.options = options + CodecOption(MediaFormat.KEY_PROFILE, MediaCodecInfo.CodecProfileLevel.AVCProfileConstrainedBaseline)
+                        val profile =
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
+                                MediaCodecInfo.CodecProfileLevel.AVCProfileConstrainedBaseline
+                            } else {
+                                MediaCodecInfo.CodecProfileLevel.AVCProfileBaseline
+                            }
+                        videoCodec.options = options + CodecOption(MediaFormat.KEY_PROFILE, profile)
                     }
                     audioCodec.sampleRate = audioSetting.sampleRate
                     audioCodec.channelCount = audioSetting.channelCount

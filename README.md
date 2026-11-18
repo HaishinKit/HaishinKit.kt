@@ -76,7 +76,7 @@ dependencies {
   // Choose the transport modules your app uses.
   implementation 'com.github.HaishinKit.HaishinKit~kt:rtmp:x.x.x'
   implementation 'com.github.HaishinKit.HaishinKit~kt:srt:x.x.x'
-  // Optional WHIP/WHEP (API 29+).
+  // Optional WHIP/WHEP (API 23+).
   // implementation 'com.github.HaishinKit.HaishinKit~kt:rtc:x.x.x'
   // Optional UI and composition modules.
   implementation 'com.github.HaishinKit.HaishinKit~kt:compose:x.x.x'
@@ -93,7 +93,7 @@ dependencies {
 | haishinkit | 23+    | 6.0     | Require      | Stable | It's the base module for HaishinKit.                                     |
 | rtmp       | 23+    | 6.0     | Optional     | Stable | RTMP/RTMPS publishing and playback.                                      |
 | srt        | 23+    | 6.0     | Optional     | Experimental | SRT publishing and playback with MPEG-TS and encryption support. |
-| rtc        | 29+    | 10      | Optional     | Experimental | WHIP publishing and WHEP playback with H.264/Opus and libdatachannel. |
+| rtc        | 23+    | 6.0     | Optional     | Experimental | WHIP publishing and WHEP playback with H.264/Opus and libdatachannel. |
 | compose    | 23+    | 6.0     | Optional     | Beta   | It's support for a composable component for HaishinKit.                  |
 | lottie     | 23+    | 6.0     | Optional     | Beta   | It's a module for embedding Lottie animations into live streaming video. |
 | vulkan     | 28+    | 9.0     | Optional     | Experimental | Vulkan output backend with OpenGL fallback. |
@@ -161,7 +161,8 @@ for requirements, build commands, encryption options, and example app usage.
 
 ### WHIP and WHEP stream sessions
 
-Add `:rtc` and set your app's `minSdk` to 29 or later. A complete WHIP or WHEP
+Add `:rtc` and set your app's `minSdk` to 23 or later. Audio publishing requires
+an available Opus encoder (provided by Android 10+). A complete WHIP or WHEP
 HTTP(S) endpoint is used directly; no separate RTMP stream name is appended.
 
 ```kotlin
@@ -189,7 +190,7 @@ session.stream.dispose()
 
 
 The `:rtc` module provides `RTCSession` and `HTTPStreamSessionFactory` for WHIP
-publishing and WHEP playback over HTTP(S). It requires Android 10+, uses
+publishing and WHEP playback over HTTP(S). It requires Android 6.0+, uses
 libdatachannel for WebRTC transport and MediaCodec for H.264/Opus. The other modules
 retain their existing minimum Android versions. Configure audio capture to 48 kHz
 for its default Opus settings.
