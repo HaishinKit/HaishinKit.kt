@@ -127,6 +127,8 @@ open class VideoScreenObject(
             degrees += 180
         }
 
+        degrees %= 360
+
         Matrix.setIdentityM(matrix, 0)
 
         if (target == GLES11Ext.GL_TEXTURE_EXTERNAL_OES) {
