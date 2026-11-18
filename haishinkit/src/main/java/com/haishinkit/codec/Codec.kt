@@ -96,12 +96,7 @@ abstract class Codec :
         get() =
             synchronized(this) {
                 if (field == null) {
-                    field =
-                        if (mode == MODE_ENCODE) {
-                            MediaCodec.createEncoderByType(outputMimeType)
-                        } else {
-                            MediaCodec.createDecoderByType(inputMimeType)
-                        }
+                    field = createMediaCodec()
                 }
                 field
             }
@@ -373,6 +368,14 @@ abstract class Codec :
             format.getString("mime")?.let { mime -> listener?.onFormatChanged(mime, format) }
         }
     }
+
+    /** Creates the platform codec after codec-specific availability checks. */
+    protected open fun createMediaCodec(): MediaCodec =
+        if (mode == MODE_ENCODE) {
+            MediaCodec.createEncoderByType(outputMimeType)
+        } else {
+            MediaCodec.createDecoderByType(inputMimeType)
+        }
 
     protected abstract fun createMediaFormat(mime: String): MediaFormat
 

@@ -2,7 +2,7 @@
 
 WHIP publishing and WHEP playback using libdatachannel and Android MediaCodec.
 The Android AAR packages the JNI library as `libhkrtc.so`.
-Requires Android 10 (API 29) or later. The core, RTMP, and SRT modules keep their
+Requires Android 6.0 (API 23) or later. The core, RTMP, and SRT modules keep their
 existing minimum Android versions.
 
 ## Supported media and signaling
@@ -29,7 +29,11 @@ behavior with the intended WHIP/WHEP server before production use.
 
 Add the optional `rtc` module as a dependency. When publishing binaries, its Maven
 artifact is `com.github.HaishinKit.HaishinKit~kt:rtc` with the same version as the other modules.
-The app consuming this module must have minSdk 29 or later.
+The app consuming this module must have minSdk 23 or later.
+Audio publishing requires an available Opus encoder (provided by Android 10+).
+AudioCodec checks availability when starting encoding and reports an explicit
+error if no Opus encoder is installed. Video-only publishing and playback do
+not require an Opus encoder.
 
 ```kotlin
 val configuration = RTCConfiguration(
