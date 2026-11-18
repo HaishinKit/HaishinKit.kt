@@ -39,7 +39,8 @@
             android:foregroundServiceType="mediaProjection" />
         <activity
             android:name=".MainActivity"
-            android:configChanges="orientation|screenSize"
+            android:configChanges="orientation|screenLayout|screenSize|smallestScreenSize"
+            android:supportsPictureInPicture="true"
             android:exported="true"
             android:label="@string/app_name">
             <intent-filter>

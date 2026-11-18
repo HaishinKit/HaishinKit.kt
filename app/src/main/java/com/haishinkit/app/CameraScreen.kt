@@ -72,6 +72,7 @@ fun CameraScreen(
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
+    val pictureInPicture = context.mainActivity()?.pictureInPicture == true
     val scope = rememberCoroutineScope()
     var editingText by remember { mutableStateOf<TextScreenObject?>(null) }
     var insertionPosition by remember { mutableStateOf<Offset?>(null) }
@@ -94,8 +95,8 @@ fun CameraScreen(
     }
 
     val configuration = LocalConfiguration.current
-    LaunchedEffect(configuration.orientation) {
-        viewModel.onConfigurationChanged(configuration)
+    LaunchedEffect(configuration.orientation, pictureInPicture) {
+        if (!pictureInPicture) viewModel.onConfigurationChanged(configuration)
     }
 
     val pagerState =
@@ -115,6 +116,8 @@ fun CameraScreen(
     }
     val sessionState = rememberStreamSessionState(currentSession)
     val sessionReadyState by sessionState.readyState.collectAsState()
+    PictureInPictureEffect(enabled = sessionReadyState == StreamSession.ReadyState.OPEN)
+    val recorderState = rememberMediaRecorderState(viewModel.recorder)
     val sessionActive = sessionReadyState != StreamSession.ReadyState.CLOSED
 
     LaunchedEffect(pagerState, 0) {
@@ -124,28 +127,30 @@ fun CameraScreen(
         }
     }
 
-    insertionPosition?.let { position ->
-        ScreenObjectAddDialog(
-            onAdd = { kind ->
-                viewModel.addScreenObject(kind, position) { message ->
-                    Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
-                }
-                insertionPosition = null
-            },
-            onDismiss = { insertionPosition = null },
-        )
-    }
-
-    editingText?.let { target ->
-        key(target.id) {
-            ScreenObjectTextEditor(
-                initialValue = target.value,
-                onConfirm = { value ->
-                    viewModel.screenObjectDragController.updateText(target, value)
-                    editingText = null
+    if (!pictureInPicture) {
+        insertionPosition?.let { position ->
+            ScreenObjectAddDialog(
+                onAdd = { kind ->
+                    viewModel.addScreenObject(kind, position) { message ->
+                        Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+                    }
+                    insertionPosition = null
                 },
-                onDismiss = { editingText = null },
+                onDismiss = { insertionPosition = null },
             )
+        }
+
+        editingText?.let { target ->
+            key(target.id) {
+                ScreenObjectTextEditor(
+                    initialValue = target.value,
+                    onConfirm = { value ->
+                        viewModel.screenObjectDragController.updateText(target, value)
+                        editingText = null
+                    },
+                    onDismiss = { editingText = null },
+                )
+            }
         }
     }
 
@@ -212,126 +217,126 @@ fun CameraScreen(
             }
         }
 
-        ScreenObjectSelectionOverlay(
-            controller = viewModel.screenObjectDragController,
-            onDelete = { viewModel.removeFocusedScreenObject() },
-        )
-
-        Column(
-            modifier =
-                Modifier
-                    .fillMaxSize()
-                    .safeDrawingPadding()
-                    .padding(8.dp)
-                    .alpha(0.8F),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            CameraDeviceControllerView(
-                camera = selectedCamera,
-                cameras = cameraList,
-                onCameraSelected = { camera ->
-                    viewModel.selectCameraDevice(camera)
-                },
-                onAudioPermissionStatus = { state ->
-                    when (state.status) {
-                        PermissionStatus.Granted -> {
-                            viewModel.selectAudioDevice()
-                        }
-
-                        is PermissionStatus.Denied -> {
-                            // viewModel.selectAudioDevice(null)
-                        }
-                    }
-                },
-                onVideoPermissionStatus = { state ->
-                    when (state.status) {
-                        PermissionStatus.Granted -> {
-                            viewModel.selectCameraDevice(viewModel.selectedCamera.value, retry = false)
-                        }
-
-                        is PermissionStatus.Denied -> {
-                        }
-                    }
-                },
+        if (!pictureInPicture) {
+            ScreenObjectSelectionOverlay(
+                controller = viewModel.screenObjectDragController,
+                onDelete = { viewModel.removeFocusedScreenObject() },
             )
-            Spacer(modifier = Modifier.weight(1f))
 
-            HorizontalPager(
-                state = pagerState,
-                contentPadding = PaddingValues(end = 0.dp),
-                modifier = Modifier.fillMaxWidth(),
-            ) { page ->
-                val item = viewModel.videoEffectItems[page]
-                Box(
-                    modifier = Modifier.fillMaxWidth(),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(
-                        text = item.name,
-                        color = Color.White,
-                        textAlign = TextAlign.Center,
-                        modifier =
-                            Modifier
-                                .align(alignment = Alignment.Center)
-                                .background(
-                                    color = Color.Black,
-                                    shape = RoundedCornerShape(20.dp),
-                                )
-                                .padding(8.dp, 0.dp),
-                    )
-                }
-            }
-
-            HorizontalPagerIndicator(
-                pagerState = pagerState,
-                pageCount = viewModel.videoEffectItems.size,
+            Column(
                 modifier =
                     Modifier
-                        .align(Alignment.CenterHorizontally)
-                        .padding(32.dp),
-            )
-
-            val recorderState = rememberMediaRecorderState(viewModel.recorder)
-
-            CameraControllerView(
-                isRecording = recorderState.isRecording,
-                isConnected = sessionActive,
-                readyState = sessionReadyState,
-                canCancelConnection = sessionState.stream is SrtStream || sessionState.stream is RTCStream,
-                onClickScreenShot = {
-                    viewModel.takeSnapShot(context)
-                },
-                onClickConnect = {
-                    scope.launch {
-                        if (sessionActive) {
-                            sessionState.close().onFailure { Toast.makeText(context, it.message, Toast.LENGTH_LONG).show() }
-                        } else {
-                            viewModel.sessionError?.let {
-                                Toast.makeText(context, it, Toast.LENGTH_SHORT).show()
-                                return@launch
+                        .fillMaxSize()
+                        .safeDrawingPadding()
+                        .padding(8.dp)
+                        .alpha(0.8F),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                CameraDeviceControllerView(
+                    camera = selectedCamera,
+                    cameras = cameraList,
+                    onCameraSelected = { camera ->
+                        viewModel.selectCameraDevice(camera)
+                    },
+                    onAudioPermissionStatus = { state ->
+                        when (state.status) {
+                            PermissionStatus.Granted -> {
+                                viewModel.selectAudioDevice()
                             }
-                            sessionState.connect().onFailure {
-                                Toast
-                                    .makeText(context, it.message, Toast.LENGTH_SHORT)
-                                    .show()
+
+                            is PermissionStatus.Denied -> {
+                                // viewModel.selectAudioDevice(null)
                             }
                         }
-                    }
-                },
-                onClickRecording = {
-                    if (recorderState.isRecording) {
-                        recorderState.stopRecording()
-                    } else {
-                        recorderState.startRecording(
-                            File(
-                                Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
-                                "output.mp4",
-                            ).toString(),
-                            MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4,
+                    },
+                    onVideoPermissionStatus = { state ->
+                        when (state.status) {
+                            PermissionStatus.Granted -> {
+                                viewModel.selectCameraDevice(viewModel.selectedCamera.value, retry = false)
+                            }
+
+                            is PermissionStatus.Denied -> {
+                            }
+                        }
+                    },
+                )
+                Spacer(modifier = Modifier.weight(1f))
+
+                HorizontalPager(
+                    state = pagerState,
+                    contentPadding = PaddingValues(end = 0.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                ) { page ->
+                    val item = viewModel.videoEffectItems[page]
+                    Box(
+                        modifier = Modifier.fillMaxWidth(),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            text = item.name,
+                            color = Color.White,
+                            textAlign = TextAlign.Center,
+                            modifier =
+                                Modifier
+                                    .align(alignment = Alignment.Center)
+                                    .background(
+                                        color = Color.Black,
+                                        shape = RoundedCornerShape(20.dp),
+                                    )
+                                    .padding(8.dp, 0.dp),
                         )
                     }
-                },
-            )
+                }
+
+                HorizontalPagerIndicator(
+                    pagerState = pagerState,
+                    pageCount = viewModel.videoEffectItems.size,
+                    modifier =
+                        Modifier
+                            .align(Alignment.CenterHorizontally)
+                            .padding(32.dp),
+                )
+
+                CameraControllerView(
+                    isRecording = recorderState.isRecording,
+                    isConnected = sessionActive,
+                    readyState = sessionReadyState,
+                    canCancelConnection = sessionState.stream is SrtStream || sessionState.stream is RTCStream,
+                    onClickScreenShot = {
+                        viewModel.takeSnapShot(context)
+                    },
+                    onClickConnect = {
+                        scope.launch {
+                            if (sessionActive) {
+                                sessionState.close().onFailure { Toast.makeText(context, it.message, Toast.LENGTH_LONG).show() }
+                            } else {
+                                viewModel.sessionError?.let {
+                                    Toast.makeText(context, it, Toast.LENGTH_SHORT).show()
+                                    return@launch
+                                }
+                                sessionState.connect().onFailure {
+                                    Toast
+                                        .makeText(context, it.message, Toast.LENGTH_SHORT)
+                                        .show()
+                                }
+                            }
+                        }
+                    },
+                    onClickRecording = {
+                        if (recorderState.isRecording) {
+                            recorderState.stopRecording()
+                        } else {
+                            recorderState.startRecording(
+                                File(
+                                    Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
+                                    "output.mp4",
+                                ).toString(),
+                                MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4,
+                            )
+                        }
+                    },
+                )
+            }
         }
     }
 }

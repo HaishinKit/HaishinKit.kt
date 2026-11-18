@@ -21,6 +21,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.haishinkit.compose.HaishinKitView
@@ -41,6 +42,7 @@ fun PlaybackScreen(
     viewModel: PlaybackViewModel = viewModel(),
     modifier: Modifier = Modifier,
 ) {
+    val pictureInPicture = LocalContext.current.mainActivity()?.pictureInPicture == true
     val scope = rememberCoroutineScope()
     var errorMessage by remember(viewModel.session) { mutableStateOf<String?>(null) }
     LaunchedEffect(Unit) { viewModel.refreshSession().onFailure { errorMessage = it.message ?: "Check the stream URL." } }
@@ -56,6 +58,7 @@ fun PlaybackScreen(
     }
     val session = rememberStreamSessionState(currentSession)
     val readyState by session.readyState.collectAsState()
+    PictureInPictureEffect(enabled = readyState == StreamSession.ReadyState.OPEN)
     val toggleConnection: () -> Unit = {
         errorMessage = null
         scope.launch {
@@ -82,27 +85,29 @@ fun PlaybackScreen(
                 modifier = Modifier.fillMaxSize(),
             )
         }
-        Box(
-            modifier = Modifier.fillMaxSize().safeDrawingPadding().padding(16.dp),
-        ) {
-            errorMessage?.let { message ->
-                Column(
-                    modifier = Modifier.align(Alignment.Center).background(Color.Black.copy(alpha = 0.8f)).padding(24.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(16.dp),
-                ) {
-                    Text("Can't connect to stream", color = Color.White)
-                    Text(message, color = Color.White)
-                    Button(onClick = toggleConnection) { Text("Try Again") }
+        if (!pictureInPicture) {
+            Box(
+                modifier = Modifier.fillMaxSize().safeDrawingPadding().padding(16.dp),
+            ) {
+                errorMessage?.let { message ->
+                    Column(
+                        modifier = Modifier.align(Alignment.Center).background(Color.Black.copy(alpha = 0.8f)).padding(24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(16.dp),
+                    ) {
+                        Text("Can't connect to stream", color = Color.White)
+                        Text(message, color = Color.White)
+                        Button(onClick = toggleConnection) { Text("Try Again") }
+                    }
                 }
-            }
-            Box(modifier = Modifier.align(Alignment.BottomEnd)) {
-                StreamControlButton(
-                    readyState = readyState,
-                    startLabel = "PLAY",
-                    onClick = toggleConnection,
-                    canCancelConnection = session.stream is SrtStream || session.stream is RTCStream,
-                )
+                Box(modifier = Modifier.align(Alignment.BottomEnd)) {
+                    StreamControlButton(
+                        readyState = readyState,
+                        startLabel = "PLAY",
+                        onClick = toggleConnection,
+                        canCancelConnection = session.stream is SrtStream || session.stream is RTCStream,
+                    )
+                }
             }
         }
     }

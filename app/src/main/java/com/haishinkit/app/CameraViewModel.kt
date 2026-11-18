@@ -282,12 +282,12 @@ class CameraViewModel(
         mixer.stopRunning()
     }
 
-    override fun onResume(owner: LifecycleOwner) {
-        mixer.onResume(owner)
+    override fun onStart(owner: LifecycleOwner) {
+        mixer.startRunning()
     }
 
-    override fun onPause(owner: LifecycleOwner) {
-        mixer.onPause(owner)
+    override fun onStop(owner: LifecycleOwner) {
+        mixer.stopRunning()
     }
 
     override suspend fun stopForRendererChange() {
