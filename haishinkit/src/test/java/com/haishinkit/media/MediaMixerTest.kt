@@ -1,11 +1,14 @@
 package com.haishinkit.media
 
+import android.content.Context
 import android.util.Size
 import android.view.Surface
+import android.view.WindowManager
 import com.haishinkit.graphics.ImageOrientation
 import com.haishinkit.media.source.VideoSource
 import com.haishinkit.screen.MockScreen
 import com.haishinkit.screen.Screen
+import com.haishinkit.screen.VideoScreenObject
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.async
@@ -15,16 +18,39 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
+import org.robolectric.Shadows.shadowOf
 import java.util.concurrent.atomic.AtomicBoolean
 
 @RunWith(RobolectricTestRunner::class)
 class MediaMixerTest {
+    @Test
+    fun defaultVideoFollowsDisplayRotationWithoutChangingCustomObjects() =
+        withMixer { mixer ->
+            val context = RuntimeEnvironment.getApplication()
+            val display = (context.getSystemService(Context.WINDOW_SERVICE) as WindowManager).defaultDisplay
+            val originalRotation = display.rotation
+            try {
+                shadowOf(display).setRotation(Surface.ROTATION_90)
+                val video = mixer.screen.findByClass(VideoScreenObject::class.java).single()
+                assertTrue(video.isRotatesWithContent)
+                assertEquals(Surface.ROTATION_90, video.deviceOrientation)
+                assertEquals(ImageOrientation.UP, video.imageOrientation)
+
+                val custom = VideoScreenObject()
+                mixer.screen.addChild(custom)
+                assertFalse(custom.isRotatesWithContent)
+            } finally {
+                shadowOf(display).setRotation(originalRotation)
+            }
+        }
+
     @Test
     fun failedReplacementKeepsVideoAvailableAndReopensPreviousSource() =
         withMixer { mixer ->
