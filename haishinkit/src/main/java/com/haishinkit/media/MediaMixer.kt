@@ -261,6 +261,7 @@ class MediaMixer(
 
     private fun updateDeviceOrientation() {
         val rotation = windowManager.defaultDisplay.rotation
+        defaultVideo.deviceOrientation = rotation
         screen.findByClass(VideoScreenObject::class.java).forEach {
             it.deviceOrientation = rotation
         }

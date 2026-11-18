@@ -1,6 +1,7 @@
 package com.haishinkit.media
 
 import android.content.Context
+import android.graphics.Bitmap
 import android.util.Size
 import android.view.Surface
 import android.view.WindowManager
@@ -9,6 +10,8 @@ import com.haishinkit.media.source.Camera2Source
 import com.haishinkit.media.source.VideoSource
 import com.haishinkit.screen.MockScreen
 import com.haishinkit.screen.Screen
+import com.haishinkit.screen.ScreenObject
+import com.haishinkit.screen.ScreenObjectContainer
 import com.haishinkit.screen.VideoScreenObject
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
@@ -31,6 +34,38 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 @RunWith(RobolectricTestRunner::class)
 class MediaMixerTest {
+    @Test
+    fun startupRefreshesDefaultVideoBeforeQueuedScreenInsertion() {
+        var queuedChild: ScreenObject? = null
+        withMixer(
+            running = false,
+            screenFactory = { context ->
+                object : Screen(context) {
+                    override fun addChild(child: ScreenObject?) { queuedChild = child }
+                    override fun attachVideo(track: Int, video: VideoSource?) {}
+                    override fun readPixels(lambda: (Bitmap?) -> Unit) {}
+                    override fun bind(screenObject: ScreenObject) {}
+                    override fun unbind(screenObject: ScreenObject) {}
+                }
+            },
+        ) { mixer ->
+            val context = RuntimeEnvironment.getApplication()
+            val display = (context.getSystemService(Context.WINDOW_SERVICE) as WindowManager).defaultDisplay
+            val originalRotation = display.rotation
+            try {
+                shadowOf(display).setRotation(Surface.ROTATION_0)
+                mixer.attachVideo(0, TestSource()).getOrThrow()
+                shadowOf(display).setRotation(Surface.ROTATION_90)
+                mixer.startRunning()
+                val video = (checkNotNull(queuedChild) as ScreenObjectContainer).findByClass(VideoScreenObject::class.java).single()
+                assertEquals(Surface.ROTATION_90, video.deviceOrientation)
+            } finally {
+                mixer.stopRunning()
+                shadowOf(display).setRotation(originalRotation)
+            }
+        }
+    }
+
     @Test
     fun defaultVideoFollowsDisplayRotationWithoutChangingCustomObjects() =
         withMixer(running = false) { mixer ->
@@ -107,11 +142,12 @@ class MediaMixerTest {
 
     private fun withMixer(
         running: Boolean = true,
+        screenFactory: (Context) -> Screen = { MockScreen(it) },
         block: suspend CoroutineScope.(MediaMixer) -> Unit,
     ) {
         val original = Screen.factory
         try {
-            Screen.factory = { MockScreen(it) }
+            Screen.factory = screenFactory
             val mixer = MediaMixer(RuntimeEnvironment.getApplication(), AtomicBoolean(running))
             runBlocking {
                 try {
