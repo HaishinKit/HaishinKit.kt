@@ -8,6 +8,8 @@
 #include <mutex>
 #include <memory>
 #include <random>
+#include <codecvt>
+#include <locale>
 
 namespace {
 JavaVM *vm = nullptr;
@@ -30,6 +32,8 @@ struct Peer {
     jmethodID eventMethod, frameMethod;
     std::shared_ptr<rtc::PeerConnection> pc;
     std::shared_ptr<rtc::Track> audio, video;
+    std::shared_ptr<rtc::DataChannel> channel;
+    std::mutex channelMutex;
     Peer(JNIEnv *env, jobject object) : owner(env->NewGlobalRef(object)) {
         auto cls = env->GetObjectClass(object);
         eventMethod = env->GetMethodID(cls, "onEvent", "(IILjava/lang/String;)V");
@@ -40,7 +44,11 @@ struct Peer {
     void event(int kind, int value = 0, const std::string &text = "") {
         Env e;
         if (!e.env) return;
-        auto string = e.env->NewStringUTF(text.c_str());
+        std::u16string utf16;
+        try { utf16 = std::wstring_convert<std::codecvt_utf8_utf16<char16_t>, char16_t>{}.from_bytes(text); }
+        catch (const std::exception &) { return; }
+        auto string = e.env->NewString(reinterpret_cast<const jchar *>(utf16.data()), static_cast<jsize>(utf16.size()));
+        if (!string) { e.env->ExceptionClear(); return; }
         e.env->CallVoidMethod(owner, eventMethod, kind, value, string);
         e.env->DeleteLocalRef(string);
         // Kotlin callbacks are nonthrowing, but never leave a pending Java exception
@@ -69,17 +77,34 @@ std::shared_ptr<Peer> get(jlong id) {
     return it->second;
 }
 std::string string(JNIEnv *env, jstring value) {
-    const char *chars = env->GetStringUTFChars(value, nullptr);
+    const jchar *chars = env->GetStringChars(value, nullptr);
     if (!chars) throw std::runtime_error("Unable to read JNI string");
-    std::string result(chars);
-    env->ReleaseStringUTFChars(value, chars);
-    return result;
+    std::u16string input(reinterpret_cast<const char16_t *>(chars), env->GetStringLength(value));
+    env->ReleaseStringChars(value, chars);
+    return std::wstring_convert<std::codecvt_utf8_utf16<char16_t>, char16_t>{}.to_bytes(input);
 }
 void error(JNIEnv *env, const std::exception &ex) {
     if (!env->ExceptionCheck()) env->ThrowNew(env->FindClass("java/lang/IllegalStateException"), ex.what());
 }
-void track(const std::shared_ptr<Peer> &p, bool audio, bool publishing) {
-    auto direction = publishing ? rtc::Description::Direction::SendOnly : rtc::Description::Direction::RecvOnly;
+void configureChannel(const std::shared_ptr<Peer> &p, std::shared_ptr<rtc::DataChannel> channel) {
+    std::lock_guard<std::mutex> guard(p->channelMutex);
+    // The session exposes one text channel. Do not replace it with a remotely opened channel.
+    if (p->channel) { channel->close(); return; }
+    p->channel = std::move(channel);
+    std::weak_ptr<Peer> weak = p;
+    p->channel->onOpen([weak] { if (auto p = weak.lock()) p->event(6); });
+    p->channel->onClosed([weak] { if (auto p = weak.lock()) p->event(2, 0, "Data channel closed"); });
+    p->channel->onError([weak](std::string message) { if (auto p = weak.lock()) p->event(2, 0, message); });
+    p->channel->onMessage([weak](rtc::message_variant message) {
+        if (auto text = std::get_if<std::string>(&message)) {
+            if (text->size() > 1024 * 1024) {
+                if (auto p = weak.lock()) p->event(2, 0, "Data message exceeds 1 MiB");
+            } else if (auto p = weak.lock()) p->event(7, 0, *text);
+        }
+    });
+}
+void track(const std::shared_ptr<Peer> &p, bool audio, bool publishing, bool duplex = false) {
+    auto direction = duplex ? rtc::Description::Direction::SendRecv : publishing ? rtc::Description::Direction::SendOnly : rtc::Description::Direction::RecvOnly;
     rtc::Description::Media media = [&]() -> rtc::Description::Media {
         if (audio) {
             rtc::Description::Audio description("audio", direction);
@@ -97,6 +122,7 @@ void track(const std::shared_ptr<Peer> &p, bool audio, bool publishing) {
     std::weak_ptr<Peer> weak = p;
     t->onOpen([weak, audio] { if (auto p = weak.lock()) p->event(5, audio ? 1 : 0); });
     t->onError([weak](std::string message) { if (auto p = weak.lock()) p->event(2, 0, message); });
+    std::shared_ptr<rtc::MediaHandler> sender;
     if (publishing) {
         auto config = std::make_shared<rtc::RtpPacketizationConfig>(ssrc, "haishinkit", audio ? 111 : 96, audio ? 48000 : 90000);
         std::shared_ptr<rtc::MediaHandler> handler;
@@ -109,8 +135,10 @@ void track(const std::shared_ptr<Peer> &p, bool audio, bool publishing) {
             handler->addToChain(std::make_shared<rtc::PliHandler>([weak] { if (auto p = weak.lock()) p->event(3); }));
             handler->addToChain(std::make_shared<rtc::RembHandler>([weak](unsigned int bitrate) { if (auto p = weak.lock()) p->event(4, static_cast<int>(std::min(bitrate, 2147483647u))); }));
         }
+        sender = handler;
         t->setMediaHandler(handler);
-    } else {
+    }
+    if (!publishing || duplex) {
         std::shared_ptr<rtc::MediaHandler> handler;
         if (audio) handler = std::make_shared<rtc::OpusRtpDepacketizer>();
         else handler = std::make_shared<BoundedH264Depacketizer>();
@@ -118,7 +146,8 @@ void track(const std::shared_ptr<Peer> &p, bool audio, bool publishing) {
         // Incoming handlers run tail-first: count valid RTP (including padding
         // probes) in receiver reports before stripping the codec payload.
         handler->addToChain(std::make_shared<rtc::RtcpReceivingSession>());
-        t->setMediaHandler(handler);
+        if (sender) sender->addToChain(handler);
+        else t->setMediaHandler(handler);
         t->onFrame([weak, audio](rtc::binary data, rtc::FrameInfo info) {
             if (auto p = weak.lock()) p->frame(audio, data, info.timestamp);
         });
@@ -126,7 +155,7 @@ void track(const std::shared_ptr<Peer> &p, bool audio, bool publishing) {
 }
 }
 extern "C" JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *value, void *) { vm = value; return JNI_VERSION_1_6; }
-extern "C" JNIEXPORT jlong JNICALL Java_com_haishinkit_rtc_NativePeer_create(JNIEnv *env, jobject object, jboolean publishing, jboolean audio, jboolean video, jobjectArray servers) {
+extern "C" JNIEXPORT jlong JNICALL Java_com_haishinkit_rtc_NativePeer_create(JNIEnv *env, jobject object, jboolean publishing, jboolean audio, jboolean video, jobjectArray servers, jboolean duplex, jstring channelLabel) {
     try {
         auto p = std::make_shared<Peer>(env, object);
         rtc::Configuration config;
@@ -148,8 +177,13 @@ extern "C" JNIEXPORT jlong JNICALL Java_com_haishinkit_rtc_NativePeer_create(JNI
                 }
             }
         });
-        if (audio) track(p, true, publishing);
+        if (duplex) p->pc->onDataChannel([weak](std::shared_ptr<rtc::DataChannel> channel) {
+            if (auto p = weak.lock()) configureChannel(p, std::move(channel));
+        });
+        if (audio) track(p, true, publishing, duplex);
         if (video) track(p, false, publishing);
+        const auto label = string(env, channelLabel);
+        if (!label.empty()) configureChannel(p, p->pc->createDataChannel(label));
         auto id = nextId++;
         std::lock_guard<std::mutex> guard(registryMutex);
         peers.emplace(id, p);
@@ -190,5 +224,22 @@ extern "C" JNIEXPORT void JNICALL Java_com_haishinkit_rtc_NativePeer_destroy(JNI
             peers.erase(it);
         }
         p->pc->close();
+    } catch (const std::exception &ex) { error(env, ex); }
+}
+extern "C" JNIEXPORT void JNICALL Java_com_haishinkit_rtc_NativePeer_sendMessage(JNIEnv *env, jobject, jlong id, jstring text) {
+    try {
+        auto p = get(id);
+        std::shared_ptr<rtc::DataChannel> channel;
+        {
+            std::lock_guard<std::mutex> guard(p->channelMutex);
+            channel = p->channel;
+        }
+        if (!channel || !channel->isOpen()) throw std::runtime_error("Data channel is not open");
+        auto message = string(env, text);
+        if (message.size() > 1024 * 1024) throw std::runtime_error("Data message exceeds 1 MiB");
+        if (channel->bufferedAmount() + message.size() > 4 * 1024 * 1024)
+            throw std::runtime_error("Data channel send buffer is full");
+        // A false return means buffered, not rejected. Do not ask the caller to resend it.
+        channel->send(message);
     } catch (const std::exception &ex) { error(env, ex); }
 }

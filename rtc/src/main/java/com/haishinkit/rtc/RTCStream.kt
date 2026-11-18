@@ -2,6 +2,7 @@ package com.haishinkit.rtc
 
 import android.content.Context
 import android.graphics.Rect
+import android.media.AudioAttributes
 import android.media.MediaCodec
 import android.media.MediaCodecInfo
 import android.media.MediaFormat
@@ -38,6 +39,8 @@ import java.util.concurrent.atomic.AtomicLong
 class RTCStream internal constructor(context: Context, private val stop: () -> Unit) : Stream(context) {
     /** Tracks offered for WHIP. Set before connecting; an empty set derives them from the mixer. */
     var expectedMedias: Set<MediaType> = emptySet()
+
+    internal var audioUsage = AudioAttributes.USAGE_MEDIA
 
     @Volatile private var current: Run? = null
 
@@ -360,7 +363,7 @@ class RTCStream internal constructor(context: Context, private val stop: () -> U
                 if (run.publishing && mime == MediaFormat.MIMETYPE_VIDEO_AVC) {
                     configuration = (0..1).flatMap { mediaFormat.getByteBuffer("csd-$it")?.let { data -> H264.units(copy(data)) } ?: emptyList() }
                 } else if (!run.publishing && mime == MediaFormat.MIMETYPE_AUDIO_RAW) {
-                    mediaLink.audioTrack = MediaFormatUtil.createAudioTrack(mediaFormat)
+                    mediaLink.audioTrack = MediaFormatUtil.createAudioTrack(mediaFormat, audioUsage)
                 } else if (!run.publishing && mime == MediaFormat.MIMETYPE_VIDEO_RAW) {
                     val size = Size(MediaFormatUtil.getWidth(mediaFormat), MediaFormatUtil.getHeight(mediaFormat))
                     screen.frame = Rect(0, 0, size.width, size.height)

@@ -11,6 +11,56 @@ import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
 
 class NativePeerTest {
+    @Test fun duplexOpusAndUnicodeDataChannelRoundTrip() {
+        assumeTrue("Enable native integration tests", System.getProperty("haishinkit.rtc.nativeTests") == "true" || System.getProperty("java.vm.name") == "Dalvik")
+        val offers = LinkedBlockingQueue<String>()
+        val answers = LinkedBlockingQueue<String>()
+        val ready = CountDownLatch(4)
+        val leftAudio = LinkedBlockingQueue<ByteArray>()
+        val rightAudio = LinkedBlockingQueue<ByteArray>()
+        val leftText = LinkedBlockingQueue<String>()
+        val rightText = LinkedBlockingQueue<String>()
+        val failures = LinkedBlockingQueue<String>()
+
+        fun event(
+            sdp: LinkedBlockingQueue<String>,
+            messages: LinkedBlockingQueue<String>,
+        ): (Int, Int, String) -> Unit = { kind, _, text ->
+            when (kind) {
+                NativePeer.SDP -> sdp.offer(text)
+                NativePeer.TRACK_OPEN, NativePeer.DATA_OPEN -> ready.countDown()
+                NativePeer.DATA_TEXT -> messages.offer(text)
+                NativePeer.ERROR -> failures.offer(text)
+            }
+        }
+        val left = NativePeer(true, true, false, emptyArray(), event(offers, leftText), { _, data, _ -> leftAudio.offer(data) }, true, "test-events")
+        val right = NativePeer(true, true, false, emptyArray(), event(answers, rightText), { _, data, _ -> rightAudio.offer(data) }, true)
+        try {
+            left.offer()
+            right.acceptOffer(requireNotNull(offers.poll(10, TimeUnit.SECONDS)))
+            val answer = requireNotNull(answers.poll(10, TimeUnit.SECONDS))
+            assertEquals(setOf("audio"), SDP.validateAnswer(answer, false, true, false, duplex = true))
+            assertThrows(IllegalArgumentException::class.java) { SDP.validateAnswer(answer, true, true, false) }
+            left.answer(answer)
+            assertTrue("Tracks/data channel did not open: $failures", ready.await(15, TimeUnit.SECONDS))
+            val opus = byteArrayOf(0xf8.toByte(), 0xff.toByte(), 0xfe.toByte())
+            left.send(true, opus, 1_000_000)
+            right.send(true, opus, 1_000_000)
+            assertArrayEquals(opus, leftAudio.poll(5, TimeUnit.SECONDS))
+            assertArrayEquals(opus, rightAudio.poll(5, TimeUnit.SECONDS))
+            val message = "日本語の会話 🎙️" + 0.toChar() + "끝"
+            left.sendText(message)
+            right.sendText(message)
+            assertEquals(message, leftText.poll(5, TimeUnit.SECONDS))
+            assertEquals(message, rightText.poll(5, TimeUnit.SECONDS))
+            assertTrue(failures.toString(), failures.isEmpty())
+        } finally {
+            left.close()
+            right.close()
+        }
+        assertThrows(IllegalStateException::class.java) { left.sendText("closed") }
+    }
+
     @Test fun h264AndOpusRoundTripOverIceDtlsSrtp() {
         assumeTrue("Set -PrtcNativeLibraryDir to run native integration tests", System.getProperty("haishinkit.rtc.nativeTests") == "true" || System.getProperty("java.vm.name") == "Dalvik")
         val offers = LinkedBlockingQueue<String>()

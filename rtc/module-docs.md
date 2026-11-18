@@ -13,3 +13,9 @@ Adaptive jitter buffering, TWCC/GCC and ICE restart are not included.
 The Android 10+ sample app accepts separate WHIP and WHEP endpoints in Preference,
 with optional bearer authentication and STUN/TURN URLs. Publish starts WHIP and
 Playback starts WHEP. Sample capture and recording use 48 kHz audio.
+
+`RTCDuplexSession` provides audio-only bidirectional Opus and a reliable text data
+channel with application-provided SDP signaling. Its outgoing and incoming streams
+use independent codecs. Capture, routing and microphone permission belong to the
+host; cancellation releases transport and playback. This backend does not include
+libwebrtc software echo cancellation.

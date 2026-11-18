@@ -19,14 +19,21 @@ internal object SDP {
         }
     }
 
-    fun media(sdp: String): List<Media> {
+    fun media(
+        sdp: String,
+        allowDataChannel: Boolean = false,
+    ): List<Media> {
         require(sdp.length <= 1024 * 1024) { "SDP is too large" }
         val sections = sdp.replace("\r\n", "\n").split("\nm=")
         require(sections.first().lineSequence().first() == "v=0") { "Invalid SDP" }
         val sessionDirection = sections.first().lines().firstOrNull { it in directions }
-        return sections.drop(1).map { section ->
+        return sections.drop(1).mapNotNull { section ->
             val lines = section.lines()
             val fields = lines.first().trim().split(Regex("\\s+"))
+            if (allowDataChannel && fields.firstOrNull() == "application") {
+                require(fields.size == 4 && fields[2] == "UDP/DTLS/SCTP" && fields[3] == "webrtc-datachannel" && fields[1].toInt() != 0) { "Data channel was rejected" }
+                return@mapNotNull null
+            }
             require(fields.size >= 4 && fields[2] == "UDP/TLS/RTP/SAVPF") { "Unsupported SDP media transport" }
             val attributes = lines.drop(1)
             val inherited = if (attributes.none { it in directions } && sessionDirection != null) listOf(sessionDirection) else emptyList()
@@ -89,8 +96,9 @@ internal object SDP {
         publishing: Boolean,
         audio: Boolean,
         video: Boolean,
+        duplex: Boolean = false,
     ): Set<String> {
-        val media = media(sdp)
+        val media = media(sdp, allowDataChannel = duplex)
         require(media.map { it.kind }.distinct().size == media.size) { "Duplicate media sections" }
         val active = mutableSetOf<String>()
         for (section in media) {
@@ -99,7 +107,16 @@ internal object SDP {
             require("a=mid:${section.kind}" in section.lines) { "Answer changed media ID" }
             if (section.port == 0 || "a=inactive" in section.lines) continue
             val direction = section.lines.firstOrNull { it in setOf("a=sendonly", "a=recvonly", "a=sendrecv") } ?: "a=sendrecv"
-            require(direction == if (publishing) "a=recvonly" else "a=sendonly") { "Answer has incompatible media direction" }
+            require(
+                direction ==
+                    if (duplex) {
+                        "a=sendrecv"
+                    } else if (publishing) {
+                        "a=recvonly"
+                    } else {
+                        "a=sendonly"
+                    },
+            ) { "Answer has incompatible media direction" }
             val payload = if (isAudio) 111 else 96
             val codec = if (isAudio) "opus/48000/2" else "H264/90000"
             require(payload in section.payloads && section.lines.any { it.equals("a=rtpmap:$payload $codec", true) }) { "Server did not select $codec" }

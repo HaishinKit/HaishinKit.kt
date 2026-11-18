@@ -151,3 +151,24 @@ Host native tests also exercise bounded H.264 input retention/recovery and padde
 cmake --build /path/to/native-build --target rtc_media_test
 ctest --test-dir /path/to/native-build --output-on-failure
 ```
+
+## Bidirectional audio and text data channels
+
+`RTCDuplexSession` is an audio-only `sendrecv` connection independent of WHIP/WHEP.
+Its suspending `run` function accepts an SDP-exchange callback, a data-channel label,
+text-event and connected callbacks. It stays active until cancellation or failure.
+Register `outgoing` with a 48 kHz capture mixer; `incoming` plays decoded Opus with
+voice-communication audio attributes. The streams have independent codecs, so
+received audio cannot enter the outgoing encoder. `send` sends reliable text once
+the connected callback runs. Binary messages are ignored.
+
+The caller owns permission, microphone capture, communication audio routing, and
+the job running the session. Cancel and join that job before releasing capture.
+Closing either stream also cancels the session. Create a new session for each call;
+`run` releases both streams on exit. Call `dispose()` if abandoning an instance
+before `run` starts. Stop the capture mixer separately on failure or cancellation.
+
+This backend does not include libwebrtc's software echo cancellation. Use headphones
+until speaker echo and device-specific voice processing have been validated.
+The host-native `NativePeerTest.duplexOpusAndUnicodeDataChannelRoundTrip` exercises
+both audio directions plus Japanese, emoji and embedded-NUL text over ICE/DTLS.
