@@ -38,6 +38,9 @@ import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -268,10 +271,16 @@ fun CameraScreen(
                         ) {
                             Text(if (torch) "Torch ON" else "Torch OFF")
                         }
-                        Text("Zoom: %.1fx".format(zoom), color = Color.White)
+                        val zoomDescription = "%.1fx".format(zoom)
+                        Text("Zoom: $zoomDescription", color = Color.White)
                         val range = source.zoomRatioRange
                         if (range.upper > range.lower) {
                             androidx.compose.material3.Slider(
+                                modifier =
+                                    Modifier.semantics {
+                                        contentDescription = "Zoom"
+                                        stateDescription = zoomDescription
+                                    },
                                 value = zoom,
                                 onValueChange = {
                                     zoom = it
