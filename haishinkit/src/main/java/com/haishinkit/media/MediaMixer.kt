@@ -163,9 +163,6 @@ class MediaMixer(
                 videos.keys.forEach { track ->
                     previous[track]?.let { closeVideo(track, it) }
                 }
-                replacements.values.filterIsInstance<Camera2Source>().forEach {
-                    it.isTorchEnabled = isToucheEnabled
-                }
                 if (isRunning.get()) openVideos(replacements).getOrThrow()
                 // Only camera frames are sensor-relative; projection and decoded frames
                 // already carry their source orientation and must not rotate again.

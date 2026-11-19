@@ -35,16 +35,36 @@ import java.util.concurrent.atomic.AtomicBoolean
 @RunWith(RobolectricTestRunner::class)
 class MediaMixerTest {
     @Test
+    fun attachingCameraPreservesItsTorchSetting() {
+        withMixer(running = false) { mixer ->
+            val source = Camera2Source(RuntimeEnvironment.getApplication()).apply { isTorchEnabled = true }
+            mixer.attachVideo(0, source).getOrThrow()
+            assertTrue(source.isTorchEnabled)
+            mixer.isToucheEnabled = false
+            assertFalse(source.isTorchEnabled)
+        }
+    }
+
+    @Test
     fun startupRefreshesDefaultVideoBeforeQueuedScreenInsertion() {
         var queuedChild: ScreenObject? = null
         withMixer(
             running = false,
             screenFactory = { context ->
                 object : Screen(context) {
-                    override fun addChild(child: ScreenObject?) { queuedChild = child }
-                    override fun attachVideo(track: Int, video: VideoSource?) {}
+                    override fun addChild(child: ScreenObject?) {
+                        queuedChild = child
+                    }
+
+                    override fun attachVideo(
+                        track: Int,
+                        video: VideoSource?,
+                    ) {}
+
                     override fun readPixels(lambda: (Bitmap?) -> Unit) {}
+
                     override fun bind(screenObject: ScreenObject) {}
+
                     override fun unbind(screenObject: ScreenObject) {}
                 }
             },
