@@ -8,11 +8,8 @@ import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.calculateCentroid
 import androidx.compose.foundation.gestures.calculateZoom
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -223,145 +220,145 @@ fun CameraScreen(
                 onDelete = { viewModel.removeFocusedScreenObject() },
             )
 
-            Column(
+            PublishControls(
                 modifier =
                     Modifier
                         .fillMaxSize()
                         .safeDrawingPadding()
                         .padding(8.dp)
                         .alpha(0.8F),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                CameraDeviceControllerView(
-                    camera = selectedCamera,
-                    cameras = cameraList,
-                    onCameraSelected = { camera ->
-                        viewModel.selectCameraDevice(camera)
-                    },
-                    onAudioPermissionStatus = { state ->
-                        when (state.status) {
-                            PermissionStatus.Granted -> {
-                                viewModel.selectAudioDevice()
-                            }
-
-                            is PermissionStatus.Denied -> {
-                                // viewModel.selectAudioDevice(null)
-                            }
-                        }
-                    },
-                    onVideoPermissionStatus = { state ->
-                        when (state.status) {
-                            PermissionStatus.Granted -> {
-                                viewModel.selectCameraDevice(viewModel.selectedCamera.value, retry = false)
-                            }
-
-                            is PermissionStatus.Denied -> {
-                            }
-                        }
-                    },
-                )
-                viewModel.mainCameraSource?.let { source ->
-                    var torch by remember(source) { mutableStateOf(source.isTorchEnabled) }
-                    var zoom by remember(source) { mutableStateOf(source.zoomRatioRange.clamp(source.zoomRatio)) }
-                    androidx.compose.material3.Button(
-                        enabled = source.isTorchSupported,
-                        onClick = {
-                            torch = !torch
-                            source.isTorchEnabled = torch
+                settings = {
+                    CameraDeviceControllerView(
+                        camera = selectedCamera,
+                        cameras = cameraList,
+                        onCameraSelected = { camera ->
+                            viewModel.selectCameraDevice(camera)
                         },
-                    ) {
-                        Text(if (torch) "Torch ON" else "Torch OFF")
-                    }
-                    Text("Zoom: %.1fx".format(zoom), color = Color.White)
-                    val range = source.zoomRatioRange
-                    if (range.upper > range.lower) {
-                        androidx.compose.material3.Slider(
-                            value = zoom,
-                            onValueChange = {
-                                zoom = it
-                                source.zoomRatio = it
-                            },
-                            valueRange = range.lower..range.upper,
-                        )
-                    }
-                }
-                Spacer(modifier = Modifier.weight(1f))
-
-                HorizontalPager(
-                    state = pagerState,
-                    contentPadding = PaddingValues(end = 0.dp),
-                    modifier = Modifier.fillMaxWidth(),
-                ) { page ->
-                    val item = viewModel.videoEffectItems[page]
-                    Box(
-                        modifier = Modifier.fillMaxWidth(),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text(
-                            text = item.name,
-                            color = Color.White,
-                            textAlign = TextAlign.Center,
-                            modifier =
-                                Modifier
-                                    .align(alignment = Alignment.Center)
-                                    .background(
-                                        color = Color.Black,
-                                        shape = RoundedCornerShape(20.dp),
-                                    )
-                                    .padding(8.dp, 0.dp),
-                        )
-                    }
-                }
-
-                HorizontalPagerIndicator(
-                    pagerState = pagerState,
-                    pageCount = viewModel.videoEffectItems.size,
-                    modifier =
-                        Modifier
-                            .align(Alignment.CenterHorizontally)
-                            .padding(32.dp),
-                )
-
-                CameraControllerView(
-                    isRecording = recorderState.isRecording,
-                    isConnected = sessionActive,
-                    readyState = sessionReadyState,
-                    canCancelConnection = sessionState.stream is SrtStream || sessionState.stream is RTCStream,
-                    onClickScreenShot = {
-                        viewModel.takeSnapShot(context)
-                    },
-                    onClickConnect = {
-                        scope.launch {
-                            if (sessionActive) {
-                                sessionState.close().onFailure { Toast.makeText(context, it.message, Toast.LENGTH_LONG).show() }
-                            } else {
-                                viewModel.sessionError?.let {
-                                    Toast.makeText(context, it, Toast.LENGTH_SHORT).show()
-                                    return@launch
+                        onAudioPermissionStatus = { state ->
+                            when (state.status) {
+                                PermissionStatus.Granted -> {
+                                    viewModel.selectAudioDevice()
                                 }
-                                sessionState.connect().onFailure {
-                                    Toast
-                                        .makeText(context, it.message, Toast.LENGTH_SHORT)
-                                        .show()
+
+                                is PermissionStatus.Denied -> {
+                                    // viewModel.selectAudioDevice(null)
                                 }
                             }
+                        },
+                        onVideoPermissionStatus = { state ->
+                            when (state.status) {
+                                PermissionStatus.Granted -> {
+                                    viewModel.selectCameraDevice(viewModel.selectedCamera.value, retry = false)
+                                }
+
+                                is PermissionStatus.Denied -> {
+                                }
+                            }
+                        },
+                    )
+                    viewModel.mainCameraSource?.let { source ->
+                        var torch by remember(source) { mutableStateOf(source.isTorchEnabled) }
+                        var zoom by remember(source) { mutableStateOf(source.zoomRatioRange.clamp(source.zoomRatio)) }
+                        androidx.compose.material3.Button(
+                            enabled = source.isTorchSupported,
+                            onClick = {
+                                torch = !torch
+                                source.isTorchEnabled = torch
+                            },
+                        ) {
+                            Text(if (torch) "Torch ON" else "Torch OFF")
                         }
-                    },
-                    onClickRecording = {
-                        if (recorderState.isRecording) {
-                            recorderState.stopRecording()
-                        } else {
-                            recorderState.startRecording(
-                                File(
-                                    Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
-                                    "output.mp4",
-                                ).toString(),
-                                MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4,
+                        Text("Zoom: %.1fx".format(zoom), color = Color.White)
+                        val range = source.zoomRatioRange
+                        if (range.upper > range.lower) {
+                            androidx.compose.material3.Slider(
+                                value = zoom,
+                                onValueChange = {
+                                    zoom = it
+                                    source.zoomRatio = it
+                                },
+                                valueRange = range.lower..range.upper,
                             )
                         }
-                    },
-                )
-            }
+                    }
+
+                    HorizontalPager(
+                        state = pagerState,
+                        contentPadding = PaddingValues(end = 0.dp),
+                        modifier = Modifier.fillMaxWidth(),
+                    ) { page ->
+                        val item = viewModel.videoEffectItems[page]
+                        Box(
+                            modifier = Modifier.fillMaxWidth(),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text(
+                                text = item.name,
+                                color = Color.White,
+                                textAlign = TextAlign.Center,
+                                modifier =
+                                    Modifier
+                                        .align(alignment = Alignment.Center)
+                                        .background(
+                                            color = Color.Black,
+                                            shape = RoundedCornerShape(20.dp),
+                                        )
+                                        .padding(8.dp, 0.dp),
+                            )
+                        }
+                    }
+
+                    HorizontalPagerIndicator(
+                        pagerState = pagerState,
+                        pageCount = viewModel.videoEffectItems.size,
+                        modifier =
+                            Modifier
+                                .align(Alignment.CenterHorizontally)
+                                .padding(32.dp),
+                    )
+                },
+                actions = {
+                    CameraControllerView(
+                        isRecording = recorderState.isRecording,
+                        isConnected = sessionActive,
+                        readyState = sessionReadyState,
+                        canCancelConnection = sessionState.stream is SrtStream || sessionState.stream is RTCStream,
+                        onClickScreenShot = {
+                            viewModel.takeSnapShot(context)
+                        },
+                        onClickConnect = {
+                            scope.launch {
+                                if (sessionActive) {
+                                    sessionState.close().onFailure { Toast.makeText(context, it.message, Toast.LENGTH_LONG).show() }
+                                } else {
+                                    viewModel.sessionError?.let {
+                                        Toast.makeText(context, it, Toast.LENGTH_SHORT).show()
+                                        return@launch
+                                    }
+                                    sessionState.connect().onFailure {
+                                        Toast
+                                            .makeText(context, it.message, Toast.LENGTH_SHORT)
+                                            .show()
+                                    }
+                                }
+                            }
+                        },
+                        onClickRecording = {
+                            if (recorderState.isRecording) {
+                                recorderState.stopRecording()
+                            } else {
+                                recorderState.startRecording(
+                                    File(
+                                        Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
+                                        "output.mp4",
+                                    ).toString(),
+                                    MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4,
+                                )
+                            }
+                        },
+                    )
+                },
+            )
         }
     }
 }

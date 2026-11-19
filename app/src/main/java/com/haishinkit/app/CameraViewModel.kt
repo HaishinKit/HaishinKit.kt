@@ -206,7 +206,7 @@ class CameraViewModel(
                 cameraLock.withLock {
                     if (target !== frontCameraObject) return@withLock
                     val camera = _selectedCamera.value ?: return@withLock
-                    val source = Camera2Source(application.applicationContext, camera.id)
+                    val source = mainCameraSource.replacement(application.applicationContext, camera.id)
                     mixer.attachVideos(mapOf(0 to source, FRONT_CAMERA_TRACK to null)).onSuccess {
                         mainCameraSource = source
                         removeFrontCameraObject()
@@ -352,7 +352,7 @@ class CameraViewModel(
                 frame = Rect(0, 0, 240, 180)
             }
         val maximumSize = Size(1280, 720)
-        val mainSource = Camera2Source(context, mainCamera.id).apply { this.maximumSize = maximumSize }
+        val mainSource = mainCameraSource.replacement(context, mainCamera.id, maximumSize)
         val result =
             mixer.attachVideos(
                 mapOf(
