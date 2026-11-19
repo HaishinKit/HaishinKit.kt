@@ -176,3 +176,19 @@ This backend does not include libwebrtc's software echo cancellation. Use headph
 until speaker echo and device-specific voice processing have been validated.
 The host-native `NativePeerTest.duplexOpusAndUnicodeDataChannelRoundTrip` exercises
 both audio directions plus Japanese, emoji and embedded-NUL text over ICE/DTLS.
+
+## WebSocket
+
+`RTCWebSocket` exposes libdatachannel's WebSocket engine without an HTTP client
+runtime dependency. Create an instance per connection, call suspending `connect`
+with a `ws://` or `wss://` URL, then `send(String)` and suspending `receive()`.
+Messages expose UTF-8 `text`, raw `data` and `isBinary`. Call `close()` in a
+`finally` block; cancellation during `connect` also releases the native socket.
+
+TLS and hostname verification are always enabled. WSS uses platform trust anchors
+by default. An optional PEM CA bundle can be supplied for private trust domains.
+Receive buffering is limited to 64 messages, individual frames and native outgoing
+buffering to 1 MiB. A slow consumer or transport error terminates receive with an
+exception. The caller must then close the socket and create a new instance.
+Native loopback tests cover Unicode/binary frames, trusted WSS, hostname rejection
+and opening cancellation. MockWebServer and okhttp-tls are test dependencies only.
