@@ -12,8 +12,13 @@ internal fun Camera2Source?.replacement(
 ): Camera2Source =
     Camera2Source(context, cameraId).also { replacement ->
         replacement.maximumSize = maximumSize
-        if (this?.cameraId == cameraId) {
-            replacement.isTorchEnabled = isTorchEnabled
-            replacement.zoomRatio = zoomRatio
-        }
+        replacement.copyRequestedControlsFrom(this)
     }
+
+/** Read again after attachment, since opening the replacement suspends. */
+internal fun Camera2Source.copyRequestedControlsFrom(previous: Camera2Source?) {
+    if (previous?.cameraId == cameraId) {
+        isTorchEnabled = previous.isTorchEnabled
+        zoomRatio = previous.zoomRatio
+    }
+}

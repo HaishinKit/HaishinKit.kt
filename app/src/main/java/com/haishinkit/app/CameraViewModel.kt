@@ -208,6 +208,7 @@ class CameraViewModel(
                     val camera = _selectedCamera.value ?: return@withLock
                     val source = mainCameraSource.replacement(application.applicationContext, camera.id)
                     mixer.attachVideos(mapOf(0 to source, FRONT_CAMERA_TRACK to null)).onSuccess {
+                        source.copyRequestedControlsFrom(mainCameraSource)
                         mainCameraSource = source
                         removeFrontCameraObject()
                     }
@@ -362,6 +363,7 @@ class CameraViewModel(
             )
         if (result.isFailure) return "Could not start the front camera."
 
+        mainSource.copyRequestedControlsFrom(mainCameraSource)
         mainCameraSource = mainSource
         frontCameraObject = overlay
         screenObjectDragController.register(overlay, position)

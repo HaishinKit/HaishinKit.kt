@@ -33,6 +33,19 @@ class CameraSourceReplacementTest {
     }
 
     @Test
+    fun changesWhileReplacementOpensAreReadAgainBeforePublishingIt() {
+        val context = RuntimeEnvironment.getApplication()
+        val original = Camera2Source(context, "0")
+        val replacement = original.replacement(context, "0")
+        // UI changes arrive while attachVideos is suspended opening the replacement.
+        original.isTorchEnabled = true
+        original.zoomRatio = 3f
+        replacement.copyRequestedControlsFrom(original)
+        assertTrue(replacement.isTorchEnabled)
+        assertEquals(3f, replacement.zoomRatio)
+    }
+
+    @Test
     fun anotherCameraDoesNotInheritControls() {
         val context = RuntimeEnvironment.getApplication()
         val original =
