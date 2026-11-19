@@ -62,6 +62,9 @@ class CameraViewModel(
             return cameraDeviceManager.deviceList
         }
 
+    var mainCameraSource: Camera2Source? by mutableStateOf(null)
+        private set
+
     val recorder: MediaRecorder = MediaRecorder(application.applicationContext)
     val selectedCamera: StateFlow<CameraDevice?>
         get() = _selectedCamera.asStateFlow()
@@ -205,6 +208,7 @@ class CameraViewModel(
                     val camera = _selectedCamera.value ?: return@withLock
                     val source = Camera2Source(application.applicationContext, camera.id)
                     mixer.attachVideos(mapOf(0 to source, FRONT_CAMERA_TRACK to null)).onSuccess {
+                        mainCameraSource = source
                         removeFrontCameraObject()
                     }
                 }
@@ -241,6 +245,7 @@ class CameraViewModel(
                 val source = if (permissionGranted) cameraDevice?.let { Camera2Source(context, it.id) } else null
                 mixer.attachVideos(mapOf(0 to source, FRONT_CAMERA_TRACK to null)).onSuccess {
                     _selectedCamera.value = cameraDevice
+                    mainCameraSource = source
                     removeFrontCameraObject()
                 }
             }
@@ -347,15 +352,17 @@ class CameraViewModel(
                 frame = Rect(0, 0, 240, 180)
             }
         val maximumSize = Size(1280, 720)
+        val mainSource = Camera2Source(context, mainCamera.id).apply { this.maximumSize = maximumSize }
         val result =
             mixer.attachVideos(
                 mapOf(
-                    0 to Camera2Source(context, mainCamera.id).apply { this.maximumSize = maximumSize },
+                    0 to mainSource,
                     FRONT_CAMERA_TRACK to Camera2Source(context, frontCamera.id).apply { this.maximumSize = maximumSize },
                 ),
             )
         if (result.isFailure) return "Could not start the front camera."
 
+        mainCameraSource = mainSource
         frontCameraObject = overlay
         screenObjectDragController.register(overlay, position)
         mixer.screen.addChild(overlay)

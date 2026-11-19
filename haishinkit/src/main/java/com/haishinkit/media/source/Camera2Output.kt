@@ -15,6 +15,7 @@ import android.os.Build
 import android.os.Handler
 import android.os.HandlerThread
 import android.util.Log
+import android.util.Range
 import android.util.Size
 import android.view.Surface
 import com.haishinkit.BuildConfig
@@ -26,15 +27,23 @@ import kotlin.coroutines.resume
 
 internal class Camera2Output(
     val context: Context,
-    val source: VideoSource,
+    val source: Camera2Source,
     private val cameraId: String,
 ) : CameraDevice.StateCallback() {
     var isDisconnected: Boolean = false
         private set
-    val isTouchSupported: Boolean
+    val isTorchSupported: Boolean
         get() {
             return characteristics?.get(CameraCharacteristics.FLASH_INFO_AVAILABLE) == true
         }
+    val zoomRatioRange: Range<Float>
+        get() =
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                characteristics?.get(CameraCharacteristics.CONTROL_ZOOM_RATIO_RANGE)
+                    ?: Range(1f, characteristics?.get(CameraCharacteristics.SCALER_AVAILABLE_MAX_DIGITAL_ZOOM) ?: 1f)
+            } else {
+                Range(1f, characteristics?.get(CameraCharacteristics.SCALER_AVAILABLE_MAX_DIGITAL_ZOOM) ?: 1f)
+            }
     val imageOrientation: ImageOrientation
         get() {
             return when (characteristics?.get(CameraCharacteristics.SENSOR_ORIENTATION)) {
@@ -45,6 +54,7 @@ internal class Camera2Output(
                 else -> ImageOrientation.UP
             }
         }
+    private val controlLock = Any()
     private var device: CameraDevice? = null
         set(value) {
             if (field == value) return
@@ -81,92 +91,121 @@ internal class Camera2Output(
             }
         }
 
-    fun close(): Result<Unit> {
-        previewRequestBuilder = null
-        device = null
-        session = null
-        return Result.success(Unit)
-    }
+    fun close(): Result<Unit> =
+        synchronized(controlLock) {
+            previewRequestBuilder = null
+            device = null
+            session = null
+            return Result.success(Unit)
+        }
 
-    fun setTorchEnabled(enable: Boolean) {
-        if (!isTouchSupported) return
-        val builder = previewRequestBuilder ?: return
-        builder.set<Int>(
-            CaptureRequest.FLASH_MODE,
-            if (enable) {
-                CaptureRequest.FLASH_MODE_TORCH
+    fun updateControls() =
+        synchronized(controlLock) {
+            val builder = previewRequestBuilder ?: return@synchronized
+            if (isTorchSupported) {
+                builder.set(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_ON)
+                builder.set(CaptureRequest.FLASH_MODE, if (source.isTorchEnabled) CaptureRequest.FLASH_MODE_TORCH else CaptureRequest.FLASH_MODE_OFF)
+            }
+            val ratio = zoomRatioRange.clamp(source.zoomRatio)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && characteristics?.get(CameraCharacteristics.CONTROL_ZOOM_RATIO_RANGE) != null) {
+                builder.set(CaptureRequest.CONTROL_ZOOM_RATIO, ratio)
             } else {
-                CaptureRequest.FLASH_MODE_OFF
-            },
-        )
-        session?.setRepeatingRequest(
-            builder.build(),
-            null,
-            null,
-        )
-    }
+                characteristics?.get(CameraCharacteristics.SENSOR_INFO_ACTIVE_ARRAY_SIZE)?.let { sensor ->
+                    val width = (sensor.width() / ratio).toInt().coerceAtLeast(1)
+                    val height = (sensor.height() / ratio).toInt().coerceAtLeast(1)
+                    val left = sensor.left + (sensor.width() - width) / 2
+                    val top = sensor.top + (sensor.height() - height) / 2
+                    builder.set(CaptureRequest.SCALER_CROP_REGION, Rect(left, top, left + width, top + height))
+                }
+            }
+            try {
+                session?.setRepeatingRequest(builder.build(), null, null)
+            } catch (e: android.hardware.camera2.CameraAccessException) {
+                Log.e(TAG, "Unable to update camera controls", e)
+            } catch (e: IllegalStateException) {
+                Log.e(TAG, "Camera session is closed", e)
+            }
+        }
 
-    fun createCaptureSession(surface: Surface) {
-        val device = device ?: return
-        previewRequestBuilder =
-            device
-                .createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW)
-                .apply {
-                    addTarget(surface)
-                }
-        val request = previewRequestBuilder?.build() ?: return
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            val outputList =
-                buildList {
-                    add(OutputConfiguration(surface))
-                }
-            device.createCaptureSession(
-                SessionConfiguration(
-                    SessionConfiguration.SESSION_REGULAR,
-                    outputList,
-                    executor,
+    fun createCaptureSession(surface: Surface) =
+        synchronized(controlLock) {
+            val device = device ?: return@synchronized
+            session = null
+            previewRequestBuilder =
+                device
+                    .createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW)
+                    .apply {
+                        addTarget(surface)
+                    }
+            val builder = previewRequestBuilder ?: return@synchronized
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                val outputList =
+                    buildList {
+                        add(OutputConfiguration(surface))
+                    }
+                device.createCaptureSession(
+                    SessionConfiguration(
+                        SessionConfiguration.SESSION_REGULAR,
+                        outputList,
+                        executor,
+                        object : CameraCaptureSession.StateCallback() {
+                            override fun onConfigured(session: CameraCaptureSession) {
+                                try {
+                                    synchronized(controlLock) {
+                                        if (previewRequestBuilder !== builder) {
+                                            session.close()
+                                        } else {
+                                            this@Camera2Output.session = session
+                                            updateControls()
+                                        }
+                                    }
+                                } catch (e: RuntimeException) {
+                                    Log.e(TAG, "", e)
+                                }
+                            }
+
+                            override fun onConfigureFailed(captureSession: CameraCaptureSession) {
+                                synchronized(controlLock) {
+                                    if (previewRequestBuilder === builder) this@Camera2Output.session = null
+                                }
+                            }
+                        },
+                    ),
+                )
+            } else {
+                val surfaces =
+                    buildList {
+                        add(surface)
+                    }
+                @Suppress("DEPRECATION")
+                device.createCaptureSession(
+                    surfaces,
                     object : CameraCaptureSession.StateCallback() {
                         override fun onConfigured(session: CameraCaptureSession) {
                             try {
-                                session.setRepeatingRequest(request, null, null)
-                                this@Camera2Output.session = session
+                                synchronized(controlLock) {
+                                    if (previewRequestBuilder !== builder) {
+                                        session.close()
+                                    } else {
+                                        this@Camera2Output.session = session
+                                        updateControls()
+                                    }
+                                }
                             } catch (e: RuntimeException) {
                                 Log.e(TAG, "", e)
                             }
                         }
 
-                        override fun onConfigureFailed(captureSession: CameraCaptureSession) {
-                            this@Camera2Output.session = null
+                        override fun onConfigureFailed(session: CameraCaptureSession) {
+                            synchronized(controlLock) {
+                                if (previewRequestBuilder === builder) this@Camera2Output.session = null
+                            }
                         }
                     },
-                ),
-            )
-        } else {
-            val surfaces =
-                buildList {
-                    add(surface)
-                }
-            @Suppress("DEPRECATION")
-            device.createCaptureSession(
-                surfaces,
-                object : CameraCaptureSession.StateCallback() {
-                    override fun onConfigured(session: CameraCaptureSession) {
-                        try {
-                            session.setRepeatingRequest(request, null, null)
-                            this@Camera2Output.session = session
-                        } catch (e: RuntimeException) {
-                            Log.e(TAG, "", e)
-                        }
-                    }
-
-                    override fun onConfigureFailed(session: CameraCaptureSession) {
-                        this@Camera2Output.session = null
-                    }
-                },
-                handler,
-            )
+                    handler,
+                )
+            }
         }
-    }
 
     override fun onOpened(camera: CameraDevice) {
         isDisconnected = false

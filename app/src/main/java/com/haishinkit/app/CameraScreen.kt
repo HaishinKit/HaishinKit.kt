@@ -260,6 +260,31 @@ fun CameraScreen(
                         }
                     },
                 )
+                viewModel.mainCameraSource?.let { source ->
+                    var torch by remember(source) { mutableStateOf(source.isTorchEnabled) }
+                    var zoom by remember(source) { mutableStateOf(source.zoomRatioRange.clamp(source.zoomRatio)) }
+                    androidx.compose.material3.Button(
+                        enabled = source.isTorchSupported,
+                        onClick = {
+                            torch = !torch
+                            source.isTorchEnabled = torch
+                        },
+                    ) {
+                        Text(if (torch) "Torch ON" else "Torch OFF")
+                    }
+                    Text("Zoom: %.1fx".format(zoom), color = Color.White)
+                    val range = source.zoomRatioRange
+                    if (range.upper > range.lower) {
+                        androidx.compose.material3.Slider(
+                            value = zoom,
+                            onValueChange = {
+                                zoom = it
+                                source.zoomRatio = it
+                            },
+                            valueRange = range.lower..range.upper,
+                        )
+                    }
+                }
                 Spacer(modifier = Modifier.weight(1f))
 
                 HorizontalPager(

@@ -2,6 +2,7 @@ package com.haishinkit.media.source
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.util.Range
 import android.util.Size
 import android.view.Surface
 import com.haishinkit.graphics.ImageOrientation
@@ -24,8 +25,24 @@ class Camera2Source(
      */
     var isTorchEnabled: Boolean = false
         set(value) {
-            output?.setTorchEnabled(value)
             field = value
+            output?.updateControls()
+        }
+
+    /** Whether the opened camera supports a torch. False before opening. */
+    val isTorchSupported: Boolean
+        get() = output?.isTorchSupported == true
+
+    /** Supported zoom ratios of the opened camera; 1x before opening. */
+    val zoomRatioRange: Range<Float>
+        get() = output?.zoomRatioRange ?: Range(1f, 1f)
+
+    /** Requested zoom ratio. Clamped to the camera range when applied. */
+    var zoomRatio: Float = 1f
+        set(value) {
+            require(value.isFinite() && value > 0f) { "Zoom ratio must be finite and positive." }
+            field = value
+            output?.updateControls()
         }
 
     /** Maximum capture dimensions in sensor coordinates, or null for the default selection. */
@@ -69,7 +86,7 @@ class Camera2Source(
                 checkNotNull(output.getCameraSize(mixer.screen.frame, maximumSize)) {
                     "No compatible capture size for camera $cameraId."
                 }
-            output.setTorchEnabled(isTorchEnabled)
+            output.updateControls()
         }
     }
 

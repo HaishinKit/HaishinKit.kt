@@ -58,3 +58,27 @@ composition; text font size scales with its frame. After external layout changes
 `invalidateBounds` so editing uses the newly rendered geometry. Keep editor calls on one thread,
 as with direct frame changes. Gesture detection, focus state, dialogs, and selection decorations
 belong to the UI layer; the camera example demonstrates these with Compose.
+
+## Camera torch and zoom
+
+Keep a `Camera2Source` for each camera to control its torch and zoom independently:
+
+```kotlin
+val camera = Camera2Source(context, cameraId).apply {
+    isTorchEnabled = true
+    zoomRatio = 2f
+}
+mixer.attachVideo(0, camera).getOrThrow()
+// After the camera has opened:
+val torchSupported = camera.isTorchSupported
+val zoomRange = camera.zoomRatioRange
+camera.zoomRatio = zoomRange.clamp(3f)
+```
+
+Settings are retained before opening and applied together to the first repeating request,
+including after session recreation. Unsupported torch requests are ignored. Zoom must be
+finite and positive; the applied ratio is clamped to the opened camera's range while the
+property retains the requested value. Before opening, capabilities report no torch and 1x.
+Android 11+ uses zoom-ratio control where available; other cameras use a centered sensor crop.
+The legacy `MediaMixer.isToucheEnabled` setter updates currently attached cameras together;
+attaching a source preserves that source's own torch setting.
