@@ -19,3 +19,8 @@ channel with application-provided SDP signaling. Its outgoing and incoming strea
 use independent codecs. Capture, routing and microphone permission belong to the
 host; cancellation releases transport and playback. This backend does not include
 libwebrtc software echo cancellation.
+
+`RTCWebSocket` provides single-use WebSocket connections using libdatachannel.
+It supports suspending connection/receive, text send, binary receive, bounded
+queues, cancellation and explicit close. WSS verifies hostnames against platform
+trust anchors or a supplied PEM CA bundle.
