@@ -4,7 +4,7 @@ import android.content.Context
 import android.widget.Toast
 import com.haishinkit.screen.Screen
 
-/** Keeps the optional VQMetrix checkout out of the normal Example build. */
+/** Bridges source screens to the Example capture module without changing library code. */
 internal object QualityCapture {
     fun save(
         context: Context,

@@ -11,6 +11,7 @@ import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
+import org.json.JSONObject
 import java.io.File
 
 data class EncodedVariant(
@@ -21,10 +22,11 @@ data class EncodedVariant(
     val hardwareAccelerated: Boolean,
     val outputPtsUs: List<Long>,
     val encodedBytes: Long,
+    val performance: JSONObject,
 )
 
 class VariantEncoder(
-    @Suppress("UNUSED_PARAMETER") context: Context,
+    private val context: Context,
 ) {
     suspend fun encode(
         reference: File,
@@ -36,6 +38,7 @@ class VariantEncoder(
     ): EncodedVariant =
         withContext(Dispatchers.IO) {
             val spec = captured.spec
+            val telemetry = EncodingTelemetry(context, spec.frames, spec.fps)
             val mime = if (format == "hevc") MediaFormat.MIMETYPE_VIDEO_HEVC else MediaFormat.MIMETYPE_VIDEO_AVC
             val mediaFormat =
                 MediaFormat.createVideoFormat(mime, spec.width, spec.height).apply {
@@ -81,7 +84,9 @@ class VariantEncoder(
                                     } else {
                                         val image = checkNotNull(native.getInputImage(index)) { "Encoder does not support YUV input images" }
                                         YuvImages.write(image, data, spec)
-                                        native.queueInputBuffer(index, 0, data.size, pts(inputIndex++, spec.fps), 0)
+                                        val timestamp = pts(inputIndex++, spec.fps)
+                                        telemetry.input(timestamp)
+                                        native.queueInputBuffer(index, 0, data.size, timestamp, 0)
                                     }
                                 }
                             }
@@ -95,6 +100,7 @@ class VariantEncoder(
                                 in 0..Int.MAX_VALUE -> {
                                     try {
                                         if (info.size > 0 && info.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG == 0) {
+                                            telemetry.output(info.presentationTimeUs)
                                             check(started)
                                             output.writeSampleData(track, checkNotNull(native.getOutputBuffer(index)), info)
                                             outputPts.add(info.presentationTimeUs)
@@ -114,7 +120,7 @@ class VariantEncoder(
                 check(outputPts == (0 until spec.frames).map { pts(it, spec.fps) }) { "Encoder timestamps differ from the reference" }
                 output.stop()
                 started = false
-                EncodedVariant(target, bitrate, format, name, native.codecInfo.isHardwareAccelerated, outputPts.toList(), bytes)
+                EncodedVariant(target, bitrate, format, name, native.codecInfo.isHardwareAccelerated, outputPts.toList(), bytes, telemetry.finish())
             } finally {
                 if (running) runCatching { native.stop() }
                 native.release()

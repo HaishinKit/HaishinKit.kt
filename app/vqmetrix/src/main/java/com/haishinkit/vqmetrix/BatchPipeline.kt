@@ -131,6 +131,7 @@ class BatchPipeline(private val context: Context) {
                                             put("targetBitrate", variant.bitrate)
                                             put("actualBitrate", variant.encodedBytes * 8.0 * captured.spec.fps / captured.spec.frames)
                                             put("codecName", variant.codecName)
+                                            put("performance", variant.performance)
                                             put("hardwareAccelerated", variant.hardwareAccelerated)
                                             put("frameCount", variant.outputPtsUs.size)
                                             put("width", captured.spec.width)
