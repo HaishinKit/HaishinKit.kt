@@ -6,9 +6,9 @@ import java.io.Closeable
 import java.io.IOException
 import java.net.URI
 import java.security.KeyStore
-import java.util.Base64
 import javax.net.ssl.TrustManagerFactory
 import javax.net.ssl.X509TrustManager
+import kotlin.io.encoding.Base64
 
 /**
  * A single-use libdatachannel WebSocket. TLS verification is always enabled.
@@ -88,8 +88,8 @@ class RTCWebSocket(private val caCertificatesPem: String? = null) : Closeable {
             val certificates = factory.trustManagers.filterIsInstance<X509TrustManager>().flatMap { it.acceptedIssuers.toList() }
             check(certificates.isNotEmpty()) { "No platform TLS trust anchors are available" }
             certificates.joinToString("\n") { certificate ->
-                "-----BEGIN CERTIFICATE-----\n" + Base64.getMimeEncoder(64, byteArrayOf(10)).encodeToString(certificate.encoded) +
-                    "\n-----END CERTIFICATE-----\n"
+                val encoded = Base64.encode(certificate.encoded).chunked(64).joinToString("\n")
+                "-----BEGIN CERTIFICATE-----\n$encoded\n-----END CERTIFICATE-----\n"
             }
         }
     }
