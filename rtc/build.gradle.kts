@@ -51,6 +51,8 @@ afterEvaluate {
 dependencies {
     api(project(":haishinkit"))
     api(libs.kotlinx.coroutines.core)
+    testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
+    testImplementation("com.squareup.okhttp3:okhttp-tls:4.12.0")
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.test.runner)
