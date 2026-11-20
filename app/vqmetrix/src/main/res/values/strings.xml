@@ -25,7 +25,7 @@
     <string name="vq_no_runs">No completed packages yet</string>
     <string name="vq_receiver">macOS receiver</string>
     <string name="vq_server">Receiver URL, for example http://MacName.local:8787</string>
-    <string name="vq_token">Receiver token (not saved)</string>
+    <string name="vq_token">Connection code (4 digits, not saved)</string>
     <string name="vq_upload">Upload selected package</string>
     <string name="vq_upload_progress">Uploading: %1$d%%</string>
     <string name="vq_uploaded">Receiver accepted job %1$s</string>

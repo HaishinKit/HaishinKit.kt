@@ -9,6 +9,7 @@ import android.graphics.Bitmap
 import android.graphics.Typeface
 import android.os.Build
 import android.os.Bundle
+import android.text.InputFilter
 import android.text.InputType
 import android.view.View
 import android.view.WindowManager
@@ -206,7 +207,11 @@ class VQMetrixActivity : AppCompatActivity() {
                 override fun onNothingSelected(parent: AdapterView<*>?) {}
             }
         discover = button(R.string.vq_find_receivers, ::findReceivers)
-        token = field("", InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD).apply { hint = getString(R.string.vq_token) }
+        token =
+            field("", InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_VARIATION_PASSWORD).apply {
+                hint = getString(R.string.vq_token)
+                filters = arrayOf(InputFilter.LengthFilter(4))
+            }
         upload = button(R.string.vq_upload, ::uploadBatch)
         label(R.string.vq_receiver_note)
         label(R.string.vq_note)
@@ -350,7 +355,7 @@ class VQMetrixActivity : AppCompatActivity() {
         val credential = token.text.toString()
         try {
             BatchUploader.endpoint(address)
-            require(credential.isNotBlank())
+            require(credential.matches(Regex("[0-9]{4}"))) { getString(R.string.vq_token) }
         } catch (
             failure: Exception,
         ) {

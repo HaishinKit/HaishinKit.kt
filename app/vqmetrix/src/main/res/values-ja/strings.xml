@@ -25,7 +25,7 @@
     <string name="vq_no_runs">作成済みのデータはありません</string>
     <string name="vq_receiver">macOSの受信サービス</string>
     <string name="vq_server">接続先URL（例：http://MacName.local:8787）</string>
-    <string name="vq_token">受信サービスのトークン（保存しません）</string>
+    <string name="vq_token">接続コード（4桁・保存しません）</string>
     <string name="vq_upload">選択したデータをアップロード</string>
     <string name="vq_upload_progress">アップロード中: %1$d%%</string>
     <string name="vq_uploaded">受信サービスがジョブ %1$s を受け付けました</string>
