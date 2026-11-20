@@ -41,7 +41,12 @@ android {
     }
     buildFeatures { compose = true }
     packaging {
-        resources { excludes += "/META-INF/{AL2.0,LGPL2.1}" }
+        resources {
+            excludes += "/META-INF/{AL2.0,LGPL2.1}"
+            // Netty's per-JAR indexes are not used in an APK; retain all module version entries.
+            excludes += "/META-INF/INDEX.LIST"
+            merges += "/META-INF/io.netty.versions.properties"
+        }
         jniLibs.keepDebugSymbols += "**/libhksrt.so"
     }
 }
@@ -76,4 +81,8 @@ dependencies {
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
     debugImplementation(libs.leakcanary.android)
+    debugImplementation(libs.mcp.server)
+    debugImplementation(libs.ktor.server.netty)
+    debugImplementation(libs.ktor.server.content.negotiation)
+    debugImplementation(libs.ktor.serialization.json)
 }
