@@ -12,7 +12,7 @@ android {
         applicationId = "com.haishinkit.app"
         minSdk = 29
         targetSdk = 37
-        versionCode = 1
+        versionCode = providers.gradleProperty("appVersionCode").orElse("1").get().toInt()
         versionName = providers.gradleProperty("appVersionName").orElse("1.0").get()
         buildConfigField("boolean", "VQMETRIX_AVAILABLE", (rootProject.findProject(":vqmetrix-example") != null).toString())
 
@@ -20,8 +20,20 @@ android {
         vectorDrawables { useSupportLibrary = true }
     }
 
+    signingConfigs {
+        if (providers.environmentVariable("APK_KEYSTORE_PATH").isPresent) {
+            create("distribution") {
+                storeFile = file(providers.environmentVariable("APK_KEYSTORE_PATH").get())
+                storePassword = providers.environmentVariable("APK_KEYSTORE_PASSWORD").get()
+                keyAlias = providers.environmentVariable("APK_KEY_ALIAS").get()
+                keyPassword = providers.environmentVariable("APK_KEY_PASSWORD").get()
+            }
+        }
+    }
+
     buildTypes {
         release {
+            signingConfig = signingConfigs.findByName("distribution")
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),

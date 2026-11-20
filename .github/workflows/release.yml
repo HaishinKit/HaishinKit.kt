@@ -4,7 +4,7 @@ on:
     tags:
       - '*.*.*'
 permissions:
-  contents: read
+  contents: write
   checks: write
   pull-requests: write
 jobs:
@@ -50,6 +50,34 @@ jobs:
         env:
           DANGER_GITHUB_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: bundle exec fastlane review
+      - name: Build signed sample APK
+        id: build-apk
+        env:
+          APK_KEYSTORE_BASE64: ${{ secrets.APK_KEYSTORE_BASE64 }}
+          APK_KEYSTORE_PASSWORD: ${{ secrets.APK_KEYSTORE_PASSWORD }}
+          APK_KEY_ALIAS: ${{ secrets.APK_KEY_ALIAS }}
+          APK_KEY_PASSWORD: ${{ secrets.APK_KEY_PASSWORD }}
+          APK_KEYSTORE_PATH: ${{ runner.temp }}/sample-release.jks
+        shell: bash
+        run: |
+          set -euo pipefail
+          trap 'rm -f "$APK_KEYSTORE_PATH"' EXIT
+          /usr/bin/ruby -rbase64 -e 'File.write(ENV.fetch("APK_KEYSTORE_PATH"), Base64.strict_decode64(ENV.fetch("APK_KEYSTORE_BASE64")), mode: "wb", perm: 0600)'
+          bundle exec fastlane release_apk "version:$RELEASE_VERSION" "version_code:$GITHUB_RUN_NUMBER"
+      - name: Upload sample APK to GitHub Release
+        id: upload-apk
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          apk="build/release/HaishinKit-$RELEASE_VERSION.apk"
+          if gh release view "$RELEASE_VERSION" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_VERSION" "$apk" --clobber
+          else
+            gh release create "$RELEASE_VERSION" "$apk" --verify-tag --generate-notes
+          fi
       - name: Setup SSH
         id: setup-ssh
         env:
