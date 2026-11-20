@@ -1,7 +1,11 @@
 package com.haishinkit.rtc
 
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.launch
 import java.io.Closeable
 import java.io.IOException
 import java.net.URI
@@ -20,9 +24,13 @@ class RTCWebSocket(private val caCertificatesPem: String? = null) : Closeable {
         val text: String get() = data.toString(Charsets.UTF_8)
     }
 
+    private data class NativeEvent(val kind: Int, val bytes: ByteArray)
+
     private val guard = Any()
     private val opened = CompletableDeferred<Unit>()
     private val messages = Channel<Message>(64)
+    private val callbacks = Channel<NativeEvent>(64)
+    private val callbackScope = CoroutineScope(Dispatchers.Default)
     private var handle = 0L
     private var used = false
     private var closed = false
@@ -39,6 +47,7 @@ class RTCWebSocket(private val caCertificatesPem: String? = null) : Closeable {
             synchronized(guard) {
                 check(!closed) { "WebSocket was closed" }
                 System.loadLibrary("hkrtc")
+                callbackScope.launch { dispatchEvents() }
                 handle = create(uri.toASCIIString(), roots)
             }
             opened.await()
@@ -69,22 +78,40 @@ class RTCWebSocket(private val caCertificatesPem: String? = null) : Closeable {
         try {
             if (previous != 0L) destroy(previous)
         } finally {
+            callbackScope.cancel()
+            callbacks.cancel()
             opened.cancel()
             messages.cancel()
         }
     }
 
-    /** JNI callbacks only enqueue messages; they never close or wait for native worker threads. */
+    /** Never signal user coroutines here: Unconfined continuations can reenter close() inline. */
     @Suppress("unused")
     private fun onEvent(
         kind: Int,
         bytes: ByteArray,
     ) {
-        when (kind) {
-            0 -> opened.complete(Unit)
-            1, 4 -> if (messages.trySend(Message(bytes, kind == 4)).isFailure) fail("WebSocket receive queue is full")
-            2 -> fail("WebSocket connection failed")
-            3 -> fail("WebSocket was closed")
+        if (callbacks.trySend(NativeEvent(kind, bytes)).isFailure) {
+            callbacks.close(IOException("WebSocket callback queue is full"))
+        }
+    }
+
+    /** A single dispatched worker preserves native event order outside callbackMutex. */
+    private suspend fun dispatchEvents() {
+        try {
+            for (event in callbacks) {
+                when (event.kind) {
+                    0 -> opened.complete(Unit)
+                    1, 4 ->
+                        if (messages.trySend(Message(event.bytes, event.kind == 4)).isFailure) {
+                            fail("WebSocket receive queue is full")
+                        }
+                    2 -> fail("WebSocket connection failed")
+                    3 -> fail("WebSocket was closed")
+                }
+            }
+        } catch (_: IOException) {
+            fail("WebSocket callback queue is full")
         }
     }
 

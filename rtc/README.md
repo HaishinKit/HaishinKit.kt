@@ -187,8 +187,11 @@ Messages expose UTF-8 `text`, raw `data` and `isBinary`. Call `close()` in a
 
 TLS and hostname verification are always enabled. WSS uses platform trust anchors
 by default. An optional PEM CA bundle can be supplied for private trust domains.
-Receive buffering is limited to 64 messages, individual frames and native outgoing
-buffering to 1 MiB. A slow consumer or transport error terminates receive with an
-exception. The caller must then close the socket and create a new instance.
+Native callback and receive queues are each limited to 64 messages; individual
+frames and native outgoing buffering are limited to 1 MiB. Callbacks are dispatched
+in order off native worker threads so coroutine consumers can safely close the
+socket from a callback-resumed continuation. A slow consumer or transport error
+terminates receive with an exception. The caller must then close the socket and
+create a new instance.
 Native loopback tests cover Unicode/binary frames, trusted WSS, hostname rejection
 and opening cancellation. MockWebServer and okhttp-tls are test dependencies only.

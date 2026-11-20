@@ -128,6 +128,50 @@ class RTCWebSocketTest {
             }
         }
 
+    @Test(timeout = 10000)
+    fun unconfinedReceiverCanCloseAfterNativeMessage() =
+        runBlocking {
+            requireNativeTests()
+            val server = echoServer()
+            val socket = RTCWebSocket()
+            try {
+                withTimeout(5000) { socket.connect(server.url("/").toString().replace("http:", "ws:")) }
+                val received =
+                    async(Dispatchers.Unconfined) {
+                        val text = socket.receive().text
+                        socket.close()
+                        text
+                    }
+                socket.send("close from receiver")
+                assertEquals("close from receiver", withTimeout(5000) { received.await() })
+            } finally {
+                socket.close()
+                server.shutdown()
+            }
+        }
+
+    @Test(timeout = 10000)
+    fun unconfinedConnectFailureCanCleanUpNativeSocket() =
+        runBlocking {
+            requireNativeTests()
+            val server = MockWebServer()
+            server.enqueue(MockResponse().setResponseCode(403))
+            server.start()
+            val socket = RTCWebSocket()
+            try {
+                val result =
+                    withContext(Dispatchers.Unconfined) {
+                        runCatching {
+                            withTimeout(5000) { socket.connect(server.url("/").toString().replace("http:", "ws:")) }
+                        }
+                    }
+                assertTrue(result.exceptionOrNull() is IOException)
+            } finally {
+                socket.close()
+                server.shutdown()
+            }
+        }
+
     private fun requireNativeTests() {
         assumeTrue("Set rtcNativeLibraryDir to run native WebSocket tests", System.getProperty("haishinkit.rtc.nativeTests") == "true")
     }
