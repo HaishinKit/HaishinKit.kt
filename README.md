@@ -1,4 +1,4 @@
-# 📡 [HaishinKit](https://haishinkit.com/) for Android
+# 📡 [HaishinKit](https://haishinkit.com/) for Android, [iOS, macOS, tvOS and visionOS](https://github.com/HaishinKit/HaishinKit.swift).
 
 [![Android CI](https://github.com/HaishinKit/HaishinKit.kt/actions/workflows/android.yml/badge.svg?branch=main)](https://github.com/HaishinKit/HaishinKit.kt/actions/workflows/android.yml)
 [![JitPack](https://jitpack.io/v/HaishinKit/HaishinKit~kt.svg)](https://jitpack.io/#HaishinKit/HaishinKit~kt)
