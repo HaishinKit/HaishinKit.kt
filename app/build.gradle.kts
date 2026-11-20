@@ -14,7 +14,7 @@ android {
         targetSdk = 37
         versionCode = 1
         versionName = providers.gradleProperty("appVersionName").orElse("1.0").get()
-        buildConfigField("boolean", "VQMETRIX_AVAILABLE", (rootProject.findProject(":vqmetrix-producer") != null).toString())
+        buildConfigField("boolean", "VQMETRIX_AVAILABLE", (rootProject.findProject(":vqmetrix-example") != null).toString())
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables { useSupportLibrary = true }
@@ -56,7 +56,7 @@ android {
 }
 
 dependencies {
-    if (rootProject.findProject(":vqmetrix-producer") != null) {
+    if (rootProject.findProject(":vqmetrix-example") != null) {
         implementation(project(":vqmetrix-example"))
     }
     implementation(project(":haishinkit"))

@@ -17,6 +17,12 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
+        exclusiveContent {
+            forRepository {
+                maven { url = uri(providers.gradleProperty("vqmetrixRepository").orElse("https://jitpack.io").get()) }
+            }
+            filter { includeGroup("com.github.HaishinKit.VQMetrix") }
+        }
     }
 }
 
@@ -30,10 +36,11 @@ include(":srt")
 include(":vulkan")
 include(":rtc")
 
-// Optional developer tool when the VQMetrix checkout is available beside this repository.
-val vqmetrixDirectory = file(providers.gradleProperty("vqmetrixDir").orElse("../VQMetrix/Android/producer").get())
-if (vqmetrixDirectory.resolve("build.gradle.kts").isFile) {
-    include(":vqmetrix-producer", ":vqmetrix-example")
-    project(":vqmetrix-example").projectDir = file("app/vqmetrix")
-    project(":vqmetrix-producer").projectDir = vqmetrixDirectory
+include(":vqmetrix-example")
+project(":vqmetrix-example").projectDir = file("app/vqmetrix")
+
+// Explicit source override for VQMetrix development; normal builds use the published artifact.
+providers.gradleProperty("vqmetrixTransferDir").orNull?.let { directory ->
+    include(":vqmetrix-transfer")
+    project(":vqmetrix-transfer").projectDir = file(directory)
 }

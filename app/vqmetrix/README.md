@@ -1,24 +1,29 @@
 # 📊 VQMetrix Example
 
-Optional UI for the [VQMetrix](https://github.com/HaishinKit/VQMetrix) Android library.
-Place VQMetrix beside HaishinKit.kt, or set `-PvqmetrixDir=/path/to/VQMetrix/Android/producer`.
+Camera and MediaProjection sample capture with the
+[VQMetrix transfer library](https://github.com/HaishinKit/VQMetrix/tree/main/Android).
 
 ## 🚀 Use
 
-Build `:app:assembleDebug`. Camera Publish and MediaProjection offer **Save sample**
-from their existing mixer composition. Preferences → VQMetrix configures duration,
-codec and bitrates and lets you share or upload saved packages. Capture is limited
-to 15 fps within 640×480; it preserves aspect ratio and records observed readback times.
-The source must keep running while samples are acquired. Source shutdown cancels an
-unfinished capture; re-encoding can finish after capture completes.
+Build `:app:assembleDebug`. Both source screens offer **Save sample** from their existing
+mixer composition. Preferences → VQMetrix configures duration, codec and bitrates and
+lets you share or upload packages. Capture is 15 fps within 640×480, preserving aspect
+ratio and recording observed readback times. Source shutdown cancels unfinished sampling;
+re-encoding can finish after sampling completes.
+
+Select the Mac discovered through Bonjour and enter its 4-digit connection code.
+HTTP is restricted to trusted LAN use and does not encrypt video or connection codes.
+
+## 📦 Dependency
+
+The module consumes `com.github.HaishinKit.VQMetrix:transfer:1.0.0` from JitPack.
+No neighboring VQMetrix checkout is required. For development, use
+`-PvqmetrixTransferDir=/path/to/VQMetrix/Android/transfer`. A test Maven repository can be
+selected with `-PvqmetrixRepository=/path/to/repository`.
 
 ## 📚 Scope
 
-UI and lifecycle hooks belong to this Example. Capture, exact-frame replay through
-Android MediaCodec, ZIP packaging, upload and Bonjour discovery belong to VQMetrix.
-No HaishinKit library changes are required. The feature is omitted without VQMetrix.
-
-This evaluates re-encoding of sampled composition, rather than the original live
-stream or network delivery. See VQMetrix's transfer and user guides for details.
-HTTP is limited to trusted local networks; video and tokens are unencrypted over HTTP.
-The macOS upload receiver is not implemented yet.
+UI, capture and replay encoding live in this Example. Upload and Bonjour discovery
+live in the external library. HaishinKit library code is unchanged. This compares
+re-encoding of sampled composition, not the original stream bitstream or network effects.
+See the [API reference and guides](https://haishinkit.github.io/VQMetrix/) for details.
