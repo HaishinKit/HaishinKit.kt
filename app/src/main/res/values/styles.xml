@@ -1,8 +1,10 @@
 <resources>
-    <style name="AppTheme" parent="Theme.AppCompat.Light.NoActionBar">
-        <!-- Customize your theme here. -->
-        <item name="colorPrimary">#FF6200EE</item>
-        <item name="colorPrimaryDark">#FF6200EE</item>
-        <item name="colorAccent">#FF6200EE</item>
+    <style name="AppTheme" parent="Theme.AppCompat.DayNight.NoActionBar">
+        <item name="android:windowBackground">#0B121C</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
+        <item name="colorPrimary">#65DEC9</item>
+        <item name="colorPrimaryDark">#65DEC9</item>
+        <item name="colorAccent">#65DEC9</item>
     </style>
 </resources>

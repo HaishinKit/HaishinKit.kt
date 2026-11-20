@@ -6,13 +6,19 @@ import android.content.Intent
 import android.media.projection.MediaProjectionManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -22,12 +28,16 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 
 @Suppress("ktlint:standard:function-naming")
 @Composable
-fun MediaProjectionScreen(modifier: Modifier = Modifier) {
+fun MediaProjectionScreen(
+    modifier: Modifier = Modifier,
+    onOpenSettings: () -> Unit = {},
+) {
     val context = LocalContext.current
     val binding = remember { MediaProjectionBinding(context.applicationContext) }
     val startMediaProjection =
@@ -46,42 +56,48 @@ fun MediaProjectionScreen(modifier: Modifier = Modifier) {
         }
     }
 
-    Box(
-        modifier = modifier.safeDrawingPadding().fillMaxSize().padding(8.dp),
-    ) {
-        if (binding.isStarted) {
-            CircularProgressIndicator(
-                modifier = Modifier.width(64.dp).align(Alignment.Center),
-                color = MaterialTheme.colorScheme.secondary,
-                trackColor = MaterialTheme.colorScheme.surfaceVariant,
-            )
-        }
-        if (BuildConfig.VQMETRIX_AVAILABLE && binding.isStarted && !binding.isStopping) {
-            Button(onClick = { binding.saveQuality() }, modifier = Modifier.align(Alignment.BottomStart)) {
-                Text(stringResource(R.string.vq_capture_action))
-            }
-        }
-        Button(
-            modifier = Modifier.align(Alignment.BottomEnd),
-            enabled = !binding.isStopping,
-            onClick = {
-                if (binding.isStarted) {
-                    binding.stop()
-                } else {
-                    val manager = context.getSystemService(Service.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
-                    startMediaProjection.launch(manager.createScreenCaptureIntent())
-                }
-            },
+    Box(modifier.fillMaxSize().safeDrawingPadding(), contentAlignment = Alignment.TopCenter) {
+        Column(
+            Modifier.widthIn(max = 720.dp).fillMaxWidth().verticalScroll(rememberScrollState()).padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(24.dp),
         ) {
-            Text(
-                if (binding.isStopping) {
-                    "Stopping…"
-                } else if (binding.isStarted) {
-                    "STOP"
-                } else {
-                    "GO LIVE"
-                },
-            )
+            StudioHeader(stringResource(R.string.studio_share), stringResource(R.string.studio_share_subtitle), onOpenSettings)
+            StudioSection(
+                stringResource(if (binding.isStarted) R.string.studio_share_active else R.string.studio_share_ready),
+                stringResource(if (binding.isStarted) R.string.studio_share_active_help else R.string.studio_share_help),
+            ) {
+                Icon(painterResource(R.drawable.studio_screen), contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(64.dp).align(Alignment.CenterHorizontally))
+                Text(stringResource(R.string.studio_share_destination), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Button(
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !binding.isStopping,
+                    onClick = {
+                        if (binding.isStarted) {
+                            binding.stop()
+                        } else {
+                            val manager = context.getSystemService(Service.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
+                            startMediaProjection.launch(manager.createScreenCaptureIntent())
+                        }
+                    },
+                ) {
+                    Text(
+                        stringResource(
+                            if (binding.isStopping) {
+                                R.string.studio_stopping
+                            } else if (binding.isStarted) {
+                                R.string.studio_share_stop
+                            } else {
+                                R.string.studio_share_start
+                            },
+                        ),
+                    )
+                }
+                if (BuildConfig.VQMETRIX_AVAILABLE && binding.isStarted && !binding.isStopping) {
+                    androidx.compose.material3.OutlinedButton(onClick = { binding.saveQuality() }, modifier = Modifier.fillMaxWidth()) {
+                        Text(stringResource(R.string.vq_capture_action))
+                    }
+                }
+            }
         }
     }
 }

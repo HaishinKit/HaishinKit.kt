@@ -6,10 +6,10 @@ import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.os.Build
 import android.os.Bundle
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -28,11 +28,11 @@ class MainActivity : AppCompatActivity() {
         lifecycle.addObserver(DebugMcpServer())
         pictureInPicture = isInPictureInPictureMode
         RendererPreference.configure(this)
-        enableEdgeToEdge()
+        enableEdgeToEdge(statusBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT), navigationBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT))
         StreamSession.Builder.registerFactory(RtmpStreamSessionFactory)
         StreamSession.Builder.registerFactory(SrtStreamSessionFactory)
         setContent {
-            MaterialTheme {
+            StudioTheme {
                 MainScreen(onApplyRenderer = { renderer ->
                     RendererPreference.stopOutputs()
                     stopService(Intent(this, MediaProjectionService::class.java))

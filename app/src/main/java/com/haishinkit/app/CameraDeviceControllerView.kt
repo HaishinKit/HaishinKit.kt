@@ -1,16 +1,22 @@
 package com.haishinkit.app
 
 import android.Manifest
+import android.content.Intent
+import android.net.Uri
+import android.provider.Settings
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -18,13 +24,16 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.PermissionState
-import com.google.accompanist.permissions.PermissionStatus
+import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberPermissionState
 import com.haishinkit.device.CameraDevice
 
@@ -38,127 +47,51 @@ fun CameraDeviceControllerView(
     onAudioPermissionStatus: (state: PermissionState) -> Unit,
     onVideoPermissionStatus: (state: PermissionState) -> Unit,
 ) {
-    // Audio permission settings.
-    val audioPermissionState =
-        rememberPermissionState(
-            Manifest.permission.RECORD_AUDIO,
-        )
-    LaunchedEffect(audioPermissionState) {
-        snapshotFlow { audioPermissionState.status }.collect {
-            onAudioPermissionStatus.invoke(audioPermissionState)
-        }
+    val context = LocalContext.current
+    val audioPermission = rememberPermissionState(Manifest.permission.RECORD_AUDIO)
+    val cameraPermission = rememberPermissionState(Manifest.permission.CAMERA)
+    LaunchedEffect(audioPermission) {
+        snapshotFlow { audioPermission.status }.collect { onAudioPermissionStatus(audioPermission) }
     }
-
-    // Camera permission settings.
-    val cameraPermissionState =
-        rememberPermissionState(
-            Manifest.permission.CAMERA,
-        )
-    LaunchedEffect(cameraPermissionState) {
-        snapshotFlow { cameraPermissionState.status }.collect {
-            onVideoPermissionStatus.invoke(cameraPermissionState)
-        }
+    LaunchedEffect(cameraPermission) {
+        snapshotFlow { cameraPermission.status }.collect { onVideoPermissionStatus(cameraPermission) }
     }
-
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.End,
-    ) {
-        IconButton(onClick = {
-            when (cameraPermissionState.status) {
-                PermissionStatus.Granted -> {
-                }
-
-                is PermissionStatus.Denied -> {
-                    cameraPermissionState.launchPermissionRequest()
-                }
+    val cameraGranted = cameraPermission.status.isGranted
+    val audioGranted = audioPermission.status.isGranted
+    var expanded by remember { mutableStateOf(false) }
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            IconButton(onClick = { cameraPermission.launchPermissionRequest() }, enabled = !cameraGranted) {
+                Icon(
+                    painterResource(if (cameraGranted) R.drawable.videocam_24dp else R.drawable.videocam_off24dp),
+                    contentDescription = stringResource(if (cameraGranted) R.string.studio_camera_allowed else R.string.studio_camera_allow),
+                )
             }
-        }) {
-            when (cameraPermissionState.status) {
-                PermissionStatus.Granted -> {
-                    Icon(
-                        painter = painterResource(id = R.drawable.videocam_24dp),
-                        tint = Color.White,
-                        contentDescription = null,
-                    )
+            Box(Modifier.weight(1f)) {
+                OutlinedButton(onClick = { expanded = true }, enabled = cameraGranted && cameras.isNotEmpty(), modifier = Modifier.fillMaxWidth()) {
+                    Text(camera?.name ?: stringResource(R.string.studio_camera_select), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
-
-                is PermissionStatus.Denied -> {
-                    Icon(
-                        painter = painterResource(id = R.drawable.videocam_off24dp),
-                        tint = Color.White,
-                        contentDescription = null,
-                    )
-                }
-            }
-        }
-
-        var expanded by remember { mutableStateOf(false) }
-        Box {
-            Button(onClick = { expanded = true }) {
-                camera?.name?.let { Text(it) }
-            }
-            DropdownMenu(
-                expanded = expanded,
-                onDismissRequest = {
-                    expanded = false
-                },
-            ) {
-                cameras.forEach { selectionOption ->
-                    DropdownMenuItem(
-                        text = {
-                            Text(text = selectionOption.name)
-                        },
-                        onClick = {
-                            onCameraSelected(selectionOption)
+                DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                    cameras.forEach { device ->
+                        DropdownMenuItem(text = { Text(device.name) }, onClick = {
+                            onCameraSelected(device)
                             expanded = false
-                        },
-                    )
+                        })
+                    }
                 }
+            }
+            IconButton(onClick = { audioPermission.launchPermissionRequest() }, enabled = !audioGranted) {
+                Icon(
+                    painterResource(if (audioGranted) R.drawable.mic_24dp else R.drawable.mic_off24dp),
+                    contentDescription = stringResource(if (audioGranted) R.string.studio_mic_allowed else R.string.studio_mic_allow),
+                )
             }
         }
-
-        IconButton(onClick = {
-            when (audioPermissionState.status) {
-                PermissionStatus.Granted -> {
-                }
-
-                is PermissionStatus.Denied -> {
-                    audioPermissionState.launchPermissionRequest()
-                }
-            }
-        }) {
-            when (audioPermissionState.status) {
-                PermissionStatus.Granted -> {
-                    Icon(
-                        painter = painterResource(id = R.drawable.mic_24dp),
-                        tint = Color.White,
-                        contentDescription = null,
-                    )
-                }
-
-                is PermissionStatus.Denied -> {
-                    Icon(
-                        painter = painterResource(id = R.drawable.mic_off24dp),
-                        tint = Color.White,
-                        contentDescription = null,
-                    )
-                }
-            }
+        if (!cameraGranted || !audioGranted) {
+            Text(stringResource(R.string.studio_permission_help), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            TextButton(onClick = {
+                context.startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", context.packageName, null)))
+            }) { Text(stringResource(R.string.studio_app_permissions)) }
         }
     }
-}
-
-@Suppress("ktlint:standard:function-naming")
-@OptIn(ExperimentalPermissionsApi::class)
-@Preview
-@Composable
-private fun PreviewCameraScreenDeviceControllerView() {
-    CameraDeviceControllerView(
-        camera = null,
-        cameras = emptyList(),
-        onCameraSelected = {},
-        onAudioPermissionStatus = {},
-        onVideoPermissionStatus = {},
-    )
 }

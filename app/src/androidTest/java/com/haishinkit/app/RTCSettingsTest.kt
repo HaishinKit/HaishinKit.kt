@@ -2,13 +2,16 @@ package com.haishinkit.app
 
 import android.view.WindowManager
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextReplacement
 import androidx.test.core.app.ActivityScenario
 import androidx.test.espresso.Espresso.closeSoftKeyboard
+import androidx.test.espresso.Espresso.pressBack
 import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.Assert.assertEquals
 import org.junit.Rule
@@ -32,22 +35,44 @@ class RTCSettingsTest {
                     activity.setTurnScreenOn(true)
                     activity.window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
                 }
-                compose.onNodeWithText("Publish URL (RTMP / SRT / WHIP)").performTextReplacement("http://127.0.0.1:8889/live/whip")
-                compose.onNodeWithText("WHEP playback URL").performScrollTo().performTextReplacement("http://127.0.0.1:8889/live/whep")
-                compose.onNodeWithText("Bearer token (optional)").performScrollTo().performTextReplacement("test-token")
-                compose.onNodeWithText("STUN / TURN servers (optional)").performScrollTo().performTextReplacement("stun:example.com:3478")
+                compose.onNodeWithTag("navigation-Preference").performClick()
+                compose.onNodeWithText(InstrumentationRegistry.getInstrumentation().targetContext.getString(R.string.studio_url)).performTextReplacement("http://127.0.0.1:8889/live/whip")
+                compose.onNodeWithText(InstrumentationRegistry.getInstrumentation().targetContext.getString(R.string.studio_whep)).performScrollTo().performTextReplacement("http://127.0.0.1:8889/live/whep")
+                compose.onNodeWithText(InstrumentationRegistry.getInstrumentation().targetContext.getString(R.string.studio_token)).performScrollTo().performTextReplacement("test-token")
+                compose.onNodeWithText(InstrumentationRegistry.getInstrumentation().targetContext.getString(R.string.studio_ice)).performScrollTo().performTextReplacement("stun:example.com:3478")
                 compose.runOnIdle {
                     val settings = Preference.shared.sessionSettings()
                     assertEquals("test-token", settings.rtc!!.bearerToken)
                     assertEquals(listOf("stun:example.com:3478"), settings.rtc.iceServers)
                 }
                 closeSoftKeyboard()
-                compose.onNodeWithText("Publish").performClick()
-                compose.onNodeWithText("GO LIVE").assertIsDisplayed()
-                compose.onNodeWithText("Playback").performClick()
-                compose.onNodeWithText("PLAY").assertIsDisplayed()
-                compose.onNodeWithText("Preference").performClick()
+                compose.onNodeWithTag("navigation-Camera").performClick()
+                compose.onNodeWithText(InstrumentationRegistry.getInstrumentation().targetContext.getString(R.string.studio_go_live)).assertIsDisplayed()
+                compose.onNodeWithTag("navigation-Playback").performClick()
+                compose.onNodeWithText(InstrumentationRegistry.getInstrumentation().targetContext.getString(R.string.studio_play)).assertIsDisplayed()
+                compose.onNodeWithTag("navigation-Preference").performClick()
                 compose.onNodeWithText("http://127.0.0.1:8889/live/whip").performScrollTo().assertIsDisplayed()
+                pressBack()
+                compose.onNodeWithTag("navigation-Camera").assertIsSelected()
+            }
+        } finally {
+            Preference.shared = previous
+        }
+    }
+
+    @Test
+    fun invalidConnectionCanBeCorrectedWithoutLeavingTheApp() {
+        val previous = Preference.shared
+        Preference.shared = Preference("invalid-url", "test")
+        try {
+            ActivityScenario.launch(MainActivity::class.java).use {
+                compose.onNodeWithTag("navigation-Preference").performClick()
+                val context = InstrumentationRegistry.getInstrumentation().targetContext
+                compose.onNodeWithText(context.getString(R.string.studio_url_error)).assertIsDisplayed()
+                compose.onNodeWithText(context.getString(R.string.studio_url)).performTextReplacement("https://example.com/whip")
+                closeSoftKeyboard()
+                compose.onNodeWithTag("navigation-Camera").performClick()
+                compose.onNodeWithText(context.getString(R.string.studio_go_live)).assertIsDisplayed()
             }
         } finally {
             Preference.shared = previous
