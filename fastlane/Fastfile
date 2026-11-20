@@ -29,6 +29,25 @@ lane :review do
   ) if Helper.is_ci?
 end
 
+desc 'Build the signed sample APK for GitHub Releases.'
+lane :release_apk do |options|
+  version = options[:version].to_s
+  code = options[:version_code].to_s
+  UI.user_error!('A valid version is required') unless version.match?(/\A[a-zA-Z0-9][a-zA-Z0-9.+-]*\z/)
+  UI.user_error!('A positive version code below 2100000000 is required') unless code.match?(/\A[1-9][0-9]*\z/) && code.to_i < 2_100_000_000
+  %w[APK_KEYSTORE_PATH APK_KEYSTORE_PASSWORD APK_KEY_ALIAS APK_KEY_PASSWORD].each do |name|
+    UI.user_error!("#{name} is required") if ENV[name].to_s.empty?
+  end
+  UI.user_error!('Signing keystore is missing') unless File.file?(ENV.fetch('APK_KEYSTORE_PATH'))
+
+  gradle(task: ':app:assembleRelease', properties: { 'appVersionName' => version, 'appVersionCode' => code })
+  source = File.expand_path('../app/build/outputs/apk/release/app-release.apk', __dir__)
+  UI.user_error!('Signed release APK is missing') unless File.file?(source)
+  destination = File.expand_path('../build/release', __dir__)
+  FileUtils.mkdir_p(destination)
+  FileUtils.cp(source, File.join(destination, "HaishinKit-#{version}.apk"))
+end
+
 desc 'Check API documentation generation without publishing.'
 lane :check_documentation do
   gradle(task: 'dokkaGenerate', flags: "--init-script #{Shellwords.escape(File.expand_path('../.github/gradle/dokka.init.gradle', __dir__))}")
