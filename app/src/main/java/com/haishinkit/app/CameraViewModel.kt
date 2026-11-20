@@ -280,21 +280,24 @@ class CameraViewModel(
 
     fun startRunning() {
         mixer.startRunning()
+        DebugFrameCapture.attach(this, mixer.screen)
     }
 
     fun stopRunning() {
+        DebugFrameCapture.detach(this)
         mixer.stopRunning()
     }
 
     override fun onStart(owner: LifecycleOwner) {
-        mixer.startRunning()
+        startRunning()
     }
 
     override fun onStop(owner: LifecycleOwner) {
-        mixer.stopRunning()
+        stopRunning()
     }
 
     override suspend fun stopForRendererChange() {
+        DebugFrameCapture.detach(this)
         if (recorder.isRecording) recorder.stopRecording()
         mixer.stopRunning()
         mixer.unregisterOutput(recorder)
@@ -308,6 +311,7 @@ class CameraViewModel(
     }
 
     override fun onCleared() {
+        DebugFrameCapture.detach(this)
         session?.stream?.dispose()
         RendererPreference.unregister(this)
         super.onCleared()
