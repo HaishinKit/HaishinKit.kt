@@ -71,7 +71,7 @@ void fail(JNIEnv *env) {
     if (!env->ExceptionCheck()) env->ThrowNew(env->FindClass("java/io/IOException"), "WebSocket operation failed");
 }
 }
-extern "C" JNIEXPORT jlong JNICALL Java_com_haishinkit_rtc_NativeWebSocket_create(JNIEnv *env, jobject owner, jstring url, jstring roots) {
+extern "C" JNIEXPORT jlong JNICALL Java_com_haishinkit_rtc_RTCWebSocket_create(JNIEnv *env, jobject owner, jstring url, jstring roots) {
     try {
         std::call_once(vmOnce, [env] { env->GetJavaVM(&wsVm); });
         auto state = std::make_shared<Socket>(env, owner);
@@ -99,7 +99,7 @@ extern "C" JNIEXPORT jlong JNICALL Java_com_haishinkit_rtc_NativeWebSocket_creat
         return id;
     } catch (...) { fail(env); return 0; }
 }
-extern "C" JNIEXPORT void JNICALL Java_com_haishinkit_rtc_NativeWebSocket_sendMessage(JNIEnv *env, jobject, jlong id, jbyteArray bytes, jboolean binary) {
+extern "C" JNIEXPORT void JNICALL Java_com_haishinkit_rtc_RTCWebSocket_sendMessage(JNIEnv *env, jobject, jlong id, jbyteArray bytes, jboolean binary) {
     try {
         auto state = get(id);
         const auto size = env->GetArrayLength(bytes);
@@ -111,7 +111,7 @@ extern "C" JNIEXPORT void JNICALL Java_com_haishinkit_rtc_NativeWebSocket_sendMe
         else state->socket->send(std::move(data));
     } catch (...) { fail(env); }
 }
-extern "C" JNIEXPORT void JNICALL Java_com_haishinkit_rtc_NativeWebSocket_destroy(JNIEnv *env, jobject, jlong id) {
+extern "C" JNIEXPORT void JNICALL Java_com_haishinkit_rtc_RTCWebSocket_destroy(JNIEnv *env, jobject, jlong id) {
     try {
         std::shared_ptr<Socket> state;
         { std::lock_guard<std::mutex> guard(registryMutex); auto found = sockets.find(id);

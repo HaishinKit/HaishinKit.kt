@@ -17,6 +17,7 @@ import okio.ByteString.Companion.toByteString
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeTrue
 import org.junit.Test
@@ -95,6 +96,31 @@ class RTCWebSocketTest {
                 assertNotNull(withContext(Dispatchers.IO) { server.takeRequest(3, TimeUnit.SECONDS) })
                 withTimeout(3000) { connect.cancelAndJoin() }
                 assertTrue(connect.isCancelled)
+            } finally {
+                socket.close()
+                connect.cancelAndJoin()
+                server.shutdown()
+            }
+        }
+
+    @Test fun closeWhileOpeningIsIdempotentAndPreventsSending() =
+        runBlocking {
+            requireNativeTests()
+            val server = MockWebServer()
+            server.enqueue(MockResponse().setSocketPolicy(SocketPolicy.NO_RESPONSE))
+            server.start()
+            val socket = RTCWebSocket()
+            val connect = async { socket.connect(server.url("/").toString().replace("http:", "ws:")) }
+            try {
+                assertNotNull(withContext(Dispatchers.IO) { server.takeRequest(3, TimeUnit.SECONDS) })
+                withContext(Dispatchers.IO) {
+                    socket.close()
+                    socket.close()
+                }
+                withTimeout(3000) { connect.join() }
+                assertTrue(connect.isCancelled)
+                assertThrows(IllegalStateException::class.java) { socket.send("closed") }
+                Unit
             } finally {
                 socket.close()
                 connect.cancelAndJoin()

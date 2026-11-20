@@ -23,7 +23,7 @@ class RTCWebSocket(private val caCertificatesPem: String? = null) : Closeable {
     private val guard = Any()
     private val opened = CompletableDeferred<Unit>()
     private val messages = Channel<Message>(64)
-    private var native: NativeWebSocket? = null
+    private var handle = 0L
     private var used = false
     private var closed = false
 
@@ -38,15 +38,8 @@ class RTCWebSocket(private val caCertificatesPem: String? = null) : Closeable {
             val roots = if (uri.scheme == "wss") caCertificatesPem ?: systemTrustAnchors else ""
             synchronized(guard) {
                 check(!closed) { "WebSocket was closed" }
-                native =
-                    NativeWebSocket(uri.toASCIIString(), roots) { kind, bytes ->
-                        when (kind) {
-                            0 -> opened.complete(Unit)
-                            1, 4 -> if (messages.trySend(Message(bytes, kind == 4)).isFailure) fail("WebSocket receive queue is full")
-                            2 -> fail("WebSocket connection failed")
-                            3 -> fail("WebSocket was closed")
-                        }
-                    }
+                System.loadLibrary("hkrtc")
+                handle = create(uri.toASCIIString(), roots)
             }
             opened.await()
         } catch (cause: Throwable) {
@@ -57,22 +50,42 @@ class RTCWebSocket(private val caCertificatesPem: String? = null) : Closeable {
 
     /** Sends one UTF-8 text frame. Native buffering is bounded to 1 MiB. */
     fun send(text: String) {
-        synchronized(guard) { checkNotNull(native) { "WebSocket is closed" }.send(text.toByteArray(Charsets.UTF_8), false) }
+        synchronized(guard) {
+            check(handle != 0L) { "WebSocket is closed" }
+            sendMessage(handle, text.toByteArray(Charsets.UTF_8), false)
+        }
     }
 
     /** Receives one complete text or binary frame, at most 1 MiB. */
     suspend fun receive(): Message = messages.receive()
 
     override fun close() {
-        val socket =
+        val previous =
             synchronized(guard) {
                 closed = true
-                native.also { native = null }
+                handle.also { handle = 0L }
             }
         // Never hold the Kotlin guard while native close waits for an in-flight callback.
-        socket?.close()
-        opened.cancel()
-        messages.cancel()
+        try {
+            if (previous != 0L) destroy(previous)
+        } finally {
+            opened.cancel()
+            messages.cancel()
+        }
+    }
+
+    /** JNI callbacks only enqueue messages; they never close or wait for native worker threads. */
+    @Suppress("unused")
+    private fun onEvent(
+        kind: Int,
+        bytes: ByteArray,
+    ) {
+        when (kind) {
+            0 -> opened.complete(Unit)
+            1, 4 -> if (messages.trySend(Message(bytes, kind == 4)).isFailure) fail("WebSocket receive queue is full")
+            2 -> fail("WebSocket connection failed")
+            3 -> fail("WebSocket was closed")
+        }
     }
 
     private fun fail(message: String) {
@@ -80,40 +93,6 @@ class RTCWebSocket(private val caCertificatesPem: String? = null) : Closeable {
         opened.completeExceptionally(error)
         messages.close(error)
     }
-
-    companion object {
-        private val systemTrustAnchors: String by lazy {
-            val factory = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm())
-            factory.init(null as KeyStore?)
-            val certificates = factory.trustManagers.filterIsInstance<X509TrustManager>().flatMap { it.acceptedIssuers.toList() }
-            check(certificates.isNotEmpty()) { "No platform TLS trust anchors are available" }
-            certificates.joinToString("\n") { certificate ->
-                val encoded = Base64.encode(certificate.encoded).chunked(64).joinToString("\n")
-                "-----BEGIN CERTIFICATE-----\n$encoded\n-----END CERTIFICATE-----\n"
-            }
-        }
-    }
-}
-
-/** JNI callbacks only enqueue messages; they never call close or block native worker threads. */
-internal class NativeWebSocket(url: String, roots: String, private val event: (Int, ByteArray) -> Unit) : Closeable {
-    private var handle = create(url, roots)
-
-    @Synchronized fun send(
-        bytes: ByteArray,
-        binary: Boolean,
-    ) = sendMessage(handle, bytes, binary)
-
-    override fun close() {
-        val previous = synchronized(this) { handle.also { handle = 0 } }
-        if (previous != 0L) destroy(previous)
-    }
-
-    @Suppress("unused")
-    private fun onEvent(
-        kind: Int,
-        bytes: ByteArray,
-    ) = event(kind, bytes)
 
     private external fun create(
         url: String,
@@ -129,8 +108,15 @@ internal class NativeWebSocket(url: String, roots: String, private val event: (I
     private external fun destroy(handle: Long)
 
     companion object {
-        init {
-            System.loadLibrary("hkrtc")
+        private val systemTrustAnchors: String by lazy {
+            val factory = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm())
+            factory.init(null as KeyStore?)
+            val certificates = factory.trustManagers.filterIsInstance<X509TrustManager>().flatMap { it.acceptedIssuers.toList() }
+            check(certificates.isNotEmpty()) { "No platform TLS trust anchors are available" }
+            certificates.joinToString("\n") { certificate ->
+                val encoded = Base64.encode(certificate.encoded).chunked(64).joinToString("\n")
+                "-----BEGIN CERTIFICATE-----\n$encoded\n-----END CERTIFICATE-----\n"
+            }
         }
     }
 }
