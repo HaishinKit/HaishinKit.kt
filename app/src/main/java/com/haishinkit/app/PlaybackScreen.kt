@@ -5,9 +5,14 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
-import androidx.compose.material3.Button
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -23,6 +28,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
@@ -43,8 +49,9 @@ private const val TAG = "PlaybackScreen"
 @Suppress("ktlint:standard:function-naming")
 @Composable
 fun PlaybackScreen(
-    viewModel: PlaybackViewModel = viewModel(),
     modifier: Modifier = Modifier,
+    viewModel: PlaybackViewModel = viewModel(),
+    onOpenSettings: () -> Unit = {},
 ) {
     val activity = LocalContext.current.mainActivity()
     val pictureInPicture = activity?.pictureInPicture == true
@@ -64,7 +71,12 @@ fun PlaybackScreen(
     LaunchedEffect(Unit) { viewModel.refreshSession().onFailure { errorMessage = it.message ?: "Check the stream URL." } }
     val currentSession = viewModel.session
     if (currentSession == null) {
-        Text(viewModel.sessionError ?: "Preparing stream...", modifier = modifier.safeDrawingPadding().padding(16.dp))
+        Box(modifier.fillMaxSize().safeDrawingPadding().padding(16.dp)) {
+            StudioSection(stringResource(R.string.studio_playback), viewModel.sessionError ?: stringResource(R.string.studio_preparing)) {
+                androidx.compose.material3.TextButton(onClick = onOpenSettings) { Text(stringResource(R.string.studio_settings)) }
+            }
+        }
+
         return
     }
     LaunchedEffect(currentSession) {
@@ -102,26 +114,36 @@ fun PlaybackScreen(
             )
         }
         if (!pictureInPicture) {
-            Box(
-                modifier = Modifier.fillMaxSize().safeDrawingPadding().padding(16.dp),
+            Column(
+                Modifier.fillMaxSize().safeDrawingPadding().padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                errorMessage?.let { message ->
-                    Column(
-                        modifier = Modifier.align(Alignment.Center).background(Color.Black.copy(alpha = 0.8f)).padding(24.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(16.dp),
-                    ) {
-                        Text("Can't connect to stream", color = Color.White)
-                        Text(message, color = Color.White)
-                        Button(onClick = toggleConnection) { Text("Try Again") }
+                Surface(shape = MaterialTheme.shapes.large, modifier = Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        StudioPreviewHeader(stringResource(R.string.studio_playback), readyState, onOpenSettings, idleLabel = R.string.studio_not_connected)
                     }
                 }
-                Box(modifier = Modifier.align(Alignment.BottomEnd)) {
+                Column(
+                    Modifier.weight(1f).widthIn(max = 560.dp).verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.Center,
+                ) {
+                    if (errorMessage != null || readyState == StreamSession.ReadyState.CLOSED) {
+                        StudioSection(
+                            stringResource(if (errorMessage != null) R.string.studio_playback_error else R.string.studio_playback_ready),
+                            errorMessage ?: stringResource(R.string.studio_playback_help),
+                        ) {
+                            androidx.compose.material3.TextButton(onClick = onOpenSettings) { Text(stringResource(R.string.studio_settings)) }
+                        }
+                    }
+                }
+                Surface(shape = MaterialTheme.shapes.large, modifier = Modifier.fillMaxWidth()) {
                     StreamControlButton(
                         readyState = readyState,
-                        startLabel = "PLAY",
+                        startLabel = stringResource(if (errorMessage != null) R.string.studio_retry else R.string.studio_play),
                         onClick = toggleConnection,
                         canCancelConnection = session.stream is SrtStream || session.stream is RTCStream,
+                        modifier = Modifier.padding(12.dp).fillMaxWidth(),
                     )
                 }
             }

@@ -3,38 +3,33 @@ package com.haishinkit.app
 import android.media.MediaMuxer
 import android.os.Environment
 import android.widget.Toast
-import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.calculateCentroid
 import androidx.compose.foundation.gestures.calculateZoom
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
-import androidx.compose.foundation.pager.HorizontalPager
-import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshotFlow
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
@@ -43,11 +38,9 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.google.accompanist.pager.HorizontalPagerIndicator
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.PermissionStatus
 import com.haishinkit.compose.HaishinKitView
@@ -70,16 +63,19 @@ private const val TAG = "CameraScreen"
 @OptIn(ExperimentalPermissionsApi::class)
 @Composable
 fun CameraScreen(
-    viewModel: CameraViewModel = viewModel(),
     modifier: Modifier = Modifier,
+    viewModel: CameraViewModel = viewModel(),
+    onOpenSettings: () -> Unit = {},
 ) {
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+    var toolsExpanded by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val pictureInPicture = context.mainActivity()?.pictureInPicture == true
     val scope = rememberCoroutineScope()
     var editingText by remember { mutableStateOf<TextScreenObject?>(null) }
     var insertionPosition by remember { mutableStateOf<Offset?>(null) }
     LaunchedEffect(Unit) {
-        viewModel.refreshSession().onFailure { Toast.makeText(context, it.message, Toast.LENGTH_SHORT).show() }
+        viewModel.refreshSession().onFailure { errorMessage = it.message ?: context.getString(R.string.studio_connection_error) }
     }
 
     val cameraList by viewModel.cameraList.collectAsState()
@@ -101,19 +97,21 @@ fun CameraScreen(
         if (!pictureInPicture) viewModel.onConfigurationChanged(configuration)
     }
 
-    val pagerState =
-        rememberPagerState(pageCount = {
-            viewModel.videoEffectItems.size
-        })
+    var selectedEffect by remember { mutableIntStateOf(0) }
 
     val currentSession = viewModel.session
     if (currentSession == null) {
-        Text(viewModel.sessionError ?: "Preparing stream...", modifier = modifier.safeDrawingPadding().padding(16.dp))
+        Box(modifier.fillMaxSize().safeDrawingPadding().padding(16.dp)) {
+            StudioSection(stringResource(R.string.studio_publish), viewModel.sessionError ?: stringResource(R.string.studio_preparing)) {
+                TextButton(onClick = onOpenSettings) { Text(stringResource(R.string.studio_settings)) }
+            }
+        }
+
         return
     }
     LaunchedEffect(currentSession) {
         (currentSession as? RTCSession)?.failure?.filterNotNull()?.collect { cause ->
-            Toast.makeText(context, cause.message ?: "WHIP connection failed.", Toast.LENGTH_LONG).show()
+            errorMessage = cause.message ?: context.getString(R.string.studio_connection_error)
         }
     }
     val sessionState = rememberStreamSessionState(currentSession)
@@ -122,11 +120,9 @@ fun CameraScreen(
     val recorderState = rememberMediaRecorderState(viewModel.recorder)
     val sessionActive = sessionReadyState != StreamSession.ReadyState.CLOSED
 
-    LaunchedEffect(pagerState, 0) {
-        snapshotFlow { pagerState.currentPage }.collect { page ->
-            val item = viewModel.videoEffectItems[page]
-            viewModel.setVideoEffect(item.videoEffect ?: DefaultVideoEffect.shared)
-        }
+    LaunchedEffect(selectedEffect) {
+        val item = viewModel.videoEffectItems[selectedEffect]
+        viewModel.setVideoEffect(item.videoEffect ?: DefaultVideoEffect.shared)
     }
 
     if (!pictureInPicture) {
@@ -230,9 +226,10 @@ fun CameraScreen(
                     Modifier
                         .fillMaxSize()
                         .safeDrawingPadding()
-                        .padding(8.dp)
-                        .alpha(0.8F),
+                        .padding(16.dp),
                 settings = {
+                    StudioPreviewHeader(stringResource(R.string.studio_publish), sessionReadyState, onOpenSettings)
+                    errorMessage?.let { message -> StudioError(message, onDismiss = { errorMessage = null }) }
                     CameraDeviceControllerView(
                         camera = selectedCamera,
                         cameras = cameraList,
@@ -261,75 +258,54 @@ fun CameraScreen(
                             }
                         },
                     )
-                    viewModel.mainCameraSource?.let { source ->
-                        var torch by remember(source) { mutableStateOf(source.isTorchEnabled) }
-                        var zoom by remember(source) { mutableStateOf(source.zoomRatioRange.clamp(source.zoomRatio)) }
-                        androidx.compose.material3.Button(
-                            enabled = source.isTorchSupported,
-                            onClick = {
-                                torch = !torch
-                                source.isTorchEnabled = torch
-                            },
-                        ) {
-                            Text(if (torch) "Torch ON" else "Torch OFF")
-                        }
-                        val zoomDescription = "%.1fx".format(zoom)
-                        Text("Zoom: $zoomDescription", color = Color.White)
-                        val range = source.zoomRatioRange
-                        if (range.upper > range.lower) {
-                            androidx.compose.material3.Slider(
-                                modifier =
-                                    Modifier.semantics {
-                                        contentDescription = "Zoom"
-                                        stateDescription = zoomDescription
-                                    },
-                                value = zoom,
-                                onValueChange = {
-                                    zoom = it
-                                    source.zoomRatio = it
+                    TextButton(onClick = { toolsExpanded = !toolsExpanded }) {
+                        Text(stringResource(R.string.studio_camera_tools) + if (toolsExpanded) " −" else " +")
+                    }
+                    if (toolsExpanded) {
+                        viewModel.mainCameraSource?.let { source ->
+
+                            var torch by remember(source) { mutableStateOf(source.isTorchEnabled) }
+                            var zoom by remember(source) { mutableStateOf(source.zoomRatioRange.clamp(source.zoomRatio)) }
+                            androidx.compose.material3.Button(
+                                enabled = source.isTorchSupported,
+                                onClick = {
+                                    torch = !torch
+                                    source.isTorchEnabled = torch
                                 },
-                                valueRange = range.lower..range.upper,
-                            )
+                            ) {
+                                Text(stringResource(if (torch) R.string.studio_torch_on else R.string.studio_torch_off))
+                            }
+                            val zoomLabel = stringResource(R.string.studio_zoom)
+                            val zoomDescription = "%.1fx".format(zoom)
+                            Text("$zoomLabel: $zoomDescription")
+                            val range = source.zoomRatioRange
+                            if (range.upper > range.lower) {
+                                androidx.compose.material3.Slider(
+                                    modifier =
+                                        Modifier.semantics {
+                                            contentDescription = zoomLabel
+                                            stateDescription = zoomDescription
+                                        },
+                                    value = zoom,
+                                    onValueChange = {
+                                        zoom = it
+                                        source.zoomRatio = it
+                                    },
+                                    valueRange = range.lower..range.upper,
+                                )
+                            }
                         }
-                    }
 
-                    HorizontalPager(
-                        state = pagerState,
-                        contentPadding = PaddingValues(end = 0.dp),
-                        modifier = Modifier.fillMaxWidth(),
-                    ) { page ->
-                        val item = viewModel.videoEffectItems[page]
-                        Box(
-                            modifier = Modifier.fillMaxWidth(),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Text(
-                                text = item.name,
-                                color = Color.White,
-                                textAlign = TextAlign.Center,
-                                modifier =
-                                    Modifier
-                                        .align(alignment = Alignment.Center)
-                                        .background(
-                                            color = Color.Black,
-                                            shape = RoundedCornerShape(20.dp),
-                                        )
-                                        .padding(8.dp, 0.dp),
-                            )
+                        Text(stringResource(R.string.studio_effects))
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            viewModel.videoEffectItems.forEachIndexed { index, item ->
+                                FilterChip(selected = selectedEffect == index, onClick = { selectedEffect = index }, label = { Text(item.name) })
+                            }
                         }
-                    }
-
-                    HorizontalPagerIndicator(
-                        pagerState = pagerState,
-                        pageCount = viewModel.videoEffectItems.size,
-                        modifier =
-                            Modifier
-                                .align(Alignment.CenterHorizontally)
-                                .padding(32.dp),
-                    )
-                    if (BuildConfig.VQMETRIX_AVAILABLE) {
-                        Button(onClick = { viewModel.captureQuality(context) }) {
-                            Text(stringResource(R.string.vq_capture_action))
+                        if (BuildConfig.VQMETRIX_AVAILABLE) {
+                            Button(onClick = { viewModel.captureQuality(context) }) {
+                                Text(stringResource(R.string.vq_capture_action))
+                            }
                         }
                     }
                 },
@@ -343,18 +319,17 @@ fun CameraScreen(
                             viewModel.takeSnapShot(context)
                         },
                         onClickConnect = {
+                            errorMessage = null
                             scope.launch {
                                 if (sessionActive) {
-                                    sessionState.close().onFailure { Toast.makeText(context, it.message, Toast.LENGTH_LONG).show() }
+                                    sessionState.close().onFailure { errorMessage = it.message ?: context.getString(R.string.studio_connection_error) }
                                 } else {
                                     viewModel.sessionError?.let {
-                                        Toast.makeText(context, it, Toast.LENGTH_SHORT).show()
+                                        errorMessage = it
                                         return@launch
                                     }
                                     sessionState.connect().onFailure {
-                                        Toast
-                                            .makeText(context, it.message, Toast.LENGTH_SHORT)
-                                            .show()
+                                        errorMessage = it.message ?: context.getString(R.string.studio_connection_error)
                                     }
                                 }
                             }

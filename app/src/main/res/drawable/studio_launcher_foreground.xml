@@ -1,0 +1,4 @@
+<inset xmlns:android="http://schemas.android.com/apk/res/android"
+    android:inset="14dp">
+    <bitmap android:src="@drawable/haishinkit_brand" android:gravity="fill" android:filter="true" />
+</inset>
