@@ -28,7 +28,7 @@ dependencies {
         implementation(project(":vqmetrix-transfer"))
     } else {
         implementation(
-            "com.github.HaishinKit.VQMetrix:transfer:$transferVersion",
+            "com.github.HaishinKit:VQMetrix:$transferVersion",
         )
     }
     testImplementation(libs.junit)

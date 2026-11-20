@@ -21,7 +21,7 @@ dependencyResolutionManagement {
             forRepository {
                 maven { url = uri(providers.gradleProperty("vqmetrixRepository").orElse("https://jitpack.io").get()) }
             }
-            filter { includeGroup("com.github.HaishinKit.VQMetrix") }
+            filter { includeModule("com.github.HaishinKit", "VQMetrix") }
         }
     }
 }

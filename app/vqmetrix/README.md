@@ -16,7 +16,7 @@ LAN use and does not encrypt video or codes. The Mac evaluates packages and save
 
 ## 📦 Dependency
 
-The module consumes `com.github.HaishinKit.VQMetrix:transfer:1.0.0` from JitPack.
+The module consumes `com.github.HaishinKit:VQMetrix:1.0.0` from JitPack.
 No neighboring VQMetrix checkout is required. For development use
 `-PvqmetrixTransferDir=/path/to/VQMetrix/Android/transfer`; a test Maven repository can be
 selected with `-PvqmetrixRepository=/path/to/repository`.
