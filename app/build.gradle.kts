@@ -13,7 +13,8 @@ android {
         minSdk = 29
         targetSdk = 37
         versionCode = 1
-        versionName = "1.0"
+        versionName = providers.gradleProperty("appVersionName").orElse("1.0").get()
+        buildConfigField("boolean", "VQMETRIX_AVAILABLE", (rootProject.findProject(":vqmetrix-producer") != null).toString())
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables { useSupportLibrary = true }
@@ -39,7 +40,10 @@ android {
             )
         }
     }
-    buildFeatures { compose = true }
+    buildFeatures {
+        compose = true
+        buildConfig = true
+    }
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
@@ -52,6 +56,9 @@ android {
 }
 
 dependencies {
+    if (rootProject.findProject(":vqmetrix-producer") != null) {
+        implementation(project(":vqmetrix-example"))
+    }
     implementation(project(":haishinkit"))
     implementation(project(":vulkan"))
     implementation(project(":rtmp"))

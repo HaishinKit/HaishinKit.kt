@@ -33,6 +33,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -60,6 +61,16 @@ fun PreferenceScreen(
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         val keyboardController = LocalSoftwareKeyboardController.current
+        if (BuildConfig.VQMETRIX_AVAILABLE) {
+            val qualityToolContext = LocalContext.current
+            Button(onClick = {
+                qualityToolContext.startActivity(
+                    Intent().setClassName(qualityToolContext, "com.haishinkit.app.vqmetrix.VQMetrixActivity"),
+                )
+            }) {
+                Text(stringResource(R.string.vq_open_tool))
+            }
+        }
         var streamUrl by remember { mutableStateOf(Preference.shared.streamURL) }
         TextField(
             label = { Text("Publish URL (RTMP / SRT / WHIP)") },

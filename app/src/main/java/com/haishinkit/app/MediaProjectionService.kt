@@ -78,6 +78,11 @@ class MediaProjectionService :
         object : Handler(Looper.getMainLooper()) {
             override fun handleMessage(msg: Message) {
                 when (msg.what) {
+                    MSG_SAVE_QUALITY -> {
+                        if (BuildConfig.VQMETRIX_AVAILABLE && mixer.hasVideo && mixer.isRunning.get()) {
+                            QualityCapture.save(applicationContext, mixer.screen, "projection")
+                        }
+                    }
                     MSG_CONNECT -> {
                         Log.i(TAG, "MSG_CONNECT")
                     }
@@ -141,6 +146,7 @@ class MediaProjectionService :
                     mixer.attachVideo(0, source).onSuccess {
                         mixer.screen.frame =
                             Rect(0, 0, source.videoSize.width, source.videoSize.height)
+                        mixer.startRunning()
                         session.connect()
                     }
                 }
@@ -159,6 +165,7 @@ class MediaProjectionService :
     }
 
     override suspend fun stopForRendererChange() {
+        QualityCapture.stop("projection")
         serviceJob.cancelAndJoin()
         shutdownMutex.withLock {
             if (outputsClosed) return@withLock
@@ -200,6 +207,7 @@ class MediaProjectionService :
         const val MSG_SET_VIDEO_EFFECT = 2
         const val MSG_SET_MEDIA_PROJECTION = 3
         const val MSG_CLOSED = 4
+        const val MSG_SAVE_QUALITY = 5
 
         private const val EXTRA_RESULT_CODE = "EXTRA_RESULT_CODE"
         private const val EXTRA_RESULT_DATA = "EXTRA_RESULT_DATA"

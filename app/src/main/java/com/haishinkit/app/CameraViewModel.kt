@@ -283,7 +283,12 @@ class CameraViewModel(
         DebugFrameCapture.attach(this, mixer.screen)
     }
 
+    fun captureQuality(context: Context) {
+        QualityCapture.save(context, mixer.screen, "camera")
+    }
+
     fun stopRunning() {
+        QualityCapture.stop("camera")
         DebugFrameCapture.detach(this)
         mixer.stopRunning()
     }
@@ -297,6 +302,7 @@ class CameraViewModel(
     }
 
     override suspend fun stopForRendererChange() {
+        QualityCapture.stop("camera")
         DebugFrameCapture.detach(this)
         if (recorder.isRecording) recorder.stopRecording()
         mixer.stopRunning()

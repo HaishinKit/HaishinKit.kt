@@ -1,0 +1,4 @@
+<resources>
+    <string name="vq_capture_action">VQMetrix・素材を保存</string>
+    <string name="vq_open_tool">VQMetrix・保存した素材とアップロード</string>
+</resources>

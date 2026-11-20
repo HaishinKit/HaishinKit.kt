@@ -1,0 +1,4 @@
+<resources>
+    <string name="vq_capture_action">VQMetrix · Save sample</string>
+    <string name="vq_open_tool">VQMetrix · Saved samples and upload</string>
+</resources>
