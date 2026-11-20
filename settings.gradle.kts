@@ -17,6 +17,12 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
+        exclusiveContent {
+            forRepository {
+                maven { url = uri(providers.gradleProperty("vqmetrixRepository").orElse("https://jitpack.io").get()) }
+            }
+            filter { includeModule("com.github.HaishinKit", "VQMetrix") }
+        }
     }
 }
 
@@ -29,3 +35,12 @@ include(":rtmp")
 include(":srt")
 include(":vulkan")
 include(":rtc")
+
+include(":vqmetrix-example")
+project(":vqmetrix-example").projectDir = file("app/vqmetrix")
+
+// Explicit source override for VQMetrix development; normal builds use the published artifact.
+providers.gradleProperty("vqmetrixTransferDir").orNull?.let { directory ->
+    include(":vqmetrix-transfer")
+    project(":vqmetrix-transfer").projectDir = file(directory)
+}

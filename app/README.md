@@ -81,6 +81,91 @@ The existing OpenGL and optional Vulkan backends are available.
 
 ## Validation
 
+### Debug MCP server
+
+Debug builds include an MCP Streamable HTTP server using the official MCP Kotlin
+SDK **0.8.4** and Ktor Netty **3.2.3**, matching the project's Kotlin 2.2.21.
+The server starts while `MainActivity` is visible and stops when it is stopped
+or destroyed. The server itself runs independently of camera permissions and publishing.
+Release builds exclude both the server implementation and its dependencies.
+
+Connect a USB-debugging device, install and open the debug sample, then run:
+
+```sh
+adb forward tcp:8080 tcp:8080
+# Copy the current process token from Logcat (DebugMcpServer: MCP bearer token).
+export MCP_TOKEN='<token from Logcat>'
+ruby app/scripts/mcp_smoke.rb
+```
+
+The check initializes MCP, lists tools, calls `hello_android`, and checks rejection
+of untrusted Host/Origin headers and invalid bearer tokens. The tool takes `{}` and returns
+`Hello from HaishinKit on Android!`; it does not access camera or microphone data.
+Use `http://127.0.0.1:8080/mcp` as the Streamable HTTP URL in a native MCP client.
+Set the client's `Authorization: Bearer <token>` header. The token is generated
+for each app process and logged only by the debug server. Re-read it after a
+process restart. No session ID is required: the server uses the SDK's stateless transport.
+
+If the computer's port 8080 is occupied, forward another local port and supply
+the device's expected Host header to the smoke check:
+
+```sh
+adb forward tcp:18080 tcp:8080
+/usr/bin/ruby app/scripts/mcp_smoke.rb http://127.0.0.1:18080/mcp 127.0.0.1:8080
+```
+
+On macOS, `/usr/bin/ruby` can run this standard-library-only script even when
+the Ruby version selected by the repository is not installed.
+
+The endpoint binds only to the device's loopback address, allows Host values
+`127.0.0.1:8080` and `localhost:8080`, and rejects requests with an Origin header.
+Browser clients, including browser-based Inspector connections, are not enabled.
+All MCP requests require the bearer token. This endpoint is intended for a trusted
+development device over adb, not direct LAN access. Startup failures and readiness
+are reported in Logcat under `DebugMcpServer`.
+
+Close the sample to stop the server; reopen it to test reconnection. Remove the
+forward when finished:
+
+```sh
+adb forward --remove tcp:8080
+```
+
+### Capture the Publish composition
+
+Open **Publish**. Grant camera permission if you want a live camera background;
+ScreenObject-only compositions can also be captured. No streaming or recording
+connection is needed. `capture_frame` returns a base64 JPEG image content block
+and structured metadata (`width`, `height`, `renderer`,
+`readbackCompletedAtMillis`). The timestamp marks readback completion, not camera
+exposure time. App controls and selection outlines are excluded; the whole
+composition is captured before preview cropping.
+
+Arguments are optional: `maxWidth` is an integer from 32 to 1920 (default 1280),
+`quality` is an integer from 1 to 100 (default 85). Aspect ratio is preserved and
+images are never enlarged. Example arguments: `{"maxWidth":640,"quality":85}`.
+The result is the currently available composition; a camera frame arriving after
+the request is not guaranteed. OpenGL reads its composited framebuffer and Vulkan
+renders a snapshot through its existing `readPixels` implementation.
+
+With `MCP_TOKEN` exported, save an image and validate error handling:
+
+```sh
+MCP_CAPTURE_OUTPUT=/tmp/haishinkit-composition.jpg ruby app/scripts/mcp_smoke.rb
+# After leaving Publish, verify that capture is rejected:
+MCP_CAPTURE_EXPECT_UNAVAILABLE=1 ruby app/scripts/mcp_smoke.rb
+```
+
+The same optional endpoint and Host arguments work with these checks. Requests
+are serialized, image scaling/compression runs off the UI and rendering threads,
+and asynchronous readback/queue waiting times out after three seconds. Stopping
+Publish invalidates pending results. Synchronous GPU readback and JPEG compression
+cannot be forcibly interrupted; their results are discarded on cancellation and
+owned Bitmaps are recycled. Capture failures return an MCP tool result with
+`isError: true` and a readable message.
+
+### App checks
+
 ```sh
 ./gradlew :app:testDebugUnitTest :app:ktlintCheck
 ./gradlew :app:connectedDebugAndroidTest

@@ -38,6 +38,10 @@ internal class MediaProjectionBinding(private val context: Context) : ServiceCon
         isStarted = isBound
     }
 
+    fun saveQuality() {
+        messenger?.send(Message.obtain(null, MediaProjectionService.MSG_SAVE_QUALITY))
+    }
+
     fun stop() {
         if (!isBound) return
         isStopping = true

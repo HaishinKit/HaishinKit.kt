@@ -1,0 +1,3 @@
+<resources><style name="VQMetrixTheme" parent="Theme.AppCompat.DayNight.NoActionBar">
+    <item name="colorAccent">#00A6E8</item><item name="android:fontFamily">sans</item>
+</style></resources>
