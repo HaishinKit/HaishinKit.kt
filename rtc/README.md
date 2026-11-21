@@ -1,11 +1,11 @@
-# HaishinKit RTC for Android
+# 📡 HaishinKit RTC for Android
 
 WHIP publishing and WHEP playback using libdatachannel and Android MediaCodec.
 The Android AAR packages the JNI library as `libhkrtc.so`.
 Requires Android 6.0 (API 23) or later. The core, RTMP, and SRT modules keep their
 existing minimum Android versions.
 
-## Supported media and signaling
+## 🎬 Supported media and signaling
 
 - H.264 Baseline level 3.1, RTP packetization-mode 1; outgoing frames include SPS/PPS on keyframes.
 - Opus audio, with RTP padding and padding-only probes removed before decoding. Capture PCM must match `stream.audioSetting` (48 kHz mono by default).
@@ -25,7 +25,7 @@ RTCP sender-report timestamps are not yet used to refine audio/video synchroniza
 Configure TURN explicitly when required. Validate interoperability and network-loss
 behavior with the intended WHIP/WHEP server before production use.
 
-## Publishing
+## 📤 Publishing
 
 Add the optional `rtc` module as a dependency. When publishing binaries, its Maven
 artifact is `com.github.HaishinKit.HaishinKit~kt:rtc` with the same version as the other modules.
@@ -67,7 +67,7 @@ before publishing. Codec options cannot override the validated profile, level, d
 frame rate or bitrate; use the corresponding videoSetting fields. Audio settings must describe the actual PCM input;
 this module does not resample captured audio.
 
-## Playback
+## ▶️ Playback
 
 ```kotlin
 val session = RTCSession(
@@ -102,9 +102,13 @@ Cancellation disconnects active HTTP requests and joins their workers before res
 cleanup or reconnection. `connectionTimeoutMillis` bounds the entire WebRTC setup. Closing releases local codecs and transport
 even if server DELETE fails; the failure is returned from `close()`.
 
-## Building and validation
+<a id="building-and-validation"></a>
 
-The NDK/CMake build pins libdatachannel 0.24.3 by commit and Mbed TLS 3.6.5 by SHA-256.
+## 🛠️ Building and validation
+
+The NDK/CMake build pins libdatachannel 0.24.7 by commit and Mbed TLS 3.6.5 by SHA-256.
+It applies the bundled `websocket-url-regex.patch` for libc++ compatibility while
+preserving IPv6 URL support. The patch is included with the AAR license notices.
 It builds arm64-v8a, armeabi-v7a, x86_64, and x86, with 16 KiB ELF segment alignment.
 The first native build needs network access. License notices are bundled in AAR assets.
 No separate software audio/video codec library is bundled.
@@ -130,7 +134,7 @@ Offline source overrides for native builds are available through
 `-PrtcDatachannelSourceDir=/path/to/libdatachannel` (including pinned submodules)
 and `-PrtcMbedtlsSourceDir=/path/to/mbedtls`.
 
-## Sample app
+## 📱 Sample app
 
 The sample app requires Android 10+. In **Preference**, enter the complete WHIP
 endpoint in **Publish URL (RTMP / SRT / WHIP)**, then enter the matching stream's
@@ -156,7 +160,7 @@ cmake --build /path/to/native-build --target rtc_media_test
 ctest --test-dir /path/to/native-build --output-on-failure
 ```
 
-## Bidirectional audio and text data channels
+## 🔄 Bidirectional audio and text data channels
 
 `RTCDuplexSession` is an audio-only `sendrecv` connection independent of WHIP/WHEP.
 Its suspending `run` function accepts an SDP-exchange callback, a data-channel label,
@@ -177,7 +181,7 @@ until speaker echo and device-specific voice processing have been validated.
 The host-native `NativePeerTest.duplexOpusAndUnicodeDataChannelRoundTrip` exercises
 both audio directions plus Japanese, emoji and embedded-NUL text over ICE/DTLS.
 
-## WebSocket
+## 🔌 WebSocket
 
 `RTCWebSocket` exposes libdatachannel's WebSocket engine without an HTTP client
 runtime dependency. Create an instance per connection, call suspending `connect`

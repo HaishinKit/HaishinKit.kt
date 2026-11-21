@@ -22,6 +22,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeTrue
 import org.junit.Test
 import java.io.IOException
+import java.net.InetAddress
 import java.util.concurrent.TimeUnit
 
 class RTCWebSocketTest {
@@ -40,6 +41,23 @@ class RTCWebSocketTest {
                 assertTrue(second.isBinary)
                 assertEquals(text, first.text)
                 assertEquals(text, second.text)
+            } finally {
+                socket.close()
+                server.shutdown()
+            }
+        }
+
+    @Test fun nativeIPv6LiteralConnectsAndExchangesFrames() =
+        runBlocking {
+            requireNativeTests()
+            val server = echoServer(bindAddress = InetAddress.getByName("::1"))
+            val socket = RTCWebSocket()
+            try {
+                val url = server.url("/ipv6").newBuilder().host("::1").build().toString().replace("http:", "ws:")
+                assertTrue(url.contains("["))
+                withTimeout(5000) { socket.connect(url) }
+                socket.send("IPv6")
+                assertEquals("IPv6", withTimeout(5000) { socket.receive() }.text)
             } finally {
                 socket.close()
                 server.shutdown()
@@ -176,7 +194,10 @@ class RTCWebSocketTest {
         assumeTrue("Set rtcNativeLibraryDir to run native WebSocket tests", System.getProperty("haishinkit.rtc.nativeTests") == "true")
     }
 
-    private fun echoServer(tls: HandshakeCertificates? = null): MockWebServer =
+    private fun echoServer(
+        tls: HandshakeCertificates? = null,
+        bindAddress: InetAddress? = null,
+    ): MockWebServer =
         MockWebServer().apply {
             if (tls != null) useHttps(tls.sslSocketFactory(), false)
             enqueue(
@@ -200,6 +221,6 @@ class RTCWebSocketTest {
                     },
                 ),
             )
-            start()
+            if (bindAddress == null) start() else start(bindAddress, 0)
         }
 }

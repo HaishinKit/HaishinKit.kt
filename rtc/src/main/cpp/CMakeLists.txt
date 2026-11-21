@@ -34,7 +34,7 @@ set(NO_EXAMPLES ON CACHE BOOL "" FORCE)
 set(TEST_APPS OFF CACHE BOOL "" FORCE)
 FetchContent_Declare(datachannel
     GIT_REPOSITORY https://github.com/paullouisageneau/libdatachannel.git
-    GIT_TAG c6696d157b5612df2a741d9a03b192b47ab6cefb
+    GIT_TAG 800e849a1ede5667caaf8f6caa1eb21e4906dd87
     GIT_SUBMODULES deps/json deps/libsrtp deps/plog deps/usrsctp
     GIT_SUBMODULES_RECURSE TRUE)
 FetchContent_GetProperties(datachannel)
@@ -44,10 +44,25 @@ if(NOT datachannel_POPULATED)
         # Use the exact libdatachannel gitlink revision without relying on
         # the runner's Git mirror to serve that submodule commit.
         FetchContent_Declare(rtc_libjuice
-            URL https://codeload.github.com/paullouisageneau/libjuice/tar.gz/22145ec3473c73d811417ac9a6aee0de530aaa3f
-            URL_HASH SHA256=4748aa200992301bea0cea1329de6dfd4ec7ec5885f2aceb0163618993fc7ff7
+            URL https://codeload.github.com/paullouisageneau/libjuice/tar.gz/b89c792e3612faf2f12cf35bcc56857313a06be3
+            URL_HASH SHA256=713b22174e8cb2e06538fa9bac2650bda21b83c86f5128813ab4dcf8f5bea9ed
             SOURCE_DIR "${datachannel_SOURCE_DIR}/deps/libjuice")
         FetchContent_Populate(rtc_libjuice)
+    endif()
+    # v0.24.7's escaped brackets are rejected by libc++'s POSIX extended
+    # regex parser. Keep IPv6 URL support using portable bracket expressions.
+    find_package(Git REQUIRED)
+    set(rtc_websocket_patch "${CMAKE_CURRENT_SOURCE_DIR}/../assets/libdatachannel/websocket-url-regex.patch")
+    execute_process(COMMAND "${GIT_EXECUTABLE}" apply --reverse --check "${rtc_websocket_patch}"
+        WORKING_DIRECTORY "${datachannel_SOURCE_DIR}"
+        RESULT_VARIABLE rtc_websocket_patch_applied OUTPUT_QUIET ERROR_QUIET)
+    if(NOT rtc_websocket_patch_applied EQUAL 0)
+        execute_process(COMMAND "${GIT_EXECUTABLE}" apply "${rtc_websocket_patch}"
+            WORKING_DIRECTORY "${datachannel_SOURCE_DIR}"
+            RESULT_VARIABLE rtc_websocket_patch_result ERROR_VARIABLE rtc_websocket_patch_error)
+        if(NOT rtc_websocket_patch_result EQUAL 0)
+            message(FATAL_ERROR "Unable to apply libdatachannel WebSocket fix: ${rtc_websocket_patch_error}")
+        endif()
     endif()
     add_subdirectory("${datachannel_SOURCE_DIR}" "${datachannel_BINARY_DIR}")
 endif()
