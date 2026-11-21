@@ -1,7 +1,9 @@
 cmake_minimum_required(VERSION 3.22.1)
 project(haishinkit_rtc LANGUAGES C CXX)
 include(FetchContent)
-set(CMAKE_SKIP_INSTALL_RULES ON)
+# libdatachannel/libSRTP export their Mbed TLS dependencies. Register those
+# exports instead of disabling all install rules and triggering a CMake warning.
+set(DISABLE_PACKAGE_CONFIG_AND_INSTALL OFF CACHE BOOL "" FORCE)
 add_compile_definitions(MBEDTLS_USER_CONFIG_FILE="${CMAKE_CURRENT_SOURCE_DIR}/mbedtls-user-config.h")
 list(PREPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
@@ -10,8 +12,8 @@ set(ENABLE_PROGRAMS OFF CACHE BOOL "" FORCE)
 set(ENABLE_TESTING OFF CACHE BOOL "" FORCE)
 set(MBEDTLS_FATAL_WARNINGS OFF CACHE BOOL "" FORCE)
 FetchContent_Declare(mbedtls
-    URL https://github.com/Mbed-TLS/mbedtls/releases/download/mbedtls-3.6.5/mbedtls-3.6.5.tar.bz2
-    URL_HASH SHA256=4a11f1777bb95bf4ad96721cac945a26e04bf19f57d905f241fe77ebeddf46d8)
+    URL https://github.com/Mbed-TLS/mbedtls/releases/download/mbedtls-3.6.8/mbedtls-3.6.8.tar.bz2
+    URL_HASH SHA256=bc54b818e87f49c0b3281dd85d24adaede0e63b4e822e3fbd49c005a38b9595b)
 # The release archive includes generated sources. Its optional configuration
 # warning script cannot run with older host interpreters such as JitPack's.
 function(add_rtc_mbedtls)
@@ -74,6 +76,10 @@ if(ANDROID)
     target_link_options(haishinkit_rtc PRIVATE "-Wl,-z,max-page-size=16384")
 else()
     enable_testing()
+    add_executable(rtc_unicode_test "${CMAKE_CURRENT_SOURCE_DIR}/../../socketTest/cpp/unicode-test.cpp")
+    target_include_directories(rtc_unicode_test PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
+    target_compile_features(rtc_unicode_test PRIVATE cxx_std_17)
+    add_test(NAME rtc_unicode_test COMMAND rtc_unicode_test)
     add_executable(rtc_media_test "${CMAKE_CURRENT_SOURCE_DIR}/../../socketTest/cpp/rtc-media-test.cpp")
     target_include_directories(rtc_media_test PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
     target_link_libraries(rtc_media_test PRIVATE datachannel-static)

@@ -8,8 +8,7 @@
 #include <mutex>
 #include <memory>
 #include <random>
-#include <codecvt>
-#include <locale>
+#include "Unicode.h"
 
 namespace {
 JavaVM *vm = nullptr;
@@ -45,7 +44,7 @@ struct Peer {
         Env e;
         if (!e.env) return;
         std::u16string utf16;
-        try { utf16 = std::wstring_convert<std::codecvt_utf8_utf16<char16_t>, char16_t>{}.from_bytes(text); }
+        try { utf16 = haishinkit::fromUtf8(text); }
         catch (const std::exception &) { return; }
         auto string = e.env->NewString(reinterpret_cast<const jchar *>(utf16.data()), static_cast<jsize>(utf16.size()));
         if (!string) { e.env->ExceptionClear(); return; }
@@ -81,7 +80,7 @@ std::string string(JNIEnv *env, jstring value) {
     if (!chars) throw std::runtime_error("Unable to read JNI string");
     std::u16string input(reinterpret_cast<const char16_t *>(chars), env->GetStringLength(value));
     env->ReleaseStringChars(value, chars);
-    return std::wstring_convert<std::codecvt_utf8_utf16<char16_t>, char16_t>{}.to_bytes(input);
+    return haishinkit::toUtf8(input);
 }
 void error(JNIEnv *env, const std::exception &ex) {
     if (!env->ExceptionCheck()) env->ThrowNew(env->FindClass("java/lang/IllegalStateException"), ex.what());

@@ -386,6 +386,8 @@ void Kernel::ReadPixels(void *buffer) {
 
     auto imageExtent = swapChain.GetImageExtent();
     auto srcImage = swapChain.GetImage(queue.GetCurrentFrame());
+    // The image must be destroyed before its backing memory on every exit path.
+    vk::UniqueDeviceMemory dstImageMemory;
     auto dstImage = device->createImageUnique(
             vk::ImageCreateInfo()
                     .setExtent({imageExtent.width, imageExtent.height, 1})
@@ -400,14 +402,14 @@ void Kernel::ReadPixels(void *buffer) {
                             vk::ImageUsageFlagBits::eTransferDst)
     );
     auto memoryRequirements = device->getImageMemoryRequirements(dstImage.get());
-    auto dstImageMemory = device->allocateMemory(
+    dstImageMemory = device->allocateMemoryUnique(
             vk::MemoryAllocateInfo()
                     .setMemoryTypeIndex(FindMemoryType(memoryRequirements.memoryTypeBits,
                                                        vk::MemoryPropertyFlagBits::eHostVisible |
                                                        vk::MemoryPropertyFlagBits::eHostCoherent))
                     .setAllocationSize(memoryRequirements.size)
     );
-    device->bindImageMemory(dstImage.get(), dstImageMemory, 0);
+    device->bindImageMemory(dstImage.get(), dstImageMemory.get(), 0);
 
     Submit([&dstImage, &srcImage, &imageExtent](vk::CommandBuffer commandBuffer) {
         commandBuffer.pipelineBarrier(
@@ -483,9 +485,8 @@ void Kernel::ReadPixels(void *buffer) {
         );
     });
 
-    const char *data;
-    device->mapMemory(dstImageMemory, 0, memoryRequirements.size, vk::MemoryMapFlagBits(),
-                      (void **) &data);
+    const auto *data = static_cast<const char *>(
+            device->mapMemory(dstImageMemory.get(), 0, memoryRequirements.size));
 
     auto imageSubresource = vk::SubresourceLayout();
     auto imageSubresourceLayout = vk::ImageSubresource().setAspectMask(
@@ -500,8 +501,7 @@ void Kernel::ReadPixels(void *buffer) {
         memcpy(dst, src, 4 * imageExtent.width);
     }
 
-    device->unmapMemory(dstImageMemory);
-    device->free(dstImageMemory);
+    device->unmapMemory(dstImageMemory.get());
 }
 
 vk::ShaderModule Kernel::LoadShaderStrict(const std::string &fileName) {
