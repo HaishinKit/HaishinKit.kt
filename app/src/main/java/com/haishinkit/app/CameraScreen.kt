@@ -9,12 +9,14 @@ import androidx.compose.foundation.gestures.calculateCentroid
 import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.material3.Button
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -28,6 +30,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.pointer.PointerEventType
@@ -54,6 +57,7 @@ import com.haishinkit.rtc.RTCStream
 import com.haishinkit.screen.TextScreenObject
 import com.haishinkit.srt.SrtStream
 import com.haishinkit.stream.StreamSession
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.launch
 import java.io.File
@@ -98,6 +102,8 @@ fun CameraScreen(
     }
 
     var selectedEffect by remember { mutableIntStateOf(0) }
+    var filterFeedbackVisible by remember { mutableStateOf(false) }
+    var showFilterHint by remember { mutableStateOf(true) }
 
     val permissions =
         rememberCameraPermissions(
@@ -133,6 +139,10 @@ fun CameraScreen(
     LaunchedEffect(selectedEffect) {
         val item = viewModel.videoEffectItems[selectedEffect]
         viewModel.setVideoEffect(item.videoEffect ?: DefaultVideoEffect.shared)
+        filterFeedbackVisible = true
+        delay(if (showFilterHint) 2500L else 900L)
+        filterFeedbackVisible = false
+        showFilterHint = false
     }
 
     if (!pictureInPicture) {
@@ -173,10 +183,18 @@ fun CameraScreen(
                         down.consume()
                         var isTap = true
                         var isTransforming = false
+                        var endPosition = down.position
+                        var multiplePointers = false
+                        var cancelled = false
                         try {
                             do {
                                 val event = awaitPointerEvent()
-                                if (event.changes.any { it.isConsumed }) break
+                                if (event.changes.any { it.isConsumed }) {
+                                    cancelled = true
+                                    break
+                                }
+                                if (event.changes.size > 1) multiplePointers = true
+                                event.changes.firstOrNull { it.id == down.id }?.let { endPosition = it.position }
                                 if (event.changes.size > 1 ||
                                     event.changes.any { (it.position - down.position).getDistance() > viewConfiguration.touchSlop } ||
                                     event.changes.any { it.uptimeMillis - down.uptimeMillis > viewConfiguration.longPressTimeoutMillis }
@@ -200,6 +218,11 @@ fun CameraScreen(
                             } while (event.changes.any { it.pressed })
                         } finally {
                             controller.end()
+                        }
+                        if (!cancelled && !isTap) {
+                            val step = previewFilterStep(down.position, endPosition, 48.dp.toPx(), hitObject, multiplePointers)
+                            val count = viewModel.videoEffectItems.size
+                            if (step != 0 && count > 1) selectedEffect = (selectedEffect + step + count) % count
                         }
                     }
                 }
@@ -231,6 +254,14 @@ fun CameraScreen(
                 onDelete = { viewModel.removeFocusedScreenObject() },
             )
 
+            if (filterFeedbackVisible) {
+                Surface(modifier = Modifier.align(Alignment.Center), color = PreviewColors.container) {
+                    Column(Modifier.padding(horizontal = 16.dp, vertical = 10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("‹ ${viewModel.videoEffectItems[selectedEffect].name} ›", color = PreviewColors.content)
+                        if (showFilterHint) Text(stringResource(R.string.studio_filter_swipe), color = PreviewColors.content)
+                    }
+                }
+            }
             PublishControls(
                 modifier =
                     Modifier

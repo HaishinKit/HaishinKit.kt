@@ -25,7 +25,7 @@ Actual network publication requires a reachable streaming endpoint.
 ## Verification
 
 - App Kotlin compilation and ktlint checks passed.
-- 29 app unit tests passed.
+- 32 app unit tests passed, including background filter-swipe direction and exclusion rules.
 - Six Compose tests passed on a Pixel 5a: settings/authentication retention,
   navigation/back selection, invalid-URL recovery, primary actions in short windows,
   and 2x text.
@@ -35,8 +35,12 @@ Actual network publication requires a reachable streaming endpoint.
 - Device APKs reuse the unchanged native libraries from the existing local debug
   APK. Kotlin/UI and resources were rebuilt against current main. A clean native
   build and live stream publication were not part of this UI verification.
-- Captured screenshots show Settings and Share in Japanese; no live camera image
-  or credentials are included in the committed images.
+- Captured screenshots show publishing with a live camera preview, Settings and Share
+  in English, as requested. No credentials are included.
 
 Android lint and ktlint passed. Measured text contrasts range from 7.24:1
 (stop action) to 14.71:1 (body text), above the 4.5:1 normal-text threshold.
+
+Background horizontal swipes cycle filters; object transforms, pinches and vertical
+drags keep their existing meaning. Snapshot/recording controls use translucent
+backgrounds, and a short filter-name hint provides feedback after each swipe.

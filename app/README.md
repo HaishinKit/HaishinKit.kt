@@ -11,18 +11,19 @@ libraries retain their API 23 minimum.
 
 ## 🎨 Screens
 
-Settings and screen sharing in the sample app, shown in Japanese on a Pixel 5a:
+Publishing, settings and screen sharing in the sample app, shown in English on a Pixel 5a:
 
 <p>
-  <img src="design/screenshots/settings.png" width="240" alt="Settings screen in Japanese on a Pixel 5a">
-  <img src="design/screenshots/share.png" width="240" alt="Screen sharing screen in Japanese on a Pixel 5a">
+  <img src="design/screenshots/publish.png" width="240" alt="Publishing screen with a live camera preview in English on a Pixel 5a">
+  <img src="design/screenshots/settings.png" width="240" alt="Settings screen in English on a Pixel 5a">
+  <img src="design/screenshots/share.png" width="240" alt="Screen sharing screen in English on a Pixel 5a">
 </p>
 
 ## 🛠️ Build and run
 
 
 The interface uses a navy-and-teal studio theme with English and Japanese labels.
-Camera tools open in a bottom sheet; phones use bottom navigation and wider windows use
+Swipe the preview background left or right to change filters. Camera tools open in a bottom sheet; phones use bottom navigation and wider windows use
 a navigation rail. The launcher icon matches the Swift sample.
 
 Open the repository in Android Studio and run the `app` configuration on a device.

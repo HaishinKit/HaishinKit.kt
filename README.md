@@ -81,11 +81,12 @@ published version.
 
 ## 🐾 Examples
 
-Settings and screen sharing in the Android sample (Japanese, Pixel 5a):
+Publishing, settings and screen sharing in the Android sample (English, Pixel 5a):
 
 <p>
-  <img src="app/design/screenshots/settings.png" width="240" alt="Android sample settings screen in Japanese on a Pixel 5a">
-  <img src="app/design/screenshots/share.png" width="240" alt="Android sample screen-sharing screen in Japanese on a Pixel 5a">
+  <img src="app/design/screenshots/publish.png" width="240" alt="Android sample publishing screen with a live camera preview in English on a Pixel 5a">
+  <img src="app/design/screenshots/settings.png" width="240" alt="Android sample settings screen in English on a Pixel 5a">
+  <img src="app/design/screenshots/share.png" width="240" alt="Android sample screen-sharing screen in English on a Pixel 5a">
 </p>
 
 The [Android sample app](app/README.md) demonstrates camera publishing, playback,

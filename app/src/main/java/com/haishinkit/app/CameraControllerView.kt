@@ -92,7 +92,7 @@ fun CameraControllerView(
             onClickRecording,
             Modifier.weight(1f),
         ) {
-            Icon(painterResource(if (isRecording) R.drawable.studio_stop else R.drawable.studio_record), contentDescription = null, tint = if (isRecording) MaterialTheme.colorScheme.error else PreviewColors.content)
+            Icon(painterResource(if (isRecording) R.drawable.studio_stop else R.drawable.studio_record), contentDescription = null, tint = PreviewColors.content)
         }
     }
 }
@@ -105,7 +105,7 @@ private fun PublishAction(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     primary: Boolean = false,
-    containerColor: Color = PreviewColors.container,
+    containerColor: Color = PreviewColors.control,
     contentColor: Color = PreviewColors.content,
     icon: @Composable () -> Unit,
 ) {

@@ -1,4 +1,5 @@
 <resources>
+    <string name="studio_filter_swipe">左右にスワイプでフィルター切り替え</string>
     <string name="studio_close_tools">カメラ調整を閉じる</string>
     <string name="studio_permission_action">カメラとマイクを許可</string>
     <string name="studio_connection_error">接続設定を確認して、もう一度お試しください。</string>

@@ -51,5 +51,6 @@ internal fun StudioTheme(content: @Composable () -> Unit) {
 /** Independent of the scene brightness: white controls stay legible over live video. */
 internal object PreviewColors {
     val container = Color.Black.copy(alpha = 0.78f)
+    val control = Color.Black.copy(alpha = 0.5f)
     val content = Color.White
 }
