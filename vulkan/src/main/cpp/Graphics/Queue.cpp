@@ -1,5 +1,6 @@
 #include "Kernel.h"
 #include "Queue.h"
+#include <stdexcept>
 
 using namespace Graphics;
 
@@ -38,10 +39,10 @@ void Queue::TearDown(Kernel &kernel) {
 }
 
 void Queue::Submit(Kernel &kernel, vk::CommandBuffer &commandBuffer) {
-    auto fence = kernel.device->createFence({});
-    queue.submit(vk::SubmitInfo().setCommandBuffers(commandBuffer), fence);
-    kernel.device->waitForFences(fence, true, std::numeric_limits<uint64_t>::max());
-    kernel.device->destroy(fence);
+    auto fence = kernel.device->createFenceUnique({});
+    queue.submit(vk::SubmitInfo().setCommandBuffers(commandBuffer), fence.get());
+    const auto result = kernel.device->waitForFences(fence.get(), true, std::numeric_limits<uint64_t>::max());
+    if (result != vk::Result::eSuccess) throw std::runtime_error("Vulkan fence wait failed: " + vk::to_string(result));
 }
 
 vk::Result
@@ -58,15 +59,18 @@ Queue::DrawFrame(Kernel &kernel, const std::function<void(uint32_t)> &lambda) {
         return result;
     }
 
-    kernel.device->waitForFences(fences[currentFrame], true,
+    result = kernel.device->waitForFences(fences[currentFrame], true,
                                  std::numeric_limits<uint64_t>::max());
+
+    if (result != vk::Result::eSuccess) return result;
 
     const auto waitStageMask =
             vk::PipelineStageFlags(vk::PipelineStageFlagBits::eColorAttachmentOutput);
 
     if (images[nextIndex]) {
-        kernel.device->waitForFences(images[nextIndex], true,
+        result = kernel.device->waitForFences(images[nextIndex], true,
                                      std::numeric_limits<uint64_t>::max());
+        if (result != vk::Result::eSuccess) return result;
     }
     images[nextIndex] = fences[currentFrame];
 

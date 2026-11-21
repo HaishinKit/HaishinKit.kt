@@ -483,9 +483,8 @@ void Kernel::ReadPixels(void *buffer) {
         );
     });
 
-    const char *data;
-    device->mapMemory(dstImageMemory, 0, memoryRequirements.size, vk::MemoryMapFlagBits(),
-                      (void **) &data);
+    const auto *data = static_cast<const char *>(
+            device->mapMemory(dstImageMemory, 0, memoryRequirements.size));
 
     auto imageSubresource = vk::SubresourceLayout();
     auto imageSubresourceLayout = vk::ImageSubresource().setAspectMask(

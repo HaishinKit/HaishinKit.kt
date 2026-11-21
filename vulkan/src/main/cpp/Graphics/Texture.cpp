@@ -4,6 +4,7 @@
 #include "ImageStorage.h"
 #include <sys/socket.h>
 #include <unistd.h>
+#include <stdexcept>
 #include <glm/ext/matrix_transform.hpp>
 
 using namespace Graphics;
@@ -33,7 +34,9 @@ void Texture::SetUp(Kernel &kernel, AHardwareBuffer *buffer) {
         vk::AndroidHardwareBufferFormatPropertiesANDROID format;
         vk::AndroidHardwareBufferPropertiesANDROID properties;
         properties.pNext = &format;
-        kernel.device->getAndroidHardwareBufferPropertiesANDROID(buffer, &properties);
+        const auto result = kernel.device->getAndroidHardwareBufferPropertiesANDROID(buffer, &properties);
+        if (result != vk::Result::eSuccess)
+            throw std::runtime_error("Unable to query Android hardware buffer: " + vk::to_string(result));
         auto externalFormat = vk::ExternalFormatANDROID().setExternalFormat(format.externalFormat);
 
         this->externalFormat = format.format == vk::Format::eUndefined ? format.externalFormat : 0;

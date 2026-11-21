@@ -11,10 +11,10 @@ namespace Graphics {
 
         void Create(void **next) override;
 
-        static VKAPI_ATTR VkBool32 VKAPI_CALL
-        callback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
-                 VkDebugUtilsMessageTypeFlagsEXT messageType,
-                 const VkDebugUtilsMessengerCallbackDataEXT *pCallbackData, void *pUserData);
+        static VKAPI_ATTR vk::Bool32 VKAPI_CALL
+        callback(vk::DebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
+                 vk::DebugUtilsMessageTypeFlagsEXT messageType,
+                 const vk::DebugUtilsMessengerCallbackDataEXT *pCallbackData, void *pUserData);
 
     private:
         vk::DebugUtilsMessengerCreateInfoEXT info;
