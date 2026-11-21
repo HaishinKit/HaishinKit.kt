@@ -192,7 +192,7 @@ the dedicated `uiTest` variant. See [R8 verification](../.github/docs/r8.md) for
 consumer rules, device smoke checks, and release mapping files.
 
 ```sh
-./gradlew :app:testUiTestUnitTest :app:ktlintCheck
+./gradlew :app:testDebugUnitTest :app:testUiTestUnitTest :app:ktlintCheck
 ./gradlew :app:connectedUiTestAndroidTest
 ```
 

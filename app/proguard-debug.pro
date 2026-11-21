@@ -58,3 +58,12 @@
 -keepclassmembers class io.netty.util.ReferenceCountUtil {
     public static *** touch(...);
 }
+# Netty checks handler annotations at runtime; full mode needs kept targets too.
+-keep @interface io.netty.channel.ChannelHandler$Sharable { *; }
+-keep,allowoptimization,allowobfuscation @io.netty.channel.ChannelHandler$Sharable class *
+
+# ChannelHandlerMask resolves callback names and their @Skip annotations.
+-keep @interface io.netty.channel.ChannelHandlerMask$Skip { *; }
+-keepclassmembers class * {
+    @io.netty.channel.ChannelHandlerMask$Skip <methods>;
+}

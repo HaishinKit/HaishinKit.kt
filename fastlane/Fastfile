@@ -17,6 +17,7 @@ lane :review do
   gradle(task: ':vulkan:assembleDebugAndroidTest')
   gradle(task: ':haishinkit:testDebugUnitTest')
   gradle(task: ':app:testUiTestUnitTest')
+  gradle(task: ':app:testDebugUnitTest')
   gradle(task: ':rtc:assembleDebug')
   gradle(task: ':rtc:assembleDebugAndroidTest')
   rtc_test_source = File.expand_path('../rtc/src/main/cpp', __dir__)

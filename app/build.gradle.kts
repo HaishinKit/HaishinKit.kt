@@ -88,7 +88,15 @@ android {
     }
 }
 
+androidComponents {
+    // Keep debug-only frame-capture regressions in the host test suite too.
+    beforeVariants(selector().withBuildType("debug")) { variant ->
+        (variant as com.android.build.api.variant.HasUnitTestBuilder).enableUnitTest = true
+    }
+}
+
 dependencies {
+
     if (rootProject.findProject(":vqmetrix-example") != null) {
         implementation(project(":vqmetrix-example"))
     }
