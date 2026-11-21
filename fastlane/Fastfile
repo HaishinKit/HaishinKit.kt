@@ -10,7 +10,7 @@ private_lane :build_native_host do |options|
   configure << '-DCMAKE_BUILD_TYPE=Release' if component == 'rtc'
   sh(*configure)
   compile = ['cmake', '--build', build]
-  compile += ['--target', 'haishinkit_rtc', 'rtc_media_test'] if component == 'rtc'
+  compile += ['--target', 'haishinkit_rtc', 'rtc_media_test', 'rtc_unicode_test'] if component == 'rtc'
   sh(*compile, '--parallel', '2')
 end
 
