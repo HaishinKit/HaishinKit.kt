@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="ingest_title">SRT受信先</string>
+    <string name="ingest_action">受信先を探す</string>
+    <string name="ingest_help">同じネットワーク上のBonjour対応SRT受信先を選びます。選択すると送信先が設定され、「配信開始」でカメラとマイクの映像・音声を送信します。</string>
+    <string name="ingest_empty">受信先がまだ見つかりません。MacでSRTの受信待ちを開始し、両方の端末を同じネットワークに接続してください。</string>
+    <string name="ingest_discovery_error">一部のサービスを発見・解決できませんでした。ローカルネットワークの権限を確認し、再検索してください。</string>
+    <string name="ingest_refresh">再検索</string>
+    <string name="ingest_selected">送信先: %1$s</string>
+</resources>

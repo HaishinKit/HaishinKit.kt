@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="ingest_title">SRT receiver</string>
+    <string name="ingest_action">Find receiver</string>
+    <string name="ingest_help">Choose a Bonjour SRT receiver on your local network. Selection sets the destination; Go live sends your camera and microphone.</string>
+    <string name="ingest_empty">No receivers found yet. Start SRT listening on the Mac, and connect both devices to the same network.</string>
+    <string name="ingest_discovery_error">Some services could not be discovered or resolved. Check local network permission and try refreshing.</string>
+    <string name="ingest_refresh">Refresh</string>
+    <string name="ingest_selected">Destination: %1$s</string>
+</resources>

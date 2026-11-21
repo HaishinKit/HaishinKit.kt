@@ -72,6 +72,9 @@ fun CameraScreen(
     viewModel: CameraViewModel = viewModel(),
     onOpenSettings: () -> Unit = {},
 ) {
+    var showIngest by remember { mutableStateOf(false) }
+    var applyingIngest by remember { mutableStateOf(false) }
+    var selectedIngest by remember { mutableStateOf<String?>(null) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     val context = LocalContext.current
     val pictureInPicture = context.mainActivity()?.pictureInPicture == true
@@ -115,10 +118,29 @@ fun CameraScreen(
             },
         )
 
+    if (showIngest && !pictureInPicture) {
+        IngestDestinationDialog(
+            discovery = viewModel.ingestDiscovery,
+            onDismiss = { showIngest = false },
+            onSelect = { endpoint ->
+                showIngest = false
+                applyingIngest = true
+                scope.launch {
+                    try {
+                        viewModel.selectIngest(endpoint).onSuccess { selectedIngest = endpoint.name }.onFailure { errorMessage = it.message ?: context.getString(R.string.studio_connection_error) }
+                    } finally {
+                        applyingIngest = false
+                    }
+                }
+            },
+        )
+    }
+
     val currentSession = viewModel.session
     if (currentSession == null) {
         Box(modifier.fillMaxSize().safeDrawingPadding().padding(16.dp)) {
             StudioSection(stringResource(R.string.studio_publish), viewModel.sessionError ?: stringResource(R.string.studio_preparing)) {
+                TextButton(onClick = { showIngest = true }, enabled = !applyingIngest) { Text(stringResource(R.string.ingest_action)) }
                 TextButton(onClick = onOpenSettings) { Text(stringResource(R.string.studio_settings)) }
             }
         }
@@ -272,7 +294,14 @@ fun CameraScreen(
                 errorMessage = errorMessage,
                 onDismissError = { errorMessage = null },
                 onOpenSettings = onOpenSettings,
+                onOpenIngest =
+                    if (applyingIngest) {
+                        null
+                    } else {
+                        { showIngest = true }
+                    },
                 settings = {
+                    selectedIngest?.let { Text(stringResource(R.string.ingest_selected, it)) }
                     CameraDeviceControllerView(
                         camera = selectedCamera,
                         cameras = cameraList,
@@ -337,6 +366,7 @@ fun CameraScreen(
                             viewModel.takeSnapShot(context)
                         },
                         onClickConnect = {
+                            if (applyingIngest) return@CameraControllerView
                             errorMessage = null
                             scope.launch {
                                 if (sessionActive) {

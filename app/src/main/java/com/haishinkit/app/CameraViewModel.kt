@@ -70,6 +70,7 @@ class CameraViewModel(
         get() = _selectedCamera.asStateFlow()
     var videoEffectItems: List<VideoEffectItem>
 
+    internal val ingestDiscovery = BonjourIngestDiscovery(application.applicationContext)
     internal val screenObjectDragController: ScreenObjectDragController
 
     private var cameraDeviceManager: CameraDeviceManager =
@@ -130,6 +131,17 @@ class CameraViewModel(
         recorder.audioSetting.sampleRate = 48_000
         mixer.registerOutput(recorder)
         RendererPreference.register(this)
+    }
+
+    internal suspend fun selectIngest(endpoint: IngestEndpoint): Result<Unit> {
+        if (session != null && session?.readyState?.value != StreamSession.ReadyState.CLOSED) {
+            return Result.failure(IllegalStateException("Stop publishing before changing the destination."))
+        }
+        val previous = Preference.shared
+        Preference.shared = previous.copy(streamURL = endpoint.uri)
+        val result = refreshSession()
+        if (result.isFailure) Preference.shared = previous
+        return result
     }
 
     suspend fun refreshSession(): Result<Unit> {
@@ -323,6 +335,7 @@ class CameraViewModel(
     }
 
     override fun onCleared() {
+        ingestDiscovery.stop()
         DebugFrameCapture.detach(this)
         session?.stream?.dispose()
         RendererPreference.unregister(this)
