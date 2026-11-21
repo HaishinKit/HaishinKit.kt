@@ -9,6 +9,8 @@ permissions:
   pull-requests: write
 jobs:
   build:
+    outputs:
+      published-tag: ${{ steps.upload-apk.outcome == 'success' && github.ref_name || '' }}
     runs-on: ubuntu-latest
     env:
       RELEASE_VERSION: ${{ github.ref_name }}
@@ -107,3 +109,15 @@ jobs:
             puts "::error title=Failed step: #{name}::The #{name} step failed. Open its logs for details; Fastlane failures also include an error annotation with the lane and cause."
           end
           RUBY
+
+  close-milestone:
+    # Publication can succeed even if a later documentation or summary step fails.
+    needs: build
+    if: ${{ always() && needs.build.outputs.published-tag != '' }}
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
+    uses: HaishinKit/.github/.github/workflows/milestones.yml@main
+    with:
+      release-tag: ${{ needs.build.outputs.published-tag }}
