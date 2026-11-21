@@ -39,6 +39,19 @@ The first native build downloads the pinned transport dependencies. A WHIP/WHEP
 server and endpoints for the stream you want to send or receive are required for
 network testing. The sample does not run a streaming server.
 
+## 📡 Bonjour SRT publishing
+
+On the Mac sample, open **Playback**, start the SRT listener and enable its
+Bonjour announcement. Connect both devices to the same local network. On Android,
+open **Publish → Find receiver**, allow local network access if requested, and
+select the Mac. Then tap **Go live** to send camera video and microphone audio.
+Stop publishing before choosing a different receiver.
+
+Discovery uses the samples' `_srt._udp` convention with TXT `role=receiver`.
+It sets an SRT caller URL using the advertised address and port; ordinary SRT
+servers appear only if they publish a compatible Bonjour service. Searching
+stops when the dialog closes or the app enters the background.
+
 ## 📡 WHIP publishing and WHEP playback
 
 In the **Settings** tab, set the following fields:

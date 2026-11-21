@@ -132,6 +132,17 @@ class CameraViewModel(
         RendererPreference.register(this)
     }
 
+    internal suspend fun selectIngest(endpoint: IngestEndpoint): Result<Unit> {
+        if (session != null && session?.readyState?.value != StreamSession.ReadyState.CLOSED) {
+            return Result.failure(IllegalStateException("Stop publishing before changing the destination."))
+        }
+        val previous = Preference.shared
+        Preference.shared = previous.copy(streamURL = endpoint.uri)
+        val result = refreshSession()
+        if (result.isFailure) Preference.shared = previous
+        return result
+    }
+
     suspend fun refreshSession(): Result<Unit> {
         var replacement: StreamSession? = null
         try {

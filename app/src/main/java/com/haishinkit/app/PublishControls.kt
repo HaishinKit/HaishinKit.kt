@@ -49,6 +49,7 @@ internal fun PublishControls(
     errorMessage: String? = null,
     onDismissError: () -> Unit = {},
     onOpenSettings: () -> Unit = {},
+    onOpenIngest: (() -> Unit)? = null,
     settings: @Composable ColumnScope.() -> Unit,
     actions: @Composable () -> Unit,
 ) {
@@ -60,6 +61,14 @@ internal fun PublishControls(
         ) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
                 StreamStatus(readyState, overlay = true)
+                onOpenIngest?.let { open ->
+                    Surface(shape = MaterialTheme.shapes.large, color = PreviewColors.container) {
+                        TextButton(onClick = open, enabled = readyState == StreamSession.ReadyState.CLOSED) {
+                            Text(stringResource(R.string.ingest_action), color = PreviewColors.content)
+                        }
+                    }
+                }
+
                 Surface(shape = MaterialTheme.shapes.large, color = PreviewColors.container) {
                     IconButton(onClick = { toolsExpanded = true }) {
                         Icon(Icons.Filled.Settings, contentDescription = stringResource(R.string.studio_camera_tools), tint = PreviewColors.content)
