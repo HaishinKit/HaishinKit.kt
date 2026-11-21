@@ -19,11 +19,14 @@ on:
       - 'vulkan/*.cmake'
       - 'vulkan/vendor/**'
       - 'vulkan/src/main/cpp/**'
+      - 'vulkan/src/test/cpp/**'
       - 'rtc/build.gradle.kts'
       - 'rtc/src/main/cpp/**'
       - 'rtc/src/main/assets/**'
+      - 'rtc/src/socketTest/cpp/**'
       - 'srt/build.gradle.kts'
       - 'srt/src/main/cpp/**'
+      - 'srt/src/socketTest/cpp/**'
 permissions:
   contents: read
 concurrency:
