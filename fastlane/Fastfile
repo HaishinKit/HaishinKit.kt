@@ -2,16 +2,36 @@ require 'fileutils'
 require 'tmpdir'
 require 'shellwords'
 
+private_lane :build_native_host do |options|
+  component = options.fetch(:component)
+  source = component == 'vulkan' ? 'vulkan/src/test/cpp' : 'rtc/src/main/cpp'
+  build = File.expand_path("../build/#{component}-native-tests", __dir__)
+  configure = ['cmake', '-S', File.expand_path("../#{source}", __dir__), '-B', build]
+  configure << '-DCMAKE_BUILD_TYPE=Release' if component == 'rtc'
+  sh(*configure)
+  compile = ['cmake', '--build', build]
+  compile += ['--target', 'haishinkit_rtc', 'rtc_media_test', 'rtc_unicode_test'] if component == 'rtc'
+  sh(*compile, '--parallel', '2')
+end
+
+desc 'Warm shared native compiler outputs without building sample APKs.'
+lane :warm_native_cache do
+  %w[vulkan rtc srt].each do |component|
+    %w[Debug Release].each do |variant|
+      gradle(task: ":#{component}:assemble#{variant}")
+    end
+  end
+  %w[vulkan rtc].each { |component| build_native_host(component: component) }
+end
+
 desc 'Runs the PR review.'
 lane :review do
   gradle(task: 'lint')
   # Both variants must exercise app-level R8 and packaged library consumer rules.
   gradle(task: ':app:assembleDebug')
   gradle(task: ':app:assembleRelease')
-  native_test_source = File.expand_path('../vulkan/src/test/cpp', __dir__)
   native_test_build = File.expand_path('../build/vulkan-native-tests', __dir__)
-  sh('cmake', '-S', native_test_source, '-B', native_test_build)
-  sh('cmake', '--build', native_test_build)
+  build_native_host(component: 'vulkan')
   sh('ctest', '--test-dir', native_test_build, '--output-on-failure')
   gradle(task: ':vulkan:assembleDebug')
   gradle(task: ':vulkan:assembleDebugAndroidTest')
@@ -20,10 +40,8 @@ lane :review do
   gradle(task: ':app:testDebugUnitTest')
   gradle(task: ':rtc:assembleDebug')
   gradle(task: ':rtc:assembleDebugAndroidTest')
-  rtc_test_source = File.expand_path('../rtc/src/main/cpp', __dir__)
   rtc_test_build = File.expand_path('../build/rtc-native-tests', __dir__)
-  sh('cmake', '-S', rtc_test_source, '-B', rtc_test_build, '-DCMAKE_BUILD_TYPE=Release')
-  sh('cmake', '--build', rtc_test_build, '--target', 'haishinkit_rtc', 'rtc_media_test', 'rtc_unicode_test', '--parallel', '2')
+  build_native_host(component: 'rtc')
   sh('ctest', '--test-dir', rtc_test_build, '--output-on-failure')
   gradle(task: ':rtc:testDebugUnitTest', flags: "-PrtcNativeLibraryDir=#{Shellwords.escape(rtc_test_build)}")
   danger(

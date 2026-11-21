@@ -1,0 +1,70 @@
+name: Warm native compiler cache
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/actions/native-cache/**'
+      - '.github/scripts/native_cache.rb'
+      - '.github/workflows/native-cache.yml'
+      - '.gitmodules'
+      - 'gradle/**'
+      - 'gradle.properties'
+      - 'fastlane/Fastfile'
+      - 'build.gradle.kts'
+      - 'settings.gradle.kts'
+      - 'app/build.gradle.kts'
+      - 'vulkan/build.gradle.kts'
+      - 'vulkan/CMakeLists.txt'
+      - 'vulkan/*.cmake'
+      - 'vulkan/vendor/**'
+      - 'vulkan/src/main/cpp/**'
+      - 'vulkan/src/test/cpp/**'
+      - 'rtc/build.gradle.kts'
+      - 'rtc/src/main/cpp/**'
+      - 'rtc/src/main/assets/**'
+      - 'rtc/src/socketTest/cpp/**'
+      - 'srt/build.gradle.kts'
+      - 'srt/src/main/cpp/**'
+      - 'srt/src/socketTest/cpp/**'
+permissions:
+  contents: read
+concurrency:
+  group: native-cache-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  warm:
+    # Only trusted main builds seed the cache shared by PRs and releases.
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: true
+          persist-credentials: false
+      - name: Setup JDK 17
+        uses: actions/setup-java@d1374f8ac74474200d16ef8ecee22c7ae7a51880 # v6.3.0
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
+        with:
+          cache-read-only: false
+      - name: Setup native compiler cache
+        uses: ./.github/actions/native-cache
+      - name: Setup Ruby
+        uses: ruby/setup-ruby@b3aaceaef7e0ee231b499e7b5f49c03fc1d32199 # v1.338.0
+        with:
+          ruby-version: .ruby-version
+          bundler-cache: true
+      - name: Warm Android native compiler outputs
+        run: bundle exec fastlane warm_native_cache
+      - name: Report native cache statistics
+        if: always()
+        shell: bash
+        run: |
+          if command -v ccache >/dev/null; then
+            ccache --show-stats | tee -a "$GITHUB_STEP_SUMMARY"
+          fi
