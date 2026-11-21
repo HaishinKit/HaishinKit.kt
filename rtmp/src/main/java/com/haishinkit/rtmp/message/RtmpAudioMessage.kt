@@ -56,7 +56,10 @@ internal class RtmpAudioMessage(
         return this
     }
 
-    override fun execute(connection: RtmpConnection): RtmpMessage {
+    override fun execute(
+        connection: RtmpConnection,
+        dispatch: (() -> Unit) -> Unit,
+    ): RtmpMessage {
         if (codec != RtmpMuxer.FLV_AUDIO_CODEC_AAC) return this
         val stream = connection.streams[streamID] ?: return this
         data?.let {

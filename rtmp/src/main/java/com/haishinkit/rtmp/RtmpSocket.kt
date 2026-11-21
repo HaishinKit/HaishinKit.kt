@@ -6,10 +6,11 @@ import com.haishinkit.net.NetSocketImpl
 import com.haishinkit.rtmp.event.Event
 import java.nio.BufferUnderflowException
 import java.nio.ByteBuffer
+import java.util.concurrent.TimeUnit
 
 internal class RtmpSocket(
     val connection: RtmpConnection,
-) : NetSocket.Listener {
+) {
     enum class ReadyState {
         Uninitialized,
         VersionSent,
@@ -34,10 +35,16 @@ internal class RtmpSocket(
         get() = socket?.totalBytesIn?.get() ?: 0
     val totalBytesOut: Long
         get() = socket?.totalBytesOut?.get() ?: 0
+
+    @Volatile
+    var handshakeDurationMillis: Long? = null
+        private set
+
+    private var handshakeStartedAtNanos = 0L
+
+    @Volatile
     private var socket: NetSocket? = null
-    private val handshake: RtmpHandshake by lazy {
-        RtmpHandshake()
-    }
+    private var handshake = RtmpHandshake()
 
     @Volatile
     private var readyState = ReadyState.Uninitialized
@@ -46,16 +53,38 @@ internal class RtmpSocket(
             connection.onSocketReadyStateChange(this, value)
         }
 
+    @Synchronized
     fun connect(
         dstName: String,
         dstPort: Int,
         isSecure: Boolean,
+        transport: NetSocket = NetSocketImpl(),
     ) {
+        val previousTransport = socket
+        socket = transport
+        handshakeDurationMillis = null
+        isConnected = false
         readyState = ReadyState.Uninitialized
-        socket?.listener = null
-        socket = NetSocketImpl()
-        socket?.listener = this
-        socket?.connect(dstName, dstPort, isSecure)
+        previousTransport?.listener = null
+        previousTransport?.close(false)
+        transport.listener =
+            object : NetSocket.Listener {
+                override fun onConnect() = this@RtmpSocket.onConnect(transport)
+
+                override fun onInput(buffer: ByteBuffer) = this@RtmpSocket.onInput(transport, buffer)
+
+                override fun onClose(disconnected: Boolean) {
+                    closeTransport(transport, disconnected)
+                }
+
+                override fun onSocketError() {
+                    if (closeTransport(transport, false)) {
+                        connection.dispatchEventWith(Event.IO_ERROR, false, null) { socket === transport }
+                        Log.i(TAG, "a connection was failed")
+                    }
+                }
+            }
+        transport.connect(dstName, dstPort, isSecure)
     }
 
     fun doOutput(buffer: ByteBuffer) {
@@ -65,93 +94,103 @@ internal class RtmpSocket(
     fun createByteBuffer(capacity: Int): ByteBuffer = socket?.createByteBuffer(capacity) ?: ByteBuffer.allocate(capacity)
 
     fun close(disconnected: Boolean) {
-        if (readyState == ReadyState.Closing || readyState == ReadyState.Closed) return
-        var data: Any? = null
-        if (disconnected) {
-            data =
-                if (readyState == ReadyState.HandshakeDone) {
-                    RtmpConnection.Code.CONNECT_CLOSED.data("")
-                } else {
-                    RtmpConnection.Code.CONNECT_FAILED.data("")
-                }
-        }
-        readyState = ReadyState.Closing
-        socket?.listener = null
-        socket?.close(disconnected)
-        data?.let {
-            connection.dispatchEventWith(Event.RTMP_STATUS, false, it)
-        }
-        readyState = ReadyState.Closed
-        isConnected = false
+        closeTransport(socket, disconnected)
     }
 
     suspend fun closeAndJoin() {
-        val transport = socket as? NetSocketImpl
-        close(false)
-        transport?.awaitClosed()
+        val transport = socket
+        closeTransport(transport, false)
+        (transport as? NetSocketImpl)?.awaitClosed()
     }
 
-    override fun onSocketError() {
-        close(false)
-        connection.dispatchEventWith(Event.IO_ERROR, false)
-        Log.i(TAG, "a connection was failed")
+    private fun closeTransport(
+        transport: NetSocket?,
+        disconnected: Boolean,
+    ): Boolean {
+        val code =
+            synchronized(this) {
+                if (socket !== transport || readyState == ReadyState.Closing || readyState == ReadyState.Closed) return false
+                val handshakeDone = readyState == ReadyState.HandshakeDone
+                readyState = ReadyState.Closing
+                transport?.listener = null
+                if (handshakeDone) RtmpConnection.Code.CONNECT_CLOSED else RtmpConnection.Code.CONNECT_FAILED
+            }
+        transport?.close(disconnected)
+        if (disconnected) {
+            connection.dispatchEventWith(Event.RTMP_STATUS, false, code.data("")) { socket === transport }
+        }
+        synchronized(this) {
+            if (socket === transport) {
+                readyState = ReadyState.Closed
+                isConnected = false
+            }
+        }
+        return true
     }
 
-    override fun onConnect() {
-        if (readyState == ReadyState.Closing || readyState == ReadyState.Closed) return
+    @Synchronized
+    private fun onConnect(transport: NetSocket) {
+        if (socket !== transport || readyState != ReadyState.Uninitialized) return
         chunkSizeC = RtmpChunk.DEFAULT_SIZE
         chunkSizeS = RtmpChunk.DEFAULT_SIZE
-        handshake.clear()
+        handshake = RtmpHandshake()
         readyState = ReadyState.VersionSent
-        socket?.doOutput(handshake.c0C1Packet)
+        val c0C1Packet = handshake.c0C1Packet
+        handshakeStartedAtNanos = System.nanoTime()
+        transport.doOutput(c0C1Packet)
     }
 
-    override fun onClose(disconnected: Boolean) {
-        close(disconnected)
+    private fun onInput(
+        transport: NetSocket,
+        buffer: ByteBuffer,
+    ) {
+        synchronized(this) {
+            if (socket !== transport) return
+            readHandshake(transport, buffer)
+        }
+        try {
+            while (buffer.hasRemaining()) {
+                var callback: (() -> Unit)? = null
+                synchronized(this) {
+                    if (!canReadChunks(transport) || !connection.readChunk(buffer) { callback = it }) return
+                }
+                // Listeners and responders can close or replace the connection.
+                if (canReadChunks(transport)) callback?.invoke()
+            }
+        } catch (e: IndexOutOfBoundsException) {
+            if (VERBOSE) Log.d(TAG, "", e)
+        } catch (e: BufferUnderflowException) {
+            if (VERBOSE) Log.d(TAG, "", e)
+        } catch (e: IllegalArgumentException) {
+            if (VERBOSE) Log.w(TAG, "", e)
+            throw e
+        }
     }
 
-    override fun onInput(buffer: ByteBuffer) {
-        when (readyState) {
-            ReadyState.VersionSent -> {
-                if (buffer.limit() < RtmpHandshake.SIGNAL_SIZE + 1) {
-                    return
-                }
-                handshake.s0S1Packet = buffer
-                socket?.doOutput(handshake.c2Packet)
-                buffer.position(RtmpHandshake.SIGNAL_SIZE + 1)
-                readyState = ReadyState.AckSent
-                if (buffer.limit() - buffer.position() == RtmpHandshake.SIGNAL_SIZE) {
-                    onInput(buffer.slice())
-                    buffer.position(3073)
-                }
+    private fun canReadChunks(transport: NetSocket): Boolean = socket === transport && readyState == ReadyState.HandshakeDone
+
+    private fun readHandshake(
+        transport: NetSocket,
+        buffer: ByteBuffer,
+    ) {
+        if (readyState == ReadyState.VersionSent) {
+            if (buffer.remaining() < RtmpHandshake.SIGNAL_SIZE + 1) return
+            handshake.s0S1Packet = buffer
+            transport.doOutput(handshake.c2Packet)
+            buffer.position(RtmpHandshake.SIGNAL_SIZE + 1)
+            readyState = ReadyState.AckSent
+        }
+
+        if (readyState == ReadyState.AckSent) {
+            if (buffer.remaining() < RtmpHandshake.SIGNAL_SIZE) return
+            handshake.s2Packet = buffer
+            buffer.position(buffer.position() + RtmpHandshake.SIGNAL_SIZE)
+            handshakeDurationMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - handshakeStartedAtNanos)
+            readyState = ReadyState.HandshakeDone
+            isConnected = true
+            connection.uri?.let {
+                connection.doOutput(RtmpChunk.ZERO, connection.createConnectionMessage(it))
             }
-
-            ReadyState.AckSent -> {
-                if (buffer.limit() < RtmpHandshake.SIGNAL_SIZE) {
-                    return
-                }
-                handshake.s2Packet = buffer
-                buffer.position(RtmpHandshake.SIGNAL_SIZE)
-                readyState = ReadyState.HandshakeDone
-                isConnected = true
-                connection.uri?.let {
-                    connection.doOutput(RtmpChunk.ZERO, connection.createConnectionMessage(it))
-                }
-            }
-
-            ReadyState.HandshakeDone ->
-                try {
-                    connection.listen(buffer)
-                } catch (e: IndexOutOfBoundsException) {
-                    if (VERBOSE) Log.d(TAG, "", e)
-                } catch (e: BufferUnderflowException) {
-                    if (VERBOSE) Log.d(TAG, "", e)
-                } catch (e: IllegalArgumentException) {
-                    if (VERBOSE) Log.w(TAG, "", e)
-                    throw e
-                }
-
-            else -> {}
         }
     }
 

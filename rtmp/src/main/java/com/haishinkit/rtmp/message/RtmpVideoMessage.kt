@@ -142,7 +142,10 @@ internal class RtmpVideoMessage(
         return this
     }
 
-    override fun execute(connection: RtmpConnection): RtmpMessage {
+    override fun execute(
+        connection: RtmpConnection,
+        dispatch: (() -> Unit) -> Unit,
+    ): RtmpMessage {
         val payload = data ?: return this
         val stream = connection.streams[streamID] ?: return this
         if (!payload.hasRemaining()) return this

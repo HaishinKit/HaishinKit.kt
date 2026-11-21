@@ -147,6 +147,14 @@ class RtmpConnection : EventDispatcher(null) {
         get() = socket.totalBytesOut
 
     /**
+     * Elapsed time in milliseconds from queuing C0/C1 to receiving the full S2 packet.
+     * This includes local queuing and server processing time. It is null until the
+     * handshake completes and is reset when the next connection attempt starts.
+     */
+    val handshakeDurationMillis: Long?
+        get() = socket.handshakeDurationMillis
+
+    /**
      * The object encoding for this RTMPConnection instance.
      */
     internal val objectEncoding = RtmpObjectEncoding.AMF0
@@ -269,7 +277,10 @@ class RtmpConnection : EventDispatcher(null) {
         message.release()
     }
 
-    internal tailrec fun listen(buffer: ByteBuffer) {
+    internal fun readChunk(
+        buffer: ByteBuffer,
+        dispatch: (() -> Unit) -> Unit,
+    ): Boolean {
         val rollback = buffer.position()
         try {
             val first = buffer.get()
@@ -288,11 +299,11 @@ class RtmpConnection : EventDispatcher(null) {
                     buffer.position(buffer.position() + remaining)
                 } else {
                     buffer.position(rollback)
-                    return
+                    return false
                 }
                 if (!payload.hasRemaining()) {
                     payload.flip()
-                    message.decode(payload).execute(this)
+                    message.decode(payload).execute(this, dispatch)
                 }
             } else {
                 val message = chunk.decode(chunkStreamID, this, buffer)
@@ -312,7 +323,7 @@ class RtmpConnection : EventDispatcher(null) {
                     }
                 }
                 if (message.length <= chunkSizeC) {
-                    message.decode(buffer).execute(this)
+                    message.decode(buffer).execute(this, dispatch)
                 } else {
                     val payload = message.payload
                     if (buffer.position() + chunkSizeC <= buffer.limit()) {
@@ -320,7 +331,7 @@ class RtmpConnection : EventDispatcher(null) {
                         buffer.position(buffer.position() + chunkSizeC)
                     } else {
                         buffer.position(rollback)
-                        return
+                        return false
                     }
                 }
             }
@@ -331,9 +342,7 @@ class RtmpConnection : EventDispatcher(null) {
             buffer.position(rollback)
             throw e
         }
-        if (buffer.hasRemaining()) {
-            listen(buffer)
-        }
+        return true
     }
 
     internal fun createStream(stream: RtmpStream) {
