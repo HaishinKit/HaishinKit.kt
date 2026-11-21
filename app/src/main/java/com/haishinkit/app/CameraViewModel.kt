@@ -70,6 +70,7 @@ class CameraViewModel(
         get() = _selectedCamera.asStateFlow()
     var videoEffectItems: List<VideoEffectItem>
 
+    internal val ingestDiscovery = BonjourIngestDiscovery(application.applicationContext)
     internal val screenObjectDragController: ScreenObjectDragController
 
     private var cameraDeviceManager: CameraDeviceManager =
@@ -334,6 +335,7 @@ class CameraViewModel(
     }
 
     override fun onCleared() {
+        ingestDiscovery.stop()
         DebugFrameCapture.detach(this)
         session?.stream?.dispose()
         RendererPreference.unregister(this)

@@ -31,11 +31,11 @@ import androidx.lifecycle.compose.LifecycleStartEffect
 @Suppress("ktlint:standard:function-naming")
 @Composable
 internal fun IngestDestinationDialog(
+    discovery: BonjourIngestDiscovery,
     onSelect: (IngestEndpoint) -> Unit,
     onDismiss: () -> Unit,
 ) {
     val context = LocalContext.current
-    val discovery = remember { BonjourIngestDiscovery(context) }
     val state by discovery.state.collectAsState()
     var allowed by remember {
         mutableStateOf(Build.VERSION.SDK_INT < 37 || ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_LOCAL_NETWORK) == PackageManager.PERMISSION_GRANTED)

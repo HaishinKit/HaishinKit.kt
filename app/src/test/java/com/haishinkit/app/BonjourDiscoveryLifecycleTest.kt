@@ -84,6 +84,85 @@ class BonjourDiscoveryLifecycleTest {
         discovery.stop()
     }
 
+    @Test
+    fun refreshWaitsForOldResolutionBeforeResolvingNewAdvertisement() {
+        discovery.start()
+        val oldService = service("Old Mac", "receiver")
+        nsd.getDiscoveryListeners("_srt._udp.").orEmpty().single().onServiceFound(oldService)
+        drain()
+        val oldResolution = nsd.getResolveListeners(oldService).orEmpty().single()
+        discovery.start()
+        val newService = service("New Mac", "receiver")
+        nsd.getDiscoveryListeners("_srt._udp.").orEmpty().single().onServiceFound(newService)
+        drain()
+        assertTrue(nsd.getResolveListeners(newService).orEmpty().isEmpty())
+        oldResolution.onServiceResolved(oldService)
+        drain()
+        assertTrue(discovery.state.value.endpoints.isEmpty())
+        nsd.getResolveListeners(newService).orEmpty().single().onServiceResolved(newService)
+        drain()
+        assertEquals(listOf("New Mac"), discovery.state.value.endpoints.map { it.name })
+        discovery.stop()
+    }
+
+    @Test
+    fun failedOldResolutionAlsoReleasesSlotForNewSearch() {
+        discovery.start()
+        val oldService = service("Old Mac", "receiver")
+        nsd.getDiscoveryListeners("_srt._udp.").orEmpty().single().onServiceFound(oldService)
+        drain()
+        val oldResolution = nsd.getResolveListeners(oldService).orEmpty().single()
+        discovery.start()
+        val newService = service("New Mac", "receiver")
+        nsd.getDiscoveryListeners("_srt._udp.").orEmpty().single().onServiceFound(newService)
+        drain()
+        assertTrue(nsd.getResolveListeners(newService).orEmpty().isEmpty())
+        oldResolution.onResolveFailed(oldService, NsdManager.FAILURE_INTERNAL_ERROR)
+        drain()
+        assertFalse(discovery.state.value.failed)
+        nsd.getResolveListeners(newService).orEmpty().single().onServiceResolved(newService)
+        drain()
+        assertEquals(listOf("New Mac"), discovery.state.value.endpoints.map { it.name })
+        discovery.stop()
+    }
+
+    @Test
+    fun rediscoveryCannotExposeAnOldAddressWhenReplacementFails() {
+        discovery.start()
+        val listener = nsd.getDiscoveryListeners("_srt._udp.").orEmpty().single()
+        val oldService = service("Mac", "receiver")
+        listener.onServiceFound(oldService)
+        drain()
+        val oldResolution = nsd.getResolveListeners(oldService).orEmpty().single()
+        listener.onServiceLost(oldService)
+        val replacement = service("Mac", "receiver").apply { port = 9720 }
+        listener.onServiceFound(replacement)
+        drain()
+        oldResolution.onServiceResolved(oldService)
+        drain()
+        assertTrue(discovery.state.value.endpoints.isEmpty())
+        nsd.getResolveListeners(replacement).orEmpty().single { it !== oldResolution }.onResolveFailed(replacement, NsdManager.FAILURE_INTERNAL_ERROR)
+        drain()
+        assertTrue(discovery.state.value.endpoints.isEmpty())
+        discovery.stop()
+    }
+
+    @Test
+    fun scopedIpv6ReceiverIsNotSelectable() {
+        discovery.start()
+        val listener = nsd.getDiscoveryListeners("_srt._udp.").orEmpty().single()
+        val receiver =
+            service("IPv6 Mac", "receiver").apply {
+                host = java.net.Inet6Address.getByAddress(null, InetAddress.getByName("fe80::1234").address, 3)
+            }
+        listener.onServiceFound(receiver)
+        drain()
+        nsd.getResolveListeners(receiver).orEmpty().single().onServiceResolved(receiver)
+        drain()
+        assertTrue(discovery.state.value.endpoints.isEmpty())
+        discovery.stop()
+    }
+
     private fun service(
         name: String,
         role: String,

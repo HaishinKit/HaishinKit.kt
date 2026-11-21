@@ -1,11 +1,28 @@
 package com.haishinkit.app
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
 import org.junit.Test
+import java.net.Inet6Address
+import java.net.InetAddress
 import java.net.URI
 
 class BonjourIngestDiscoveryTest {
+    @Test
+    fun selectsIpv4WhenAnAdvertisementAlsoHasUnsupportedScopedIpv6() {
+        val scoped = Inet6Address.getByAddress(null, InetAddress.getByName("fe80::1234").address, 3)
+        assertEquals("192.168.1.20", supportedIngestHost(listOf(scoped, InetAddress.getByName("192.168.1.20"))))
+        assertNull(supportedIngestHost(listOf(scoped)))
+        assertNull(supportedIngestHost(listOf(InetAddress.getByName("fe80::1234"))))
+    }
+
+    @Test
+    fun acceptsUnscopedGlobalIpv6WhenIpv4IsUnavailable() {
+        val address = InetAddress.getByName("2001:db8::1234")
+        assertEquals(address.hostAddress, supportedIngestHost(listOf(address)))
+    }
+
     @Test
     fun resolvedIpv4ReceiverUsesAdvertisedPortAndCallerMode() {
         val endpoint = IngestEndpoint("mac/_srt._udp.", "Mac receiver", "192.168.1.20", 9710)

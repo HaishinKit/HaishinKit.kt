@@ -120,6 +120,7 @@ fun CameraScreen(
 
     if (showIngest && !pictureInPicture) {
         IngestDestinationDialog(
+            discovery = viewModel.ingestDiscovery,
             onDismiss = { showIngest = false },
             onSelect = { endpoint ->
                 showIngest = false

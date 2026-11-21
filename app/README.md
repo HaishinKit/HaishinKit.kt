@@ -48,9 +48,11 @@ select the Mac. Then tap **Go live** to send camera video and microphone audio.
 Stop publishing before choosing a different receiver.
 
 Discovery uses the samples' `_srt._udp` convention with TXT `role=receiver`.
-It sets an SRT caller URL using the advertised address and port; ordinary SRT
-servers appear only if they publish a compatible Bonjour service. Searching
-stops when the dialog closes or the app enters the background.
+It sets an SRT caller URL using the advertised address and port. Scoped/link-local
+IPv6 destinations are excluded because the SRT transport does not yet support
+them; IPv4 is preferred when advertised. Ordinary SRT servers appear only if they
+publish a compatible Bonjour service. Searching stops when the dialog closes or
+the app enters the background.
 
 ## 📡 WHIP publishing and WHEP playback
 
