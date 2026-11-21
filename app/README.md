@@ -186,9 +186,14 @@ owned Bitmaps are recycled. Capture failures return an MCP tool result with
 
 ### 🧪 App checks
 
+Both `debug` and `release` enable full R8 and resource optimization. The optimized
+`debug` variant is non-debuggable; white-box Compose tests and LeakCanary use
+the dedicated `uiTest` variant. See [R8 verification](../.github/docs/r8.md) for
+consumer rules, device smoke checks, and release mapping files.
+
 ```sh
-./gradlew :app:testDebugUnitTest :app:ktlintCheck
-./gradlew :app:connectedDebugAndroidTest
+./gradlew :app:testUiTestUnitTest :app:ktlintCheck
+./gradlew :app:connectedUiTestAndroidTest
 ```
 
 The sample's device test enters WHIP/WHEP settings and opens the publishing and

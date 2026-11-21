@@ -5,6 +5,9 @@ require 'shellwords'
 desc 'Runs the PR review.'
 lane :review do
   gradle(task: 'lint')
+  # Both variants must exercise app-level R8 and packaged library consumer rules.
+  gradle(task: ':app:assembleDebug')
+  gradle(task: ':app:assembleRelease')
   native_test_source = File.expand_path('../vulkan/src/test/cpp', __dir__)
   native_test_build = File.expand_path('../build/vulkan-native-tests', __dir__)
   sh('cmake', '-S', native_test_source, '-B', native_test_build)
@@ -13,7 +16,7 @@ lane :review do
   gradle(task: ':vulkan:assembleDebug')
   gradle(task: ':vulkan:assembleDebugAndroidTest')
   gradle(task: ':haishinkit:testDebugUnitTest')
-  gradle(task: ':app:testDebugUnitTest')
+  gradle(task: ':app:testUiTestUnitTest')
   gradle(task: ':rtc:assembleDebug')
   gradle(task: ':rtc:assembleDebugAndroidTest')
   rtc_test_source = File.expand_path('../rtc/src/main/cpp', __dir__)
@@ -46,6 +49,9 @@ lane :release_apk do |options|
   destination = File.expand_path('../build/release', __dir__)
   FileUtils.mkdir_p(destination)
   FileUtils.cp(source, File.join(destination, "HaishinKit-#{version}.apk"))
+  mapping = File.expand_path('../app/build/outputs/mapping/release/mapping.txt', __dir__)
+  UI.user_error!('Release R8 mapping is missing') unless File.file?(mapping)
+  FileUtils.cp(mapping, File.join(destination, "HaishinKit-#{version}-mapping.txt"))
 end
 
 desc 'Check API documentation generation without publishing.'
