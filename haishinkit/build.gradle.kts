@@ -62,6 +62,8 @@ afterEvaluate {
 }
 
 dependencies {
+    // MediaMixer exposes DefaultLifecycleObserver in its public API.
+    api(libs.androidx.lifecycle.common)
     implementation(libs.androidx.core.ktx)
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.kotlinx.serialization.json)
