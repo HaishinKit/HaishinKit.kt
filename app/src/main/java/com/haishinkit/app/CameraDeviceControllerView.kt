@@ -37,17 +37,16 @@ import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberPermissionState
 import com.haishinkit.device.CameraDevice
 
-@Suppress("ktlint:standard:function-naming")
+@OptIn(ExperimentalPermissionsApi::class)
+internal data class CameraPermissions(val audio: PermissionState, val camera: PermissionState)
+
+/** Observe permissions for the whole preview lifecycle, even while the tool sheet is closed. */
 @OptIn(ExperimentalPermissionsApi::class)
 @Composable
-fun CameraDeviceControllerView(
-    camera: CameraDevice?,
-    cameras: List<CameraDevice>,
-    onCameraSelected: (device: CameraDevice) -> Unit,
-    onAudioPermissionStatus: (state: PermissionState) -> Unit,
-    onVideoPermissionStatus: (state: PermissionState) -> Unit,
-) {
-    val context = LocalContext.current
+internal fun rememberCameraPermissions(
+    onAudioPermissionStatus: (PermissionState) -> Unit,
+    onVideoPermissionStatus: (PermissionState) -> Unit,
+): CameraPermissions {
     val audioPermission = rememberPermissionState(Manifest.permission.RECORD_AUDIO)
     val cameraPermission = rememberPermissionState(Manifest.permission.CAMERA)
     LaunchedEffect(audioPermission) {
@@ -56,6 +55,21 @@ fun CameraDeviceControllerView(
     LaunchedEffect(cameraPermission) {
         snapshotFlow { cameraPermission.status }.collect { onVideoPermissionStatus(cameraPermission) }
     }
+    return CameraPermissions(audioPermission, cameraPermission)
+}
+
+@Suppress("ktlint:standard:function-naming")
+@OptIn(ExperimentalPermissionsApi::class)
+@Composable
+internal fun CameraDeviceControllerView(
+    camera: CameraDevice?,
+    cameras: List<CameraDevice>,
+    onCameraSelected: (device: CameraDevice) -> Unit,
+    permissions: CameraPermissions,
+) {
+    val context = LocalContext.current
+    val audioPermission = permissions.audio
+    val cameraPermission = permissions.camera
     val cameraGranted = cameraPermission.status.isGranted
     val audioGranted = audioPermission.status.isGranted
     var expanded by remember { mutableStateOf(false) }

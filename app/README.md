@@ -22,7 +22,7 @@ Settings and screen sharing in the sample app, shown in Japanese on a Pixel 5a:
 
 
 The interface uses a navy-and-teal studio theme with English and Japanese labels.
-Camera tools expand on demand; phones use bottom navigation and wider windows use
+Camera tools open in a bottom sheet; phones use bottom navigation and wider windows use
 a navigation rail. The launcher icon matches the Swift sample.
 
 Open the repository in Android Studio and run the `app` configuration on a device.

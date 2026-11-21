@@ -81,6 +81,13 @@ published version.
 
 ## 🐾 Examples
 
+Settings and screen sharing in the Android sample (Japanese, Pixel 5a):
+
+<p>
+  <img src="app/design/screenshots/settings.png" width="240" alt="Android sample settings screen in Japanese on a Pixel 5a">
+  <img src="app/design/screenshots/share.png" width="240" alt="Android sample screen-sharing screen in Japanese on a Pixel 5a">
+</p>
+
 The [Android sample app](app/README.md) demonstrates camera publishing, playback,
 recording, screen sharing, and screen composition. It requires **Android 10
 (API 29) or later**, plus a streaming server and endpoints for network testing.

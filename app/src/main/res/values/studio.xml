@@ -1,4 +1,6 @@
 <resources>
+    <string name="studio_close_tools">Close camera tools</string>
+    <string name="studio_permission_action">Allow camera and microphone</string>
     <string name="studio_connection_error">Check your connection settings and try again.</string>
     <string name="studio_preparing">Preparing stream…</string>
     <string name="studio_dismiss_error">Dismiss error</string>

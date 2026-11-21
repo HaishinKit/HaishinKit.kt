@@ -69,6 +69,7 @@ internal fun StudioHeader(
 internal fun StreamStatus(
     readyState: StreamSession.ReadyState,
     idleLabel: Int = R.string.studio_preview_only,
+    overlay: Boolean = false,
 ) {
     val label =
         when (readyState) {
@@ -77,11 +78,11 @@ internal fun StreamStatus(
             StreamSession.ReadyState.CLOSING -> R.string.studio_stopping
             else -> idleLabel
         }
-    Surface(shape = MaterialTheme.shapes.small, color = MaterialTheme.colorScheme.secondaryContainer) {
+    Surface(shape = MaterialTheme.shapes.small, color = if (overlay) PreviewColors.container else MaterialTheme.colorScheme.secondaryContainer) {
         Text(
             stringResource(label),
             style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.onSecondaryContainer,
+            color = if (overlay) PreviewColors.content else MaterialTheme.colorScheme.onSecondaryContainer,
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp).semantics { liveRegion = LiveRegionMode.Polite },
         )
     }

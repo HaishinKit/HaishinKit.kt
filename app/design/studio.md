@@ -9,7 +9,8 @@ The requested direction is navy with teal actions and the existing Swift app ico
 - Shared Material color, shape and typography tokens; no downloaded font dependency.
 - Four labelled destinations. Bottom navigation on phones, rail at 600dp and above.
   Route selection follows the navigation back stack rather than a separate index.
-- Camera tools are disclosed on demand; publishing actions stay visible while tools scroll.
+- The preview uses compact edge controls and an unobstructed center, following the iOS sample.
+  Camera selection, zoom, effects and quality capture open in a dismissible bottom sheet.
 - Connection settings are grouped with persistent field labels and inline URL feedback.
   Credentials remain masked and in memory, matching the existing lifecycle.
 - Screen sharing says capture is active, rather than claiming the network is connected.
@@ -25,7 +26,7 @@ Actual network publication requires a reachable streaming endpoint.
 
 - App Kotlin compilation and ktlint checks passed.
 - 29 app unit tests passed.
-- Four Compose tests passed on a Pixel 5a: settings/authentication retention,
+- Six Compose tests passed on a Pixel 5a: settings/authentication retention,
   navigation/back selection, invalid-URL recovery, primary actions in short windows,
   and 2x text.
 - Visually inspected portrait and landscape, 375dp width with 2x text,

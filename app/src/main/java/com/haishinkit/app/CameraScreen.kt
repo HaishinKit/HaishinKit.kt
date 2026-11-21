@@ -43,6 +43,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.PermissionStatus
+import com.google.accompanist.permissions.isGranted
 import com.haishinkit.compose.HaishinKitView
 import com.haishinkit.compose.rememberMediaRecorderState
 import com.haishinkit.compose.rememberStreamSessionState
@@ -68,7 +69,6 @@ fun CameraScreen(
     onOpenSettings: () -> Unit = {},
 ) {
     var errorMessage by remember { mutableStateOf<String?>(null) }
-    var toolsExpanded by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val pictureInPicture = context.mainActivity()?.pictureInPicture == true
     val scope = rememberCoroutineScope()
@@ -98,6 +98,16 @@ fun CameraScreen(
     }
 
     var selectedEffect by remember { mutableIntStateOf(0) }
+
+    val permissions =
+        rememberCameraPermissions(
+            onAudioPermissionStatus = { state ->
+                if (state.status == PermissionStatus.Granted) viewModel.selectAudioDevice()
+            },
+            onVideoPermissionStatus = { state ->
+                if (state.status == PermissionStatus.Granted) viewModel.selectCameraDevice(viewModel.selectedCamera.value, retry = false)
+            },
+        )
 
     val currentSession = viewModel.session
     if (currentSession == null) {
@@ -225,87 +235,64 @@ fun CameraScreen(
                 modifier =
                     Modifier
                         .fillMaxSize()
-                        .safeDrawingPadding()
-                        .padding(16.dp),
+                        .safeDrawingPadding(),
+                readyState = sessionReadyState,
+                needsPermissions = !permissions.audio.status.isGranted || !permissions.camera.status.isGranted,
+                errorMessage = errorMessage,
+                onDismissError = { errorMessage = null },
+                onOpenSettings = onOpenSettings,
                 settings = {
-                    StudioPreviewHeader(stringResource(R.string.studio_publish), sessionReadyState, onOpenSettings)
-                    errorMessage?.let { message -> StudioError(message, onDismiss = { errorMessage = null }) }
                     CameraDeviceControllerView(
                         camera = selectedCamera,
                         cameras = cameraList,
                         onCameraSelected = { camera ->
                             viewModel.selectCameraDevice(camera)
                         },
-                        onAudioPermissionStatus = { state ->
-                            when (state.status) {
-                                PermissionStatus.Granted -> {
-                                    viewModel.selectAudioDevice()
-                                }
-
-                                is PermissionStatus.Denied -> {
-                                    // viewModel.selectAudioDevice(null)
-                                }
-                            }
-                        },
-                        onVideoPermissionStatus = { state ->
-                            when (state.status) {
-                                PermissionStatus.Granted -> {
-                                    viewModel.selectCameraDevice(viewModel.selectedCamera.value, retry = false)
-                                }
-
-                                is PermissionStatus.Denied -> {
-                                }
-                            }
-                        },
+                        permissions = permissions,
                     )
-                    TextButton(onClick = { toolsExpanded = !toolsExpanded }) {
-                        Text(stringResource(R.string.studio_camera_tools) + if (toolsExpanded) " −" else " +")
-                    }
-                    if (toolsExpanded) {
-                        viewModel.mainCameraSource?.let { source ->
+                    viewModel.mainCameraSource?.let { source ->
 
-                            var torch by remember(source) { mutableStateOf(source.isTorchEnabled) }
-                            var zoom by remember(source) { mutableStateOf(source.zoomRatioRange.clamp(source.zoomRatio)) }
-                            androidx.compose.material3.Button(
-                                enabled = source.isTorchSupported,
-                                onClick = {
-                                    torch = !torch
-                                    source.isTorchEnabled = torch
-                                },
-                            ) {
-                                Text(stringResource(if (torch) R.string.studio_torch_on else R.string.studio_torch_off))
-                            }
-                            val zoomLabel = stringResource(R.string.studio_zoom)
-                            val zoomDescription = "%.1fx".format(zoom)
-                            Text("$zoomLabel: $zoomDescription")
-                            val range = source.zoomRatioRange
-                            if (range.upper > range.lower) {
-                                androidx.compose.material3.Slider(
-                                    modifier =
-                                        Modifier.semantics {
-                                            contentDescription = zoomLabel
-                                            stateDescription = zoomDescription
-                                        },
-                                    value = zoom,
-                                    onValueChange = {
-                                        zoom = it
-                                        source.zoomRatio = it
+                        var torch by remember(source) { mutableStateOf(source.isTorchEnabled) }
+                        var zoom by remember(source) { mutableStateOf(source.zoomRatioRange.clamp(source.zoomRatio)) }
+                        androidx.compose.material3.Button(
+                            enabled = source.isTorchSupported,
+                            onClick = {
+                                torch = !torch
+                                source.isTorchEnabled = torch
+                            },
+                        ) {
+                            Text(stringResource(if (torch) R.string.studio_torch_on else R.string.studio_torch_off))
+                        }
+                        val zoomLabel = stringResource(R.string.studio_zoom)
+                        val zoomDescription = "%.1fx".format(zoom)
+                        Text("$zoomLabel: $zoomDescription")
+                        val range = source.zoomRatioRange
+                        if (range.upper > range.lower) {
+                            androidx.compose.material3.Slider(
+                                modifier =
+                                    Modifier.semantics {
+                                        contentDescription = zoomLabel
+                                        stateDescription = zoomDescription
                                     },
-                                    valueRange = range.lower..range.upper,
-                                )
-                            }
+                                value = zoom,
+                                onValueChange = {
+                                    zoom = it
+                                    source.zoomRatio = it
+                                },
+                                valueRange = range.lower..range.upper,
+                            )
                         }
+                    }
 
-                        Text(stringResource(R.string.studio_effects))
-                        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            viewModel.videoEffectItems.forEachIndexed { index, item ->
-                                FilterChip(selected = selectedEffect == index, onClick = { selectedEffect = index }, label = { Text(item.name) })
-                            }
+                    Text(stringResource(R.string.studio_effects))
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        viewModel.videoEffectItems.forEachIndexed { index, item ->
+                            FilterChip(selected = selectedEffect == index, onClick = { selectedEffect = index }, label = { Text(item.name) })
                         }
-                        if (BuildConfig.VQMETRIX_AVAILABLE) {
-                            Button(onClick = { viewModel.captureQuality(context) }) {
-                                Text(stringResource(R.string.vq_capture_action))
-                            }
+                    }
+                    if (BuildConfig.VQMETRIX_AVAILABLE) {
+                        Button(onClick = { viewModel.captureQuality(context) }) {
+                            Text(stringResource(R.string.vq_capture_action))
                         }
                     }
                 },
