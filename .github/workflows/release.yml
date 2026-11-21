@@ -75,10 +75,11 @@ jobs:
         run: |
           set -euo pipefail
           apk="build/release/HaishinKit-$RELEASE_VERSION.apk"
+          mapping="build/release/HaishinKit-$RELEASE_VERSION-mapping.txt"
           if gh release view "$RELEASE_VERSION" >/dev/null 2>&1; then
-            gh release upload "$RELEASE_VERSION" "$apk" --clobber
+            gh release upload "$RELEASE_VERSION" "$apk" "$mapping" --clobber
           else
-            gh release create "$RELEASE_VERSION" "$apk" --verify-tag --generate-notes
+            gh release create "$RELEASE_VERSION" "$apk" "$mapping" --verify-tag --generate-notes
           fi
       - name: Setup SSH
         id: setup-ssh

@@ -31,16 +31,37 @@ android {
         }
     }
 
+    testBuildType = "uiTest"
+
     buildTypes {
-        release {
-            signingConfig = signingConfigs.findByName("distribution")
-            isMinifyEnabled = false
+        configureEach {
+            // Exercise consumer rules during development as well as distribution.
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
         }
+        debug {
+            // AGP disables optimization/obfuscation for debuggable apps.
+            isDebuggable = false
+            proguardFiles("proguard-debug.pro")
+        }
+        // White-box Compose tests call internals removed by whole-app optimization.
+        create("uiTest") {
+            initWith(getByName("debug"))
+            isDebuggable = true
+            isMinifyEnabled = false
+            isShrinkResources = false
+            matchingFallbacks += "debug"
+        }
+        release {
+            signingConfig = signingConfigs.findByName("distribution")
+        }
     }
+    sourceSets.getByName("uiTest").java.srcDir("src/release/java")
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
@@ -67,7 +88,15 @@ android {
     }
 }
 
+androidComponents {
+    // Keep debug-only frame-capture regressions in the host test suite too.
+    beforeVariants(selector().withBuildType("debug")) { variant ->
+        (variant as com.android.build.api.variant.HasUnitTestBuilder).enableUnitTest = true
+    }
+}
+
 dependencies {
+
     if (rootProject.findProject(":vqmetrix-example") != null) {
         implementation(project(":vqmetrix-example"))
     }
@@ -98,8 +127,9 @@ dependencies {
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.ui.test.junit4)
     debugImplementation(libs.androidx.ui.tooling)
-    debugImplementation(libs.androidx.ui.test.manifest)
-    debugImplementation(libs.leakcanary.android)
+    add("uiTestImplementation", libs.androidx.ui.test.manifest)
+    // LeakCanary rejects non-debuggable APKs; keep it with the debugger test build.
+    add("uiTestImplementation", libs.leakcanary.android)
     debugImplementation(libs.mcp.server)
     debugImplementation(libs.ktor.server.netty)
     debugImplementation(libs.ktor.server.content.negotiation)
