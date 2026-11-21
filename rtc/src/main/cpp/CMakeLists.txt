@@ -1,7 +1,9 @@
 cmake_minimum_required(VERSION 3.22.1)
 project(haishinkit_rtc LANGUAGES C CXX)
 include(FetchContent)
-set(CMAKE_SKIP_INSTALL_RULES ON)
+# libdatachannel/libSRTP export their Mbed TLS dependencies. Register those
+# exports instead of disabling all install rules and triggering a CMake warning.
+set(DISABLE_PACKAGE_CONFIG_AND_INSTALL OFF CACHE BOOL "" FORCE)
 add_compile_definitions(MBEDTLS_USER_CONFIG_FILE="${CMAKE_CURRENT_SOURCE_DIR}/mbedtls-user-config.h")
 list(PREPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
