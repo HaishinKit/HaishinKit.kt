@@ -214,7 +214,8 @@ consumer rules, device smoke checks, and release mapping files.
 ./gradlew :app:connectedUiTestAndroidTest
 ```
 
-Adaptive layout tests cover side panels, narrow/short windows, scrolling tools, PiP,
+Adaptive layout tests cover side panels, narrow/short windows, readable playback
+errors, scrolling tools, PiP,
 and retaining the native preview across window resizing.
 
 The sample's device test enters WHIP/WHEP settings and opens the publishing and

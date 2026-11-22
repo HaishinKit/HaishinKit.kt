@@ -7,9 +7,19 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredSize
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material3.Icon
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.mutableStateOf
@@ -26,6 +36,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.unit.Density
@@ -38,6 +49,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.PermissionState
 import com.google.accompanist.permissions.PermissionStatus
+import com.haishinkit.stream.StreamSession
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -171,6 +183,55 @@ class StudioMediaLayoutTest {
         }
         compose.onAllNodesWithText(label(R.string.studio_permission_help)).assertCountEquals(1)
         compose.onNodeWithText(label(R.string.studio_app_permissions)).assertIsDisplayed()
+    }
+
+    @Test
+    fun shortPlaybackKeepsErrorsReadableAboveNavigation() {
+        val message = "Stream unavailable. Check the address."
+        var retries = 0
+        var minimumLineHeight = 0f
+        compose.setContent {
+            LayoutFixture {
+                minimumLineHeight = with(LocalDensity.current) { 20.dp.toPx() }
+                Box(Modifier.requiredSize(640.dp, 320.dp)) {
+                    Scaffold(
+                        contentWindowInsets = WindowInsets(0, 0, 0, 0),
+                        bottomBar = {
+                            NavigationBar(windowInsets = WindowInsets(0, 0, 0, 0)) {
+                                NavigationBarItem(
+                                    selected = true,
+                                    onClick = {},
+                                    icon = { Icon(Icons.Filled.PlayArrow, contentDescription = null) },
+                                    label = { Text("Playback") },
+                                )
+                            }
+                        },
+                    ) { padding ->
+                        Box(
+                            Modifier.padding(padding).consumeWindowInsets(padding)
+                                .padding(vertical = 24.dp).consumeWindowInsets(WindowInsets.safeDrawing),
+                        ) {
+                            StudioMediaLayout(
+                                preview = {},
+                                controls = { expanded ->
+                                    PlaybackControls(
+                                        expanded = expanded,
+                                        readyState = StreamSession.ReadyState.CLOSED,
+                                        errorMessage = message,
+                                        onOpenSettings = {},
+                                        onToggleConnection = { retries++ },
+                                    )
+                                },
+                            )
+                        }
+                    }
+                }
+            }
+        }
+        val error = compose.onNodeWithText(message).performScrollTo().assertIsDisplayed().fetchSemanticsNode().boundsInRoot
+        assertTrue("At least one complete line of the error must be readable", error.height >= minimumLineHeight - 0.5f)
+        compose.onNodeWithText(label(R.string.studio_retry)).assertIsDisplayed().performClick()
+        compose.runOnIdle { assertEquals(1, retries) }
     }
 
     private fun showLayout(

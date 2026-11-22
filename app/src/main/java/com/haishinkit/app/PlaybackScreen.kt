@@ -118,49 +118,72 @@ fun PlaybackScreen(
             }
         },
         controls = { expanded ->
-            Column(
-                Modifier.fillMaxSize()
-                    .background(if (expanded) MaterialTheme.colorScheme.surface else Color.Transparent)
-                    .safeDrawingPadding().padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                Surface(shape = MaterialTheme.shapes.large, modifier = Modifier.fillMaxWidth()) {
-                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        if (expanded) {
-                            Text(stringResource(R.string.studio_playback), style = MaterialTheme.typography.headlineSmall)
-                            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                StreamStatus(readyState, idleLabel = R.string.studio_not_connected)
-                                TextButton(onClick = onOpenSettings) { Text(stringResource(R.string.studio_settings)) }
-                            }
-                        } else {
-                            StudioPreviewHeader(stringResource(R.string.studio_playback), readyState, onOpenSettings, idleLabel = R.string.studio_not_connected)
-                        }
-                    }
-                }
-                Column(
-                    Modifier.weight(1f).widthIn(max = 560.dp).verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.Center,
-                ) {
-                    if (errorMessage != null || readyState == StreamSession.ReadyState.CLOSED) {
-                        StudioSection(
-                            stringResource(if (errorMessage != null) R.string.studio_playback_error else R.string.studio_playback_ready),
-                            errorMessage ?: stringResource(R.string.studio_playback_help),
-                        ) {
-                            androidx.compose.material3.TextButton(onClick = onOpenSettings) { Text(stringResource(R.string.studio_settings)) }
-                        }
-                    }
-                }
-                Surface(shape = MaterialTheme.shapes.large, modifier = Modifier.fillMaxWidth()) {
-                    StreamControlButton(
-                        readyState = readyState,
-                        startLabel = stringResource(if (errorMessage != null) R.string.studio_retry else R.string.studio_play),
-                        onClick = toggleConnection,
-                        canCancelConnection = session.stream is SrtStream || session.stream is RTCStream,
-                        modifier = Modifier.padding(12.dp).fillMaxWidth(),
-                    )
-                }
-            }
+            PlaybackControls(
+                expanded = expanded,
+                readyState = readyState,
+                errorMessage = errorMessage,
+                onOpenSettings = onOpenSettings,
+                onToggleConnection = toggleConnection,
+                canCancelConnection = session.stream is SrtStream || session.stream is RTCStream,
+            )
         },
     )
+}
+
+@Suppress("ktlint:standard:function-naming")
+@Composable
+internal fun PlaybackControls(
+    expanded: Boolean,
+    readyState: StreamSession.ReadyState,
+    errorMessage: String?,
+    onOpenSettings: () -> Unit,
+    onToggleConnection: () -> Unit,
+    canCancelConnection: Boolean = false,
+) {
+    Column(
+        Modifier.fillMaxSize()
+            .background(if (expanded) MaterialTheme.colorScheme.surface else Color.Transparent)
+            .safeDrawingPadding().padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        // Header and feedback share the scroll area so short windows retain readable content.
+        Column(
+            Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            Surface(shape = MaterialTheme.shapes.large, modifier = Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    if (expanded) {
+                        Text(stringResource(R.string.studio_playback), style = MaterialTheme.typography.headlineSmall)
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            StreamStatus(readyState, idleLabel = R.string.studio_not_connected)
+                            TextButton(onClick = onOpenSettings) { Text(stringResource(R.string.studio_settings)) }
+                        }
+                    } else {
+                        StudioPreviewHeader(stringResource(R.string.studio_playback), readyState, onOpenSettings, idleLabel = R.string.studio_not_connected)
+                    }
+                }
+            }
+            if (errorMessage != null || readyState == StreamSession.ReadyState.CLOSED) {
+                Box(Modifier.widthIn(max = 560.dp).fillMaxWidth().align(Alignment.CenterHorizontally)) {
+                    StudioSection(
+                        stringResource(if (errorMessage != null) R.string.studio_playback_error else R.string.studio_playback_ready),
+                        errorMessage ?: stringResource(R.string.studio_playback_help),
+                    ) {
+                        TextButton(onClick = onOpenSettings) { Text(stringResource(R.string.studio_settings)) }
+                    }
+                }
+            }
+        }
+        Surface(shape = MaterialTheme.shapes.large, modifier = Modifier.fillMaxWidth()) {
+            StreamControlButton(
+                readyState = readyState,
+                startLabel = stringResource(if (errorMessage != null) R.string.studio_retry else R.string.studio_play),
+                onClick = onToggleConnection,
+                canCancelConnection = canCancelConnection,
+                modifier = Modifier.padding(12.dp).fillMaxWidth(),
+            )
+        }
+    }
 }
