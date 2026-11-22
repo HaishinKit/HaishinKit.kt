@@ -13,7 +13,7 @@ import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
 
 /**
- * Portable Apple/Android scene file containing `scene.json`, `manifest.json`, and `media/<filename>`.
+ * Portable scene file containing `scene.json`, `manifest.json`, and `media/<filename>`.
  *
  * The snapshot uses camelCase property names. Resource paths are relative to this ZIP; callers
  * materialize resources into their own app storage before supplying media URLs to screen objects.
@@ -188,7 +188,7 @@ class SceneFile(
         validate(this.snapshot)
     }
 
-    /** Writes ZIP DEFLATE entries compatible with SceneFile on Apple platforms. */
+    /** Writes a portable scene file with ZIP DEFLATE entries. */
     fun write(): ByteArray {
         val validated = SceneFile(snapshot, resources.toMap())
         val snapshotJSON = Json.encodeToString(validated.snapshot).toByteArray(Charsets.UTF_8)
