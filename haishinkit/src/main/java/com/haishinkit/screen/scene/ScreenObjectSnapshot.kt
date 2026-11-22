@@ -63,3 +63,6 @@ data class ScreenObjectSnapshot(
         val height: Int,
     )
 }
+
+internal fun ScreenObjectSnapshot.detachedCopy(): ScreenObjectSnapshot =
+    copy(layoutMargin = layoutMargin.copy(), elements = elements.toMap(), children = children.map { it.detachedCopy() })

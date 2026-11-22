@@ -91,10 +91,27 @@ open class VideoScreenObject(
         get() {
             return buildMap {
                 put(Keys.TRACK, track.toString())
+                run {
+                    put(
+                        "videoGravity",
+                        when (videoGravity) {
+                            VideoGravity.RESIZE -> "resize"
+                            VideoGravity.RESIZE_ASPECT -> "resizeAspect"
+                            else -> "resizeAspectFill"
+                        },
+                    )
+                }
             }
         }
         set(value) {
             track = value[Keys.TRACK]?.toInt() ?: 0
+            videoGravity =
+                when (value["videoGravity"]) {
+                    "resize", "AVLayerVideoGravityResize" -> VideoGravity.RESIZE
+                    "resizeAspectFill", "AVLayerVideoGravityResizeAspectFill" -> VideoGravity.RESIZE_ASPECT_FILL
+                    "resizeAspect", "AVLayerVideoGravityResizeAspect" -> VideoGravity.RESIZE_ASPECT
+                    else -> videoGravity
+                }
         }
 
     override fun layout(renderer: Renderer) {

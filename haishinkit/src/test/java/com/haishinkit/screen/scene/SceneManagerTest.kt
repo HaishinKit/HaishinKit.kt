@@ -33,7 +33,7 @@ class SceneManagerTest {
         val restored = screen.findById(snapshot.id)!!
         assertNotSame(original, restored)
         assertSame(screen, restored.parent)
-        assertEquals(snapshot, ScreenObjectSnapshotFactory().create(restored))
+        assertEquals(withExplicitLegacyGravity(snapshot), ScreenObjectSnapshotFactory().create(restored))
         assertEquals(Json.parseToJsonElement(document), Json.parseToJsonElement(manager.write()))
     }
 }

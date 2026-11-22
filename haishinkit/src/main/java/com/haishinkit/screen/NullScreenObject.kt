@@ -1,8 +1,13 @@
 package com.haishinkit.screen
 
+import com.haishinkit.screen.scene.ScreenObjectSnapshot
+import com.haishinkit.screen.scene.detachedCopy
+
 internal class NullScreenObject(
-    id: String? = null,
-) : ScreenObject(id) {
+    snapshot: ScreenObjectSnapshot,
+) : ScreenObject(snapshot.id) {
+    val snapshot: ScreenObjectSnapshot = snapshot.detachedCopy()
+
     override val type: String = TYPE
 
     override var elements: Map<String, String>
