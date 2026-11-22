@@ -68,7 +68,6 @@ internal fun PublishControls(
                     Text(
                         stringResource(R.string.studio_publish),
                         style = MaterialTheme.typography.headlineSmall,
-                        modifier = Modifier.semantics { heading() },
                     )
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         StreamStatus(readyState)
@@ -79,14 +78,10 @@ internal fun PublishControls(
                         }
                     }
                     errorMessage?.let { StudioError(it, onDismiss = onDismissError) }
-                    if (needsPermissions) {
-                        Text(stringResource(R.string.studio_permission_help), color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                     Text(
                         stringResource(R.string.studio_camera_tools),
                         style = MaterialTheme.typography.titleMedium,
-                        modifier = Modifier.semantics { heading() },
                     )
                     TextButton(onClick = onOpenSettings) { Text(stringResource(R.string.studio_settings)) }
                     settings()

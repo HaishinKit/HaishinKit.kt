@@ -2,7 +2,6 @@ package com.haishinkit.app
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -22,7 +21,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
@@ -39,9 +37,7 @@ fun CameraControllerView(
     onClickRecording: () -> Unit,
     readyState: StreamSession.ReadyState = if (isConnected) StreamSession.ReadyState.OPEN else StreamSession.ReadyState.CLOSED,
     canCancelConnection: Boolean = false,
-    inSidePanel: Boolean = false,
 ) {
-    val stacked = inSidePanel && LocalDensity.current.fontScale >= 1.2f
     val connecting = readyState == StreamSession.ReadyState.CONNECTING
     val closing = readyState == StreamSession.ReadyState.CLOSING
     val active = readyState == StreamSession.ReadyState.OPEN
@@ -55,25 +51,17 @@ fun CameraControllerView(
                 else -> R.string.studio_go_live
             },
         )
-    FlowRow(
-        Modifier.fillMaxWidth(),
-        maxItemsInEachRow = if (stacked) 1 else 3,
-        itemVerticalAlignment = Alignment.Bottom,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         PublishAction(
             stringResource(R.string.studio_snapshot),
             onClickScreenShot,
             Modifier.weight(1f),
-            inline = stacked,
         ) { Icon(painterResource(R.drawable.studio_snapshot), contentDescription = null) }
         val enabled = !closing && (!connecting || canCancelConnection)
         PublishAction(
             label,
             onClickConnect,
             Modifier.weight(1.25f),
-            inline = stacked,
             enabled = enabled,
             primary = true,
             containerColor =
@@ -103,7 +91,6 @@ fun CameraControllerView(
             stringResource(if (isRecording) R.string.studio_record_stop else R.string.studio_record),
             onClickRecording,
             Modifier.weight(1f),
-            inline = stacked,
         ) {
             Icon(painterResource(if (isRecording) R.drawable.studio_stop else R.drawable.studio_record), contentDescription = null, tint = PreviewColors.content)
         }
@@ -118,7 +105,6 @@ private fun PublishAction(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     primary: Boolean = false,
-    inline: Boolean = false,
     containerColor: Color = PreviewColors.control,
     contentColor: Color = PreviewColors.content,
     icon: @Composable () -> Unit,
@@ -131,20 +117,11 @@ private fun PublishAction(
         contentPadding = PaddingValues(4.dp),
         colors = ButtonDefaults.textButtonColors(contentColor = PreviewColors.content, disabledContentColor = PreviewColors.content.copy(alpha = 0.6f)),
     ) {
-        if (inline) {
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Surface(shape = CircleShape, color = containerColor, contentColor = contentColor, modifier = Modifier.size(48.dp)) {
-                    androidx.compose.foundation.layout.Box(contentAlignment = Alignment.Center) { icon() }
-                }
-                Text(label, modifier = Modifier.weight(1f), style = MaterialTheme.typography.labelLarge)
+        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Surface(shape = CircleShape, color = containerColor, contentColor = contentColor, modifier = Modifier.size(if (primary) 72.dp else 48.dp)) {
+                androidx.compose.foundation.layout.Box(contentAlignment = Alignment.Center) { icon() }
             }
-        } else {
-            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Surface(shape = CircleShape, color = containerColor, contentColor = contentColor, modifier = Modifier.size(if (primary) 72.dp else 48.dp)) {
-                    androidx.compose.foundation.layout.Box(contentAlignment = Alignment.Center) { icon() }
-                }
-                Text(label, style = MaterialTheme.typography.labelLarge, textAlign = TextAlign.Center)
-            }
+            Text(label, style = MaterialTheme.typography.labelLarge, textAlign = TextAlign.Center)
         }
     }
 }

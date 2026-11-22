@@ -1,5 +1,6 @@
 package com.haishinkit.app
 
+import android.Manifest
 import android.graphics.Bitmap
 import android.view.View
 import androidx.compose.foundation.background
@@ -17,10 +18,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performScrollTo
@@ -32,6 +35,9 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import com.google.accompanist.permissions.ExperimentalPermissionsApi
+import com.google.accompanist.permissions.PermissionState
+import com.google.accompanist.permissions.PermissionStatus
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -120,17 +126,13 @@ class StudioMediaLayoutTest {
     }
 
     @Test
-    fun largeTextAndLongSettingsDoNotHideThePrimaryActions() {
-        showLayout(1000.dp, 600.dp, fontScale = 2f)
+    fun longSettingsDoNotHideThePrimaryActions() {
+        showLayout(1000.dp, 600.dp)
         compose.onNodeWithText("Last camera setting").performScrollTo().assertIsDisplayed()
         compose.onNodeWithText(label(R.string.studio_go_live)).assertIsDisplayed()
         compose.onNodeWithText(label(R.string.studio_snapshot)).assertIsDisplayed()
         compose.onNodeWithText(label(R.string.studio_record)).assertIsDisplayed()
-        val photo = compose.onNodeWithText(label(R.string.studio_snapshot)).fetchSemanticsNode().boundsInRoot
-        val publish = compose.onNodeWithText(label(R.string.studio_go_live)).fetchSemanticsNode().boundsInRoot
-        val record = compose.onNodeWithText(label(R.string.studio_record)).fetchSemanticsNode().boundsInRoot
-        assertTrue(publish.top >= photo.bottom && record.top >= publish.bottom)
-        saveScreenshot("tablet-large-text")
+        saveScreenshot("tablet-scrolled-tools")
     }
 
     @Test
@@ -141,14 +143,43 @@ class StudioMediaLayoutTest {
         compose.onNodeWithTag("studio-preview").assertIsDisplayed()
     }
 
+    @OptIn(ExperimentalPermissionsApi::class)
+    @Test
+    fun missingPermissionsShowRecoveryInstructionsOnlyOnceInSidePanel() {
+        compose.setContent {
+            LayoutFixture {
+                Box(Modifier.requiredSize(1120.dp, 640.dp)) {
+                    PublishControls(
+                        expanded = true,
+                        needsPermissions = true,
+                        settings = {
+                            CameraDeviceControllerView(
+                                camera = null,
+                                cameras = emptyList(),
+                                onCameraSelected = {},
+                                permissions =
+                                    CameraPermissions(
+                                        audio = DeniedPermission(Manifest.permission.RECORD_AUDIO),
+                                        camera = DeniedPermission(Manifest.permission.CAMERA),
+                                    ),
+                            )
+                        },
+                        actions = {},
+                    )
+                }
+            }
+        }
+        compose.onAllNodesWithText(label(R.string.studio_permission_help)).assertCountEquals(1)
+        compose.onNodeWithText(label(R.string.studio_app_permissions)).assertIsDisplayed()
+    }
+
     private fun showLayout(
         width: Dp,
         height: Dp,
-        fontScale: Float = 1f,
         pictureInPicture: Boolean = false,
     ) {
         compose.setContent {
-            LayoutFixture(fontScale) {
+            LayoutFixture {
                 Box(Modifier.requiredSize(width, height)) {
                     StudioMediaLayout(
                         pictureInPicture = pictureInPicture,
@@ -183,7 +214,7 @@ private fun TestControls(expanded: Boolean) {
             Box(Modifier.height(800.dp))
             Text("Last camera setting")
         },
-        actions = { CameraControllerView(false, false, {}, {}, {}, inSidePanel = expanded) },
+        actions = { CameraControllerView(false, false, {}, {}, {}) },
     )
 }
 
@@ -191,14 +222,20 @@ private fun TestControls(expanded: Boolean) {
 @Suppress("ktlint:standard:function-naming")
 @androidx.compose.runtime.Composable
 private fun LayoutFixture(
-    fontScale: Float = 1f,
     content: @androidx.compose.runtime.Composable () -> Unit,
 ) {
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val density = LocalDensity.current
         val scale = with(density) { minOf(1f, maxWidth.toPx() / 1120f, maxHeight.toPx() / 640f) }
-        CompositionLocalProvider(LocalDensity provides Density(scale, fontScale)) {
+        CompositionLocalProvider(LocalDensity provides Density(scale)) {
             StudioTheme(content)
         }
     }
+}
+
+@OptIn(ExperimentalPermissionsApi::class)
+private class DeniedPermission(override val permission: String) : PermissionState {
+    override val status: PermissionStatus = PermissionStatus.Denied(shouldShowRationale = false)
+
+    override fun launchPermissionRequest() = Unit
 }

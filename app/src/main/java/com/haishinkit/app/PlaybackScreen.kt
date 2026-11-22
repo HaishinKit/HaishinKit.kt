@@ -31,8 +31,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.heading
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
@@ -130,7 +128,7 @@ fun PlaybackScreen(
                 Surface(shape = MaterialTheme.shapes.large, modifier = Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         if (expanded) {
-                            Text(stringResource(R.string.studio_playback), style = MaterialTheme.typography.headlineSmall, modifier = Modifier.semantics { heading() })
+                            Text(stringResource(R.string.studio_playback), style = MaterialTheme.typography.headlineSmall)
                             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                 StreamStatus(readyState, idleLabel = R.string.studio_not_connected)
                                 TextButton(onClick = onOpenSettings) { Text(stringResource(R.string.studio_settings)) }

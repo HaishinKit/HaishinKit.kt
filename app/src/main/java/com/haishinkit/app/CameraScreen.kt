@@ -367,7 +367,6 @@ fun CameraScreen(
                 },
                 actions = {
                     CameraControllerView(
-                        inSidePanel = expanded,
                         isRecording = recorderState.isRecording,
                         isConnected = sessionActive,
                         readyState = sessionReadyState,
