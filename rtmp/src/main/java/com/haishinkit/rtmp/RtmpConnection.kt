@@ -9,11 +9,13 @@ import com.haishinkit.rtmp.message.RtmpCommandMessage
 import com.haishinkit.rtmp.message.RtmpMessage
 import com.haishinkit.rtmp.message.RtmpMessageFactory
 import com.haishinkit.rtmp.util.UriUtil
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import java.net.URI
 import java.nio.BufferUnderflowException
 import java.nio.ByteBuffer
 import java.util.Timer
-import java.util.TimerTask
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.concurrent.schedule
 
@@ -73,10 +75,7 @@ class RtmpConnection : EventDispatcher(null) {
             }
             when (data["code"].toString()) {
                 Code.CONNECT_SUCCESS.rawValue -> {
-                    timerTask =
-                        Timer().schedule(0, 1000) {
-                            for (stream in streams) stream.value.on()
-                        }
+                    startStatistics()
                     val message = messageFactory.createRtmpSetChunkSizeMessage()
                     message.size = DEFAULT_CHUNK_SIZE_S
                     message.chunkStreamID = RtmpChunk.CONTROL
@@ -147,6 +146,13 @@ class RtmpConnection : EventDispatcher(null) {
         get() = socket.totalBytesOut
 
     /**
+     * The latest connection statistics, sampled about once per second after the server accepts
+     * the connection. The value is null before the first sample and after disconnect or disposal.
+     */
+    val networkReport: StateFlow<NetworkMonitorReport?>
+        get() = networkReportState.asStateFlow()
+
+    /**
      * The object encoding for this RTMPConnection instance.
      */
     internal val objectEncoding = RtmpObjectEncoding.AMF0
@@ -157,11 +163,9 @@ class RtmpConnection : EventDispatcher(null) {
     internal val socket = RtmpSocket(this)
     internal var transactionID = 0
     internal val messageFactory = RtmpMessageFactory(4)
-    private var timerTask: TimerTask? = null
-        set(value) {
-            timerTask?.cancel()
-            field = value
-        }
+    private val networkReportState = MutableStateFlow<NetworkMonitorReport?>(null)
+    private val statisticsGuard = Any()
+    private var statisticsTimer: Timer? = null
     private var arguments: MutableList<Any?> = mutableListOf()
     private val authenticator: RtmpAuthenticator by lazy {
         RtmpAuthenticator(this)
@@ -240,7 +244,7 @@ class RtmpConnection : EventDispatcher(null) {
         if (!isConnected) {
             return
         }
-        timerTask = null
+        stopStatistics()
         for (stream in streams) {
             stream.value.close()
             streams.remove(stream.key)
@@ -254,7 +258,7 @@ class RtmpConnection : EventDispatcher(null) {
      * Call [close] to disconnect the socket before disposing of the connection.
      */
     fun dispose() {
-        timerTask = null
+        stopStatistics()
         for (stream in streams) {
             stream.value.dispose()
         }
@@ -373,6 +377,10 @@ class RtmpConnection : EventDispatcher(null) {
             Log.d(TAG, readyState.toString())
         }
         when (readyState) {
+            RtmpSocket.ReadyState.Uninitialized,
+            RtmpSocket.ReadyState.Closing,
+            -> stopStatistics()
+
             RtmpSocket.ReadyState.Closed -> {
                 transactionID = 0
                 messages.clear()
@@ -382,6 +390,34 @@ class RtmpConnection : EventDispatcher(null) {
 
             else -> {
             }
+        }
+    }
+
+    private fun startStatistics() {
+        synchronized(statisticsGuard) {
+            if (statisticsTimer != null || !socket.isHandshakeDone) return
+            val timer = Timer()
+            statisticsTimer = timer
+            val monitor = NetworkMonitor(System.nanoTime(), socket.totalBytesIn, socket.totalBytesOut)
+
+            timer.schedule(0, STATISTICS_INTERVAL_MILLIS) {
+                for (stream in streams) stream.value.on()
+            }
+            timer.schedule(STATISTICS_INTERVAL_MILLIS, STATISTICS_INTERVAL_MILLIS) {
+                synchronized(statisticsGuard) sample@{
+                    if (statisticsTimer !== timer) return@sample
+                    val report = monitor.sample(System.nanoTime(), socket.totalBytesIn, socket.totalBytesOut, socket.queueBytesOut)
+                    if (report != null) networkReportState.value = report
+                }
+            }
+        }
+    }
+
+    private fun stopStatistics() {
+        synchronized(statisticsGuard) {
+            statisticsTimer?.cancel()
+            statisticsTimer = null
+            networkReportState.value = null
         }
     }
 
@@ -450,6 +486,7 @@ class RtmpConnection : EventDispatcher(null) {
 
         private const val TAG = "RtmpConnection"
         private const val DEFAULT_CHUNK_SIZE_S = 1024 * 8
+        private const val STATISTICS_INTERVAL_MILLIS = 1000L
         private const val DEFAULT_CAPABILITIES = 239
         private const val VERBOSE = false
 

@@ -34,6 +34,10 @@ internal class RtmpSocket(
         get() = socket?.totalBytesIn?.get() ?: 0
     val totalBytesOut: Long
         get() = socket?.totalBytesOut?.get() ?: 0
+    val queueBytesOut: Long
+        get() = socket?.queueBytesOut?.get() ?: 0
+    val isHandshakeDone: Boolean
+        get() = readyState == ReadyState.HandshakeDone
     private var socket: NetSocket? = null
     private val handshake: RtmpHandshake by lazy {
         RtmpHandshake()
