@@ -8,12 +8,9 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeContent
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Settings
@@ -82,7 +79,7 @@ fun MainScreen(onApplyRenderer: suspend (Renderer) -> Unit) {
         }
     }
     BoxWithConstraints(Modifier.fillMaxSize()) {
-        val useRail = maxWidth >= 600.dp && !pictureInPicture
+        val useRail = maxWidth >= 600.dp && maxHeight >= 480.dp && !pictureInPicture
         Row(Modifier.fillMaxSize()) {
             if (useRail) {
                 NavigationRail(containerColor = MaterialTheme.colorScheme.surface) {
@@ -119,7 +116,7 @@ fun MainScreen(onApplyRenderer: suspend (Renderer) -> Unit) {
                 contentWindowInsets = WindowInsets(0.dp, 0.dp, 0.dp, 0.dp),
             ) { padding ->
                 Box(
-                    Modifier.padding(padding).consumeWindowInsets(WindowInsets.safeContent.only(WindowInsetsSides.Bottom)),
+                    Modifier.padding(padding).consumeWindowInsets(padding),
                 ) {
                     NavHost(
                         navController = navController,

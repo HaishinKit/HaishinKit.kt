@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -14,6 +15,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -29,6 +31,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
@@ -104,24 +108,36 @@ fun PlaybackScreen(
         }
     }
 
-    Box(
-        modifier = modifier.fillMaxSize().background(Color.Black),
-    ) {
-        key(session.stream) {
-            HaishinKitView(
-                stream = session.stream,
-                modifier = Modifier.fillMaxSize(),
-            )
-        }
-        if (!pictureInPicture) {
+    StudioMediaLayout(
+        modifier = modifier,
+        pictureInPicture = pictureInPicture,
+        preview = {
+            key(session.stream) {
+                HaishinKitView(
+                    stream = session.stream,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
+        },
+        controls = { expanded ->
             Column(
-                Modifier.fillMaxSize().safeDrawingPadding().padding(16.dp),
+                Modifier.fillMaxSize()
+                    .background(if (expanded) MaterialTheme.colorScheme.surface else Color.Transparent)
+                    .safeDrawingPadding().padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Surface(shape = MaterialTheme.shapes.large, modifier = Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        StudioPreviewHeader(stringResource(R.string.studio_playback), readyState, onOpenSettings, idleLabel = R.string.studio_not_connected)
+                        if (expanded) {
+                            Text(stringResource(R.string.studio_playback), style = MaterialTheme.typography.headlineSmall, modifier = Modifier.semantics { heading() })
+                            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                StreamStatus(readyState, idleLabel = R.string.studio_not_connected)
+                                TextButton(onClick = onOpenSettings) { Text(stringResource(R.string.studio_settings)) }
+                            }
+                        } else {
+                            StudioPreviewHeader(stringResource(R.string.studio_playback), readyState, onOpenSettings, idleLabel = R.string.studio_not_connected)
+                        }
                     }
                 }
                 Column(
@@ -147,6 +163,6 @@ fun PlaybackScreen(
                     )
                 }
             }
-        }
-    }
+        },
+    )
 }

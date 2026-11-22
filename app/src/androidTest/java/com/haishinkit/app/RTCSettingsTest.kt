@@ -25,7 +25,7 @@ class RTCSettingsTest {
         val previous = Preference.shared
         val automation = InstrumentationRegistry.getInstrumentation().uiAutomation
         for (permission in listOf("android.permission.CAMERA", "android.permission.RECORD_AUDIO")) {
-            automation.grantRuntimePermission("com.haishinkit.app", permission)
+            automation.grantRuntimePermission(InstrumentationRegistry.getInstrumentation().targetContext.packageName, permission)
         }
         Preference.shared = Preference("rtmp://example.com/live", "test")
         try {
