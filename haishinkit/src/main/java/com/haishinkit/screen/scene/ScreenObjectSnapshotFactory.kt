@@ -13,7 +13,7 @@ class ScreenObjectSnapshotFactory {
      */
     fun create(screenObject: ScreenObject): ScreenObjectSnapshot {
         return when (screenObject) {
-            is NullScreenObject -> screenObject.snapshot
+            is NullScreenObject -> screenObject.snapshot.detachedCopy()
 
             is ScreenObjectContainer -> {
                 ScreenObjectSnapshot(

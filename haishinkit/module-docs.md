@@ -20,7 +20,9 @@ with a bold system font. Text supports explicit newlines and wrapping within its
 bounds. Layout preserves the requested size in the snapshot. Font metrics, glyphs, and line
 breaks can vary between Android and Apple system fonts; pixel-identical text is not guaranteed.
 Image elements use `source` with a base64 data URI or local file URI, and video elements use `track`.
-Video gravity is encoded as `resize`, `resizeAspect`, or `resizeAspectFill`; omission means `resizeAspect`.
+Video gravity is encoded as `resize`, `resizeAspect`, or `resizeAspectFill`. SceneFile
+normalizes an omitted gravity to `resizeAspect`. Legacy snapshot/SceneManager restoration
+keeps its original fill default; newly captured video snapshots encode gravity explicitly.
 
 Custom types require platform-specific support. Unsupported objects are invisible and preserve
 original snapshots, including visibility intent and subtrees, when captured again. Android's
@@ -45,7 +47,7 @@ normalized when resources are supplied by basename. After reading, copy resource
 storage and resolve known media references to local file URIs before constructing screen
 objects. Preserve opaque objects and all their resources during edits. Archives do not grant
 device permissions or restore network credentials. Resource names cannot contain directories
-or traversal; limits are 256 files, 128 MiB of resources, and 4 MiB of JSON.
+or traversal and must be unique after Unicode normalization and case folding; limits are 256 files, 128 MiB of resources, and 4 MiB of JSON.
 
 ## Editing screen objects
 

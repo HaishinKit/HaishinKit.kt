@@ -4,6 +4,10 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
+import java.text.Normalizer
+import java.util.Locale
 import java.util.zip.ZipEntry
 import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
@@ -33,15 +37,19 @@ class SceneFile(
                 require(bytes.size <= MAXIMUM_JSON_BYTES)
                 return SceneFile(Json.decodeFromString<ScreenObjectSnapshot>(bytes.toString(Charsets.UTF_8)))
             }
+            val directory = directory(bytes)
             val files = mutableMapOf<String, ByteArray>()
             val names = mutableSetOf<String>()
             var total = 0
+            var resourceBytes = 0
             ZipInputStream(ByteArrayInputStream(bytes)).use { input ->
                 while (true) {
                     val entry = input.nextEntry ?: break
                     require(names.add(entry.name) && names.size <= 260) { "Duplicate or excessive ZIP entries." }
+                    val declared = requireNotNull(directory[entry.name]) { "Entry missing from central directory." }
                     if (entry.isDirectory) {
                         require(entry.name == "media/") { "Unexpected scene directory." }
+                        require(input.read() == -1 && declared.second == 0L) { "Nonempty directory." }
                         input.closeEntry()
                         continue
                     }
@@ -49,19 +57,30 @@ class SceneFile(
                         entry.name == "scene.json" || entry.name == "manifest.json" ||
                             (entry.name.startsWith("media/") && validName(entry.name.removePrefix("media/"))),
                     ) { "Invalid scene entry." }
+                    val limit =
+                        when (entry.name) {
+                            "scene.json" -> MAXIMUM_JSON_BYTES
+                            "manifest.json" -> 65536
+                            else -> MAXIMUM_RESOURCE_BYTES - resourceBytes
+                        }
+                    require(declared.second <= limit.toLong()) { "Scene entry exceeds its size limit." }
                     val buffer = ByteArrayOutputStream()
                     val chunk = ByteArray(8192)
                     while (true) {
                         val count = input.read(chunk)
                         if (count == -1) break
+                        require(count <= limit - buffer.size()) { "Scene entry exceeds its size limit." }
                         total += count
                         require(total <= MAXIMUM_ARCHIVE_BYTES) { "Scene file exceeds its size limit." }
                         buffer.write(chunk, 0, count)
                     }
+                    require(entry.crc == declared.first && buffer.size().toLong() == declared.second)
+                    if (entry.name.startsWith("media/")) resourceBytes += buffer.size()
                     files[entry.name] = buffer.toByteArray()
                     input.closeEntry()
                 }
             }
+            require(names == directory.keys) { "Missing ZIP entries." }
             val json = requireNotNull(files.remove("scene.json")) { "Missing scene.json." }
             require(json.size <= MAXIMUM_JSON_BYTES)
             files.remove("manifest.json")?.let {
@@ -79,7 +98,9 @@ class SceneFile(
             node: ScreenObjectSnapshot,
             resources: Map<String, ByteArray>,
         ): ScreenObjectSnapshot {
+            if (node.type !in setOf("screen", "container", "video", "image", "text", "asset")) return node
             val elements = node.elements.toMutableMap()
+            if (node.type == "video" && !elements.containsKey("videoGravity")) elements["videoGravity"] = "resizeAspect"
             if (node.type == "image" || node.type == "asset") {
                 val source = elements["source"]
                 if (source != null && source.startsWith("file:", ignoreCase = true)) {
@@ -90,12 +111,44 @@ class SceneFile(
             return node.copy(elements = elements, children = node.children.map { portable(it, resources) })
         }
 
+        // Validate the complete ZIP before the streaming reader can accept a truncated prefix.
+        private fun directory(bytes: ByteArray): Map<String, Pair<Long, Long>> {
+            require(bytes.size >= 22)
+            val input = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN)
+
+            fun u16(offset: Int): Int = input.getShort(offset).toInt() and 0xffff
+
+            fun u32(offset: Int): Long = input.getInt(offset).toLong() and 0xffffffffL
+            val end =
+                (bytes.size - 22 downTo maxOf(0, bytes.size - 65557)).firstOrNull {
+                    u32(it) == 0x06054b50L && it + 22 + u16(it + 20) == bytes.size
+                } ?: throw IllegalArgumentException("Missing ZIP directory.")
+            require(u16(end + 4) == 0 && u16(end + 6) == 0 && u16(end + 8) == u16(end + 10))
+            val count = u16(end + 10)
+            val start = u32(end + 16)
+            require(count <= 260 && start + u32(end + 12) == end.toLong())
+            var cursor = start.toInt()
+            val result = mutableMapOf<String, Pair<Long, Long>>()
+            repeat(count) {
+                require(cursor >= 0 && cursor <= end - 46 && u32(cursor) == 0x02014b50L)
+                val length = u16(cursor + 28)
+                val next = cursor.toLong() + 46 + length + u16(cursor + 30) + u16(cursor + 32)
+                require(next <= end && u16(cursor + 34) == 0 && u32(cursor + 42) < start)
+                val name = bytes.copyOfRange(cursor + 46, cursor + 46 + length).toString(Charsets.UTF_8)
+                require(result.put(name, u32(cursor + 16) to u32(cursor + 24)) == null)
+                cursor = next.toInt()
+            }
+            require(cursor == end)
+            return result
+        }
+
         private fun validName(name: String): Boolean =
             name.isNotEmpty() && name != "." && name != ".." &&
                 !name.contains('/') && !name.contains('\\') && !name.contains(':') && !name.contains('\u0000')
     }
 
     init {
+        require(resources.keys.map { Normalizer.normalize(it, Normalizer.Form.NFC).lowercase(Locale.ROOT) }.toSet().size == resources.size) { "Colliding resource names." }
         require(resources.size <= 256 && resources.keys.all { validName(it) }) { "Invalid scene resource names." }
         require(resources.values.sumOf { it.size.toLong() } <= MAXIMUM_RESOURCE_BYTES) { "Scene resources exceed 128 MB." }
 

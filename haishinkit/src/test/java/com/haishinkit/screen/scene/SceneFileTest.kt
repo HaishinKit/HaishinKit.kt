@@ -88,4 +88,72 @@ class SceneFileTest {
             file.delete()
         }
     }
+
+    @Test fun rejectsMissingDirectoryAndEntries() {
+        val encoded = SceneFile(fixture()).write()
+        val central = (0 until encoded.size - 4).first { encoded[it] == 0x50.toByte() && encoded[it + 1] == 0x4b.toByte() && encoded[it + 2] == 1.toByte() && encoded[it + 3] == 2.toByte() }
+        try {
+            SceneFile.read(encoded.copyOf(central))
+            fail("Truncated ZIP accepted")
+        } catch (_: IllegalArgumentException) {
+        }
+    }
+
+    @Test fun rejectsDirectoryPayloadAndOversizedManifest() {
+        for ((name, count) in listOf("media/" to 1, "manifest.json" to 65537, "scene.json" to (4 * 1024 * 1024 + 1))) {
+            val output = ByteArrayOutputStream()
+            ZipOutputStream(output).use { zip ->
+                zip.putNextEntry(ZipEntry(name))
+                zip.write(ByteArray(count))
+                zip.closeEntry()
+            }
+            try {
+                SceneFile.read(output.toByteArray())
+                fail("Oversized or nonempty entry accepted")
+            } catch (_: IllegalArgumentException) {
+            }
+        }
+    }
+
+    @Test fun rejectsPortableFilenameCollisions() {
+        for ((first, second) in listOf("Logo.png" to "logo.png", "é.png" to "e\u0301.png")) {
+            try {
+                SceneFile(fixture(), mapOf(first to byteArrayOf(1), second to byteArrayOf(2)))
+                fail("Colliding names accepted")
+            } catch (_: IllegalArgumentException) {
+            }
+        }
+    }
+
+    @Test fun opaqueSnapshotsDoNotAliasMutableInputOrCaptures() {
+        val source = fixture().copy(type = "future.widget")
+        val originalLeft = source.layoutMargin.left
+        val originalChildLeft = source.children[0].layoutMargin.left
+        val objectValue = ScreenObjectFactory().create(source)
+        source.layoutMargin.left += 5
+        source.children[0].layoutMargin.left += 7
+        val first = ScreenObjectSnapshotFactory().create(objectValue)
+        assertEquals(originalLeft, first.layoutMargin.left)
+        assertEquals(originalChildLeft, first.children[0].layoutMargin.left)
+        first.layoutMargin.left += 10
+        first.children[0].layoutMargin.left += 20
+        val second = ScreenObjectSnapshotFactory().create(objectValue)
+        assertEquals(originalLeft, second.layoutMargin.left)
+        assertEquals(originalChildLeft, second.children[0].layoutMargin.left)
+    }
+
+    @Test fun legacyAndPortableGravityDefaultsStayDistinct() {
+        val video = fixture().children[0]
+        val legacy = ScreenObjectFactory().create(video) as com.haishinkit.screen.VideoScreenObject
+        assertEquals(com.haishinkit.graphics.VideoGravity.RESIZE_ASPECT_FILL, legacy.videoGravity)
+        val portable = SceneFile.read(SceneFile(video).write())
+        val restored = ScreenObjectFactory().create(portable.snapshot) as com.haishinkit.screen.VideoScreenObject
+        assertEquals(com.haishinkit.graphics.VideoGravity.RESIZE_ASPECT, restored.videoGravity)
+        legacy.videoGravity = com.haishinkit.graphics.VideoGravity.RESIZE_ASPECT
+        val recaptured = ScreenObjectSnapshotFactory().create(legacy)
+        assertEquals("resizeAspect", recaptured.elements["videoGravity"])
+        assertEquals(com.haishinkit.graphics.VideoGravity.RESIZE_ASPECT, (ScreenObjectFactory().create(recaptured) as com.haishinkit.screen.VideoScreenObject).videoGravity)
+        val unknown = fixture().copy(type = "future.widget")
+        assertEquals(unknown, SceneFile(unknown).snapshot)
+    }
 }

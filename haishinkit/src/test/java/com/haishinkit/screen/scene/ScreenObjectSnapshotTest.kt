@@ -27,7 +27,7 @@ class ScreenObjectSnapshotTest {
         val snapshot = fixture()
         val root = ScreenObjectFactory().create(snapshot)
         root.layout(com.haishinkit.screen.MockRenderer())
-        assertEquals(snapshot, ScreenObjectSnapshotFactory().create(root))
+        assertEquals(withExplicitLegacyGravity(snapshot), ScreenObjectSnapshotFactory().create(root))
     }
 
     @Test
@@ -69,7 +69,7 @@ class ScreenObjectSnapshotTest {
         assertEquals(24.5f, text.size)
         assertEquals("#8044AAFF", text.elements["color"])
         assertNotNull((root.findById("logo") as ImageScreenObject).bitmap)
-        assertEquals(snapshot, ScreenObjectSnapshotFactory().create(root))
+        assertEquals(withExplicitLegacyGravity(snapshot), ScreenObjectSnapshotFactory().create(root))
     }
 
     @Test
@@ -92,3 +92,9 @@ class ScreenObjectSnapshotTest {
         assertEquals("root", root.id)
     }
 }
+
+internal fun withExplicitLegacyGravity(node: ScreenObjectSnapshot): ScreenObjectSnapshot =
+    node.copy(
+        elements = if (node.type == "video" && !node.elements.containsKey("videoGravity")) node.elements + ("videoGravity" to "resizeAspectFill") else node.elements,
+        children = node.children.map { withExplicitLegacyGravity(it) },
+    )

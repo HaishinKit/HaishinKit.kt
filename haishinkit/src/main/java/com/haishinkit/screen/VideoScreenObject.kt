@@ -91,8 +91,15 @@ open class VideoScreenObject(
         get() {
             return buildMap {
                 put(Keys.TRACK, track.toString())
-                if (videoGravity != VideoGravity.RESIZE_ASPECT) {
-                    put("videoGravity", if (videoGravity == VideoGravity.RESIZE) "resize" else "resizeAspectFill")
+                run {
+                    put(
+                        "videoGravity",
+                        when (videoGravity) {
+                            VideoGravity.RESIZE -> "resize"
+                            VideoGravity.RESIZE_ASPECT -> "resizeAspect"
+                            else -> "resizeAspectFill"
+                        },
+                    )
                 }
             }
         }
@@ -102,7 +109,8 @@ open class VideoScreenObject(
                 when (value["videoGravity"]) {
                     "resize", "AVLayerVideoGravityResize" -> VideoGravity.RESIZE
                     "resizeAspectFill", "AVLayerVideoGravityResizeAspectFill" -> VideoGravity.RESIZE_ASPECT_FILL
-                    else -> VideoGravity.RESIZE_ASPECT
+                    "resizeAspect", "AVLayerVideoGravityResizeAspect" -> VideoGravity.RESIZE_ASPECT
+                    else -> videoGravity
                 }
         }
 
