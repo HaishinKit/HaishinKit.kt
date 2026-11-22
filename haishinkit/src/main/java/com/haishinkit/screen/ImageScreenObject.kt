@@ -21,10 +21,15 @@ private sealed interface ImageSource {
         }
     }
 
+    class File(override val uri: Uri) : ImageSource {
+        override fun toBitmap(): Bitmap = requireNotNull(BitmapFactory.decodeFile(uri.path)) { "Invalid file image." }
+    }
+
     companion object {
         fun parseImageSource(uri: Uri?): ImageSource =
             when (uri?.scheme) {
                 "data" -> Data(uri)
+                "file" -> File(uri)
                 else -> error("unsupported")
             }
     }

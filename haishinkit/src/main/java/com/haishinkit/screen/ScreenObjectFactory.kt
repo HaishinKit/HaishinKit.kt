@@ -43,7 +43,7 @@ class ScreenObjectFactory {
             VideoScreenObject.TYPE -> VideoScreenObject(snapshot.id)
             TextScreenObject.TYPE -> TextScreenObject(snapshot.id)
             else -> {
-                creators[snapshot.type]?.invoke(snapshot) ?: NullScreenObject(snapshot.id)
+                creators[snapshot.type]?.invoke(snapshot) ?: NullScreenObject(snapshot)
             }
         }.apply {
             layoutMargin.set(snapshot.layoutMargin)
@@ -53,7 +53,7 @@ class ScreenObjectFactory {
                 snapshot.size.width,
                 snapshot.size.height,
             )
-            isVisible = snapshot.isVisible
+            isVisible = this !is NullScreenObject && snapshot.isVisible
             cornerRadius = snapshot.cornerRadius
             verticalAlignment = snapshot.verticalAlignment.takeIf { it in 0..2 } ?: ScreenObject.VERTICAL_ALIGNMENT_TOP
             horizontalAlignment = snapshot.horizontalAlignment.takeIf { it in 0..2 } ?: ScreenObject.HORIZONTAL_ALIGNMENT_LEFT

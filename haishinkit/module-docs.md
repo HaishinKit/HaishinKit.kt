@@ -19,12 +19,33 @@ Text elements use `value`, `fontSize`, and `color` (`#AARRGGBB`). The default fo
 with a bold system font. Text supports explicit newlines and wrapping within its requested
 bounds. Layout preserves the requested size in the snapshot. Font metrics, glyphs, and line
 breaks can vary between Android and Apple system fonts; pixel-identical text is not guaranteed.
-Image elements use `source` with a base64 data URI, and video elements use `track`.
+Image elements use `source` with a base64 data URI or local file URI, and video elements use `track`.
+Video gravity is encoded as `resize`, `resizeAspect`, or `resizeAspectFill`; omission means `resizeAspect`.
 
-Custom types require platform-specific support. Android preserves an unknown type's place with
-`NullScreenObject`, whereas Swift's built-in factory returns `nil` for unsupported types.
-Only properties represented by the snapshot are shared; effects, video scaling, and orientation
-are not encoded by this format.
+Custom types require platform-specific support. Unsupported objects are invisible and preserve
+original snapshots, including visibility intent and subtrees, when captured again. Android's
+`NullScreenObject` retains Apple's unsupported `asset` video-file objects this way.
+
+## Portable scene archives
+
+[SceneArchive][com.haishinkit.screen.scene.SceneArchive] reads and writes `.haishinscene` ZIP
+files shared with Apple platforms. The ZIP contains camelCase `scene.json` (a snapshot without
+an envelope), `manifest.json` (`{"format":"haishinkit.scene","version":1}`), and flat
+`media/<filename>` entries. STORE and DEFLATE archives, including Java data descriptors, are
+supported; standalone snapshot JSON is accepted without external media.
+
+```kotlin
+val archive = SceneArchive(snapshot, mapOf("overlay.png" to imageBytes))
+val bytes = archive.write()
+val restored = SceneArchive.read(bytes)
+```
+
+Use `media/<filename>` in image/asset `elements["source"]`. Matching local file URLs are
+normalized when resources are supplied by basename. After reading, copy resources into app
+storage and resolve known media references to local file URIs before constructing screen
+objects. Preserve opaque objects and all their resources during edits. Archives do not grant
+device permissions or restore network credentials. Resource names cannot contain directories
+or traversal; limits are 256 files, 128 MiB of resources, and 4 MiB of JSON.
 
 ## Editing screen objects
 

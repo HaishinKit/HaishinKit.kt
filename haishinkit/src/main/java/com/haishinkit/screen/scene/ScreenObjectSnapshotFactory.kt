@@ -1,5 +1,6 @@
 package com.haishinkit.screen.scene
 
+import com.haishinkit.screen.NullScreenObject
 import com.haishinkit.screen.ScreenObject
 import com.haishinkit.screen.ScreenObjectContainer
 
@@ -12,6 +13,8 @@ class ScreenObjectSnapshotFactory {
      */
     fun create(screenObject: ScreenObject): ScreenObjectSnapshot {
         return when (screenObject) {
+            is NullScreenObject -> screenObject.snapshot
+
             is ScreenObjectContainer -> {
                 ScreenObjectSnapshot(
                     type = screenObject.type,
