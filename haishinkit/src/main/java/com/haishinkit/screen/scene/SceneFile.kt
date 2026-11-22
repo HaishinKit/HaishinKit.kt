@@ -15,7 +15,7 @@ import java.util.zip.ZipOutputStream
  * materialize resources into their own app storage before supplying media URLs to screen objects.
  * Unsupported objects are invisible and retain their original snapshot when recaptured.
  */
-class SceneArchive(
+class SceneFile(
     snapshot: ScreenObjectSnapshot,
     val resources: Map<String, ByteArray> = emptyMap(),
 ) {
@@ -27,11 +27,11 @@ class SceneArchive(
         private const val MAXIMUM_ARCHIVE_BYTES: Int = MAXIMUM_RESOURCE_BYTES + 8 * 1024 * 1024
 
         /** Reads the shared ZIP, or a standalone snapshot JSON without external resources. */
-        fun read(bytes: ByteArray): SceneArchive {
-            require(bytes.size <= MAXIMUM_ARCHIVE_BYTES) { "Scene archive exceeds its size limit." }
+        fun read(bytes: ByteArray): SceneFile {
+            require(bytes.size <= MAXIMUM_ARCHIVE_BYTES) { "Scene file exceeds its size limit." }
             if (bytes.size < 2 || bytes[0] != 0x50.toByte() || bytes[1] != 0x4b.toByte()) {
                 require(bytes.size <= MAXIMUM_JSON_BYTES)
-                return SceneArchive(Json.decodeFromString<ScreenObjectSnapshot>(bytes.toString(Charsets.UTF_8)))
+                return SceneFile(Json.decodeFromString<ScreenObjectSnapshot>(bytes.toString(Charsets.UTF_8)))
             }
             val files = mutableMapOf<String, ByteArray>()
             val names = mutableSetOf<String>()
@@ -55,7 +55,7 @@ class SceneArchive(
                         val count = input.read(chunk)
                         if (count == -1) break
                         total += count
-                        require(total <= MAXIMUM_ARCHIVE_BYTES) { "Scene archive exceeds its size limit." }
+                        require(total <= MAXIMUM_ARCHIVE_BYTES) { "Scene file exceeds its size limit." }
                         buffer.write(chunk, 0, count)
                     }
                     files[entry.name] = buffer.toByteArray()
@@ -69,7 +69,7 @@ class SceneArchive(
                 val manifest = Json.decodeFromString<Manifest>(it.toString(Charsets.UTF_8))
                 require(manifest.format == "haishinkit.scene" && manifest.version == 1) { "Unsupported scene version." }
             }
-            return SceneArchive(
+            return SceneFile(
                 Json.decodeFromString<ScreenObjectSnapshot>(json.toString(Charsets.UTF_8)),
                 files.mapKeys { it.key.removePrefix("media/") },
             )
@@ -111,9 +111,9 @@ class SceneArchive(
         validate(this.snapshot)
     }
 
-    /** Writes ZIP DEFLATE entries compatible with SceneArchive on Apple platforms. */
+    /** Writes ZIP DEFLATE entries compatible with SceneFile on Apple platforms. */
     fun write(): ByteArray {
-        val validated = SceneArchive(snapshot, resources.toMap())
+        val validated = SceneFile(snapshot, resources.toMap())
         val snapshotJSON = Json.encodeToString(validated.snapshot).toByteArray(Charsets.UTF_8)
         require(snapshotJSON.size <= MAXIMUM_JSON_BYTES)
         val files =

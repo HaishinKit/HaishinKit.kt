@@ -17,17 +17,17 @@ import java.util.zip.ZipOutputStream
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28])
-class SceneArchiveTest {
+class SceneFileTest {
     private fun fixture(): ScreenObjectSnapshot = Json.decodeFromString(javaClass.getResource("/screen_object_snapshot.json")!!.readText())
 
     @Test fun archiveRoundTripKeepsLayoutAndOpaqueResources() {
-        val original = SceneArchive(fixture(), mapOf("movie.bin" to byteArrayOf(0, 1, 2, 3)))
+        val original = SceneFile(fixture(), mapOf("movie.bin" to byteArrayOf(0, 1, 2, 3)))
         val encoded = original.write()
         java.io.File("build/scene-interop/android_scene_deflate.haishinscene").apply {
             parentFile.mkdirs()
             writeBytes(encoded)
         }
-        val restored = SceneArchive.read(encoded)
+        val restored = SceneFile.read(encoded)
         assertEquals(original.snapshot, restored.snapshot)
         assertArrayEquals(original.resources["movie.bin"], restored.resources["movie.bin"])
     }
@@ -47,7 +47,7 @@ class SceneArchiveTest {
 
     @Test fun readsAppleStoredArchive() {
         val input = javaClass.getResourceAsStream("/apple_scene_store.haishinscene")!!.readBytes()
-        val restored = SceneArchive.read(input)
+        val restored = SceneFile.read(input)
         assertEquals("swift-fixture", restored.snapshot.id)
         assertArrayEquals(byteArrayOf(1, 2, 3, 4), restored.resources["shared.bin"])
         assertEquals("apple.future", restored.snapshot.children[0].type)
@@ -55,7 +55,7 @@ class SceneArchiveTest {
 
     @Test fun rejectsTraversalEntries() {
         try {
-            SceneArchive(fixture(), mapOf("../escape" to byteArrayOf(1)))
+            SceneFile(fixture(), mapOf("../escape" to byteArrayOf(1)))
             fail("Traversal accepted")
         } catch (_: IllegalArgumentException) {
         }
@@ -66,7 +66,7 @@ class SceneArchiveTest {
             zip.closeEntry()
         }
         try {
-            SceneArchive.read(output.toByteArray())
+            SceneFile.read(output.toByteArray())
             fail("Traversal accepted")
         } catch (_: IllegalArgumentException) {
         }
@@ -82,7 +82,7 @@ class SceneArchiveTest {
             val restored = ScreenObjectFactory().create(snapshot.copy(elements = mapOf("source" to file.toURI().toString()))) as ImageScreenObject
             assertEquals(source.bitmap!!.width, restored.bitmap!!.width)
             assertEquals(file.toURI().toString(), restored.elements["source"])
-            val portable = SceneArchive(ScreenObjectSnapshotFactory().create(restored), mapOf(file.name to file.readBytes()))
+            val portable = SceneFile(ScreenObjectSnapshotFactory().create(restored), mapOf(file.name to file.readBytes()))
             assertEquals("media/${file.name}", portable.snapshot.elements["source"])
         } finally {
             file.delete()

@@ -26,18 +26,18 @@ Custom types require platform-specific support. Unsupported objects are invisibl
 original snapshots, including visibility intent and subtrees, when captured again. Android's
 `NullScreenObject` retains Apple's unsupported `asset` video-file objects this way.
 
-## Portable scene archives
+## Portable scene files
 
-[SceneArchive][com.haishinkit.screen.scene.SceneArchive] reads and writes `.haishinscene` ZIP
+[SceneFile][com.haishinkit.screen.scene.SceneFile] reads and writes `.haishinscene` ZIP
 files shared with Apple platforms. The ZIP contains camelCase `scene.json` (a snapshot without
 an envelope), `manifest.json` (`{"format":"haishinkit.scene","version":1}`), and flat
 `media/<filename>` entries. STORE and DEFLATE archives, including Java data descriptors, are
 supported; standalone snapshot JSON is accepted without external media.
 
 ```kotlin
-val archive = SceneArchive(snapshot, mapOf("overlay.png" to imageBytes))
+val archive = SceneFile(snapshot, mapOf("overlay.png" to imageBytes))
 val bytes = archive.write()
-val restored = SceneArchive.read(bytes)
+val restored = SceneFile.read(bytes)
 ```
 
 Use `media/<filename>` in image/asset `elements["source"]`. Matching local file URLs are
