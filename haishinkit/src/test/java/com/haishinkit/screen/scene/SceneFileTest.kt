@@ -21,7 +21,7 @@ class SceneFileTest {
     @Test fun archiveRoundTripKeepsLayoutAndOpaqueResources() {
         val original = SceneFile(fixture(), mapOf("movie.bin" to byteArrayOf(0, 1, 2, 3)))
         val encoded = original.write()
-        java.io.File("build/scene-interop/android_scene_deflate.haishinscene").apply {
+        java.io.File("build/scene-interop/android_scene_deflate.scene").apply {
             parentFile.mkdirs()
             writeBytes(encoded)
         }
@@ -44,7 +44,7 @@ class SceneFileTest {
     }
 
     @Test fun readsAppleStoredArchive() {
-        val input = javaClass.getResourceAsStream("/apple_scene_store.haishinscene")!!.readBytes()
+        val input = javaClass.getResourceAsStream("/apple_scene_store.scene")!!.readBytes()
         val restored = SceneFile.read(input)
         assertEquals("swift-fixture", restored.snapshot.id)
         assertArrayEquals(byteArrayOf(1, 2, 3, 4), restored.resources["shared.bin"])

@@ -30,7 +30,7 @@ original snapshots, including visibility intent and subtrees, when captured agai
 
 ## Portable scene files
 
-[SceneFile][com.haishinkit.screen.scene.SceneFile] reads and writes `.haishinscene` ZIP
+[SceneFile][com.haishinkit.screen.scene.SceneFile] reads and writes `.scene` ZIP
 files shared with Apple platforms. The ZIP contains camelCase `scene.json` (a snapshot without
 an envelope), `manifest.json` (`{"format":"haishinkit.scene","version":1}`), and flat
 `media/<filename>` entries. STORE and DEFLATE archives, including Java data descriptors, are
