@@ -156,4 +156,64 @@ class SceneFileTest {
         val unknown = fixture().copy(type = "future.widget")
         assertEquals(unknown, SceneFile(unknown).snapshot)
     }
+
+    @Test fun canonicalJapaneseMediaReferencesMatchResources() {
+        val resource = "か\u3099.png"
+        val image = fixture().children[1].children[1].copy(elements = mapOf("source" to "media/が.png"))
+        val file = SceneFile(image, mapOf(resource to byteArrayOf(1, 2)))
+        assertEquals("media/$resource", SceneFile.read(file.write()).snapshot.elements["source"])
+        val opaque = fixture().copy(type = "future.widget", children = listOf(image))
+        assertEquals(opaque, SceneFile.read(SceneFile(opaque, mapOf(resource to byteArrayOf(1))).write()).snapshot)
+    }
+
+    @Test fun localhostFileUriCanBePackaged() {
+        val image = fixture().children[1].children[1].copy(elements = mapOf("source" to "file://localhost/path/logo.png"))
+        assertEquals("media/logo.png", SceneFile(image, mapOf("logo.png" to byteArrayOf(1))).snapshot.elements["source"])
+    }
+
+    @Test fun rejectsCaseFoldingAliases() {
+        for ((first, second) in listOf("Messages.png" to "Meſſages.png", "ß.png" to "ẞ.png")) {
+            try {
+                SceneFile(fixture(), mapOf(first to byteArrayOf(1), second to byteArrayOf(2)))
+                fail("Aliases accepted")
+            } catch (_: IllegalArgumentException) {
+            }
+        }
+    }
+
+    @Test fun rejectsCorruptCentralLocalOffsetAndPackedSize() {
+        val original = SceneFile(fixture()).write()
+        val central = (0 until original.size - 4).first { original[it] == 0x50.toByte() && original[it + 1] == 0x4b.toByte() && original[it + 2] == 1.toByte() && original[it + 3] == 2.toByte() }
+        for (field in listOf(42, 20)) {
+            val corrupted = original.copyOf()
+            corrupted[central + field] = (corrupted[central + field].toInt() xor 1).toByte()
+            try {
+                SceneFile.read(corrupted)
+                fail("Corrupt central entry accepted")
+            } catch (_: IllegalArgumentException) {
+            }
+        }
+    }
+
+    @Test fun readsLargeStoredMediaWithinDeclaredLimit() {
+        val media = ByteArray(65 * 1024 * 1024) { 3 }
+        val output = ByteArrayOutputStream(media.size + 65536)
+        ZipOutputStream(output).use { zip ->
+            zip.putNextEntry(ZipEntry("scene.json"))
+            zip.write(Json.encodeToString(fixture()).toByteArray())
+            zip.closeEntry()
+            zip.putNextEntry(
+                ZipEntry("media/video.bin").apply {
+                    method = ZipEntry.STORED
+                    size = media.size.toLong()
+                    compressedSize = size
+                    crc = java.util.zip.CRC32().apply { update(media) }.value
+                },
+            )
+            zip.write(media)
+            zip.closeEntry()
+        }
+        val restored = SceneFile.read(output.toByteArray())
+        assertArrayEquals(media, restored.resources["video.bin"])
+    }
 }

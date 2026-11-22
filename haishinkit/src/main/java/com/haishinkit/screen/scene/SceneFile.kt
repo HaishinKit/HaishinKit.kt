@@ -49,7 +49,7 @@ class SceneFile(
                     val declared = requireNotNull(directory[entry.name]) { "Entry missing from central directory." }
                     if (entry.isDirectory) {
                         require(entry.name == "media/") { "Unexpected scene directory." }
-                        require(input.read() == -1 && declared.second == 0L) { "Nonempty directory." }
+                        require(input.read() == -1 && declared.size == 0L) { "Nonempty directory." }
                         input.closeEntry()
                         continue
                     }
@@ -63,20 +63,19 @@ class SceneFile(
                             "manifest.json" -> 65536
                             else -> MAXIMUM_RESOURCE_BYTES - resourceBytes
                         }
-                    require(declared.second <= limit.toLong()) { "Scene entry exceeds its size limit." }
-                    val buffer = ByteArrayOutputStream()
-                    val chunk = ByteArray(8192)
-                    while (true) {
-                        val count = input.read(chunk)
-                        if (count == -1) break
-                        require(count <= limit - buffer.size()) { "Scene entry exceeds its size limit." }
+                    require(declared.size <= limit.toLong()) { "Scene entry exceeds its size limit." }
+                    val data = ByteArray(declared.size.toInt())
+                    var position = 0
+                    while (position < data.size) {
+                        val count = input.read(data, position, data.size - position)
+                        require(count > 0) { "Truncated scene entry." }
+                        position += count
                         total += count
                         require(total <= MAXIMUM_ARCHIVE_BYTES) { "Scene file exceeds its size limit." }
-                        buffer.write(chunk, 0, count)
                     }
-                    require(entry.crc == declared.first && buffer.size().toLong() == declared.second)
-                    if (entry.name.startsWith("media/")) resourceBytes += buffer.size()
-                    files[entry.name] = buffer.toByteArray()
+                    require(input.read() == -1 && entry.crc == declared.crc && entry.compressedSize == declared.packed && entry.method == declared.method)
+                    if (entry.name.startsWith("media/")) resourceBytes += data.size
+                    files[entry.name] = data
                     input.closeEntry()
                 }
             }
@@ -104,15 +103,19 @@ class SceneFile(
             if (node.type == "image" || node.type == "asset") {
                 val source = elements["source"]
                 if (source != null && source.startsWith("file:", ignoreCase = true)) {
-                    val name = java.io.File(java.net.URI(source)).name
+                    val name = java.io.File(java.net.URI(source).path).name
                     if (resources.containsKey(name)) elements["source"] = "media/$name"
                 }
+            }
+            if ((node.type == "image" || node.type == "asset") && elements["source"]?.startsWith("media/") == true) {
+                val name = elements.getValue("source").removePrefix("media/")
+                resources.keys.firstOrNull { canonical(it) == canonical(name) }?.let { elements["source"] = "media/$it" }
             }
             return node.copy(elements = elements, children = node.children.map { portable(it, resources) })
         }
 
         // Validate the complete ZIP before the streaming reader can accept a truncated prefix.
-        private fun directory(bytes: ByteArray): Map<String, Pair<Long, Long>> {
+        private fun directory(bytes: ByteArray): Map<String, ZipInfo> {
             require(bytes.size >= 22)
             val input = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN)
 
@@ -128,19 +131,39 @@ class SceneFile(
             val start = u32(end + 16)
             require(count <= 260 && start + u32(end + 12) == end.toLong())
             var cursor = start.toInt()
-            val result = mutableMapOf<String, Pair<Long, Long>>()
+            val result = mutableMapOf<String, ZipInfo>()
             repeat(count) {
                 require(cursor >= 0 && cursor <= end - 46 && u32(cursor) == 0x02014b50L)
                 val length = u16(cursor + 28)
                 val next = cursor.toLong() + 46 + length + u16(cursor + 30) + u16(cursor + 32)
                 require(next <= end && u16(cursor + 34) == 0 && u32(cursor + 42) < start)
                 val name = bytes.copyOfRange(cursor + 46, cursor + 46 + length).toString(Charsets.UTF_8)
-                require(result.put(name, u32(cursor + 16) to u32(cursor + 24)) == null)
+                val offset = u32(cursor + 42).toInt()
+                val packed = u32(cursor + 20)
+                val size = u32(cursor + 24)
+                val crc = u32(cursor + 16)
+                val method = u16(cursor + 10)
+                require(offset >= 0 && offset <= start - 30 && u32(offset) == 0x04034b50L)
+                require(method in setOf(0, 8) && u16(offset + 8) == method && u16(offset + 6) == u16(cursor + 8) && u16(offset + 6) and 1 == 0)
+                val localLength = u16(offset + 26)
+                val dataOffset = offset.toLong() + 30 + localLength + u16(offset + 28)
+                require(dataOffset + packed <= start && localLength == length)
+                require(bytes.copyOfRange(offset + 30, offset + 30 + localLength).contentEquals(bytes.copyOfRange(cursor + 46, cursor + 46 + length)))
+                if (u16(offset + 6) and 8 == 0) require(u32(offset + 14) == crc && u32(offset + 18) == packed && u32(offset + 22) == size)
+                require(result.put(name, ZipInfo(crc, size, packed, method)) == null)
+
                 cursor = next.toInt()
             }
             require(cursor == end)
             return result
         }
+
+        private data class ZipInfo(val crc: Long, val size: Long, val packed: Long, val method: Int)
+
+        private fun canonical(name: String): String = Normalizer.normalize(name, Normalizer.Form.NFC)
+
+        // Conservative portable case key, also available on Android API 23 (before platform ICU).
+        private fun caseKey(name: String): String = canonical(canonical(name).lowercase(Locale.ROOT).uppercase(Locale.ROOT).lowercase(Locale.ROOT))
 
         private fun validName(name: String): Boolean =
             name.isNotEmpty() && name != "." && name != ".." &&
@@ -148,7 +171,7 @@ class SceneFile(
     }
 
     init {
-        require(resources.keys.map { Normalizer.normalize(it, Normalizer.Form.NFC).lowercase(Locale.ROOT) }.toSet().size == resources.size) { "Colliding resource names." }
+        require(resources.keys.map { caseKey(it) }.toSet().size == resources.size) { "Colliding resource names." }
         require(resources.size <= 256 && resources.keys.all { validName(it) }) { "Invalid scene resource names." }
         require(resources.values.sumOf { it.size.toLong() } <= MAXIMUM_RESOURCE_BYTES) { "Scene resources exceed 128 MB." }
 
@@ -156,7 +179,7 @@ class SceneFile(
             if (node.type == "image" || node.type == "asset") {
                 val source = node.elements["source"] ?: ""
                 if (!(node.type == "image" && source.startsWith("data:"))) {
-                    require(source.startsWith("media/") && validName(source.removePrefix("media/")) && resources.containsKey(source.removePrefix("media/"))) { "Missing or invalid packaged media." }
+                    require(source.startsWith("media/") && validName(source.removePrefix("media/")) && resources.keys.any { canonical(it) == canonical(source.removePrefix("media/")) }) { "Missing or invalid packaged media." }
                 }
             }
             node.children.forEach { validate(it) }
