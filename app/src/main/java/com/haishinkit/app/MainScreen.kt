@@ -79,7 +79,7 @@ fun MainScreen(onApplyRenderer: suspend (Renderer) -> Unit) {
         }
     }
     BoxWithConstraints(Modifier.fillMaxSize()) {
-        val useRail = maxWidth >= 600.dp && maxHeight >= 480.dp && !pictureInPicture
+        val useRail = maxWidth >= 600.dp && !pictureInPicture
         Row(Modifier.fillMaxSize()) {
             if (useRail) {
                 NavigationRail(containerColor = MaterialTheme.colorScheme.surface) {

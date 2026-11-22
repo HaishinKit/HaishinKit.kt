@@ -193,7 +193,7 @@ class StudioMediaLayoutTest {
         compose.setContent {
             LayoutFixture {
                 minimumLineHeight = with(LocalDensity.current) { 20.dp.toPx() }
-                Box(Modifier.requiredSize(640.dp, 320.dp)) {
+                Box(Modifier.requiredSize(480.dp, 320.dp)) {
                     Scaffold(
                         contentWindowInsets = WindowInsets(0, 0, 0, 0),
                         bottomBar = {
