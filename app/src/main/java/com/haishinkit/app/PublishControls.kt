@@ -5,7 +5,9 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
@@ -15,6 +17,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -38,12 +41,13 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.haishinkit.stream.StreamSession
 
-/** Edge controls leave the preview clear; camera adjustments live in a modal sheet. */
+/** Edge controls on phones; persistent adjustments beside the preview in wide windows. */
 @Suppress("ktlint:standard:function-naming")
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun PublishControls(
     modifier: Modifier = Modifier,
+    expanded: Boolean = false,
     readyState: StreamSession.ReadyState = StreamSession.ReadyState.CLOSED,
     needsPermissions: Boolean = false,
     errorMessage: String? = null,
@@ -54,6 +58,40 @@ internal fun PublishControls(
     actions: @Composable () -> Unit,
 ) {
     var toolsExpanded by rememberSaveable { mutableStateOf(false) }
+    if (expanded) {
+        Surface(modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
+            Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                Column(
+                    Modifier.weight(1f).verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                ) {
+                    Text(
+                        stringResource(R.string.studio_publish),
+                        style = MaterialTheme.typography.headlineSmall,
+                    )
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        StreamStatus(readyState)
+                        onOpenIngest?.let { open ->
+                            TextButton(onClick = open, enabled = readyState == StreamSession.ReadyState.CLOSED) {
+                                Text(stringResource(R.string.ingest_action))
+                            }
+                        }
+                    }
+                    errorMessage?.let { StudioError(it, onDismiss = onDismissError) }
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                    Text(
+                        stringResource(R.string.studio_camera_tools),
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                    TextButton(onClick = onOpenSettings) { Text(stringResource(R.string.studio_settings)) }
+                    settings()
+                }
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                actions()
+            }
+        }
+        return
+    }
     Box(modifier) {
         Column(
             Modifier.align(Alignment.TopCenter).fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),

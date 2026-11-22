@@ -21,10 +21,13 @@ Publishing, settings and screen sharing in the sample app, shown in English on a
 
 ## 🛠️ Build and run
 
-
 The interface uses a navy-and-teal studio theme with English and Japanese labels.
-Swipe the preview background left or right to change filters. Camera tools open in a bottom sheet; phones use bottom navigation and wider windows use
-a navigation rail. The launcher icon matches the Swift sample.
+Swipe the preview background left or right to change filters. Phones use bottom
+navigation and a camera-tools sheet. Wide windows use a navigation rail with
+publishing and playback controls beside the video. The tablet publishing preview
+fits the whole composition; camera tools scroll while primary actions stay visible.
+Narrow or short windows return to compact controls without recreating the preview.
+The launcher icon matches the Swift sample.
 
 Open the repository in Android Studio and run the `app` configuration on a device.
 Grant camera and microphone permissions for camera publishing. For command-line
@@ -210,6 +213,10 @@ consumer rules, device smoke checks, and release mapping files.
 ./gradlew :app:testDebugUnitTest :app:testUiTestUnitTest :app:ktlintCheck
 ./gradlew :app:connectedUiTestAndroidTest
 ```
+
+Adaptive layout tests cover side panels, narrow/short windows, readable playback
+errors, scrolling tools, PiP,
+and retaining the native preview across window resizing.
 
 The sample's device test enters WHIP/WHEP settings and opens the publishing and
 playback screens without contacting an external server. Transport and real codec

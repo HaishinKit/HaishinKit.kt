@@ -70,6 +70,9 @@ class CameraViewModel(
         get() = _selectedCamera.asStateFlow()
     var videoEffectItems: List<VideoEffectItem>
 
+    internal var compositionSize by mutableStateOf(Size(Screen.DEFAULT_WIDTH, Screen.DEFAULT_HEIGHT))
+        private set
+
     internal val ingestDiscovery = BonjourIngestDiscovery(application.applicationContext)
     internal val screenObjectDragController: ScreenObjectDragController
 
@@ -273,6 +276,7 @@ class CameraViewModel(
                 else -> return
             }
         mixer.screen.frame = Rect(0, 0, composition.width, composition.height)
+        compositionSize = composition
         screenObjectDragController.fitObjectsToScreen(composition)
     }
 

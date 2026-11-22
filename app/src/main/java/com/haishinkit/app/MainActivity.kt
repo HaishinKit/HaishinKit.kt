@@ -13,6 +13,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.lifecycle.Lifecycle
 import com.haishinkit.rtmp.RtmpStreamSessionFactory
 import com.haishinkit.srt.SrtStreamSessionFactory
 import com.haishinkit.stream.StreamSession
@@ -62,6 +63,8 @@ class MainActivity : AppCompatActivity() {
     fun updatePictureInPicture(enabled: Boolean) {
         pictureInPictureEnabled = enabled && packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)
         if (!packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)) return
+        // Android 17 may remove the activity token before Compose disposes its effects.
+        if (isFinishing || isDestroyed || lifecycle.currentState == Lifecycle.State.DESTROYED) return
         val builder = PictureInPictureParams.Builder()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             builder.setAutoEnterEnabled(pictureInPictureEnabled)
