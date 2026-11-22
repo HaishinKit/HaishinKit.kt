@@ -47,7 +47,8 @@ normalized when resources are supplied by basename. After reading, copy resource
 storage and resolve known media references to local file URIs before constructing screen
 objects. Preserve opaque objects and all their resources during edits. Archives do not grant
 device permissions or restore network credentials. Resource names cannot contain directories
-or traversal and must be unique after Unicode normalization and case folding; limits are 256 files, 128 MiB of resources, and 4 MiB of JSON.
+or traversal and must be unique under a conservative portable case key
+(NFC, lowercase, uppercase, lowercase, NFC with ROOT/default Unicode casing); limits are 256 files, 128 MiB of resources, and 4 MiB of JSON.
 
 ## Editing screen objects
 

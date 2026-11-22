@@ -50,6 +50,7 @@ class SceneFile(
                     if (entry.isDirectory) {
                         require(entry.name == "media/") { "Unexpected scene directory." }
                         require(input.read() == -1 && declared.size == 0L) { "Nonempty directory." }
+                        require(entry.crc == declared.crc && entry.compressedSize == declared.packed && entry.method == declared.method)
                         input.closeEntry()
                         continue
                     }
@@ -104,7 +105,7 @@ class SceneFile(
                 val source = elements["source"]
                 if (source != null && source.startsWith("file:", ignoreCase = true)) {
                     val name = java.io.File(java.net.URI(source).path).name
-                    if (resources.containsKey(name)) elements["source"] = "media/$name"
+                    resources.keys.firstOrNull { canonical(it) == canonical(name) }?.let { elements["source"] = "media/$it" }
                 }
             }
             if ((node.type == "image" || node.type == "asset") && elements["source"]?.startsWith("media/") == true) {

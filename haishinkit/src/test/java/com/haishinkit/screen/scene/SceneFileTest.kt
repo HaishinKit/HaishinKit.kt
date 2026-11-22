@@ -18,8 +18,6 @@ import java.util.zip.ZipOutputStream
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28])
 class SceneFileTest {
-    private fun fixture(): ScreenObjectSnapshot = Json.decodeFromString(javaClass.getResource("/screen_object_snapshot.json")!!.readText())
-
     @Test fun archiveRoundTripKeepsLayoutAndOpaqueResources() {
         val original = SceneFile(fixture(), mapOf("movie.bin" to byteArrayOf(0, 1, 2, 3)))
         val encoded = original.write()
@@ -216,4 +214,40 @@ class SceneFileTest {
         val restored = SceneFile.read(output.toByteArray())
         assertArrayEquals(media, restored.resources["video.bin"])
     }
+
+    @Test fun normalizedFileUriUsesTheActualResourceName() {
+        val image = fixture().children[1].children[1].copy(elements = mapOf("source" to "file://localhost/path/が.png"))
+        val name = "か\u3099.png"
+        assertEquals("media/$name", SceneFile(image, mapOf(name to byteArrayOf(1))).snapshot.elements["source"])
+    }
+
+    @Test fun rejectsCorruptedDirectoryCrc() {
+        val output = ByteArrayOutputStream()
+        ZipOutputStream(output).use { zip ->
+            zip.putNextEntry(ZipEntry("media/"))
+            zip.closeEntry()
+            zip.putNextEntry(ZipEntry("scene.json"))
+            zip.write(Json.encodeToString(fixture()).toByteArray())
+            zip.closeEntry()
+        }
+        val bytes = output.toByteArray()
+        assertEquals(fixture().id, SceneFile.read(bytes).snapshot.id)
+        val central = (0 until bytes.size - 4).first { bytes[it] == 0x50.toByte() && bytes[it + 1] == 0x4b.toByte() && bytes[it + 2] == 1.toByte() && bytes[it + 3] == 2.toByte() }
+        bytes[central + 16] = 1
+        try {
+            SceneFile.read(bytes)
+            fail("Corrupted directory CRC accepted")
+        } catch (_: IllegalArgumentException) {
+        }
+    }
+
+    @Test fun rejectsTheSharedConservativeCaseKeyAliases() {
+        try {
+            SceneFile(fixture(), mapOf("I.png" to byteArrayOf(1), "ı.png" to byteArrayOf(2)))
+            fail("Portable aliases accepted")
+        } catch (_: IllegalArgumentException) {
+        }
+    }
+
+    private fun fixture(): ScreenObjectSnapshot = Json.decodeFromString(javaClass.getResource("/screen_object_snapshot.json")!!.readText())
 }
