@@ -34,6 +34,8 @@ set(NO_MEDIA OFF CACHE BOOL "" FORCE)
 set(NO_TESTS ON CACHE BOOL "" FORCE)
 set(NO_EXAMPLES ON CACHE BOOL "" FORCE)
 set(TEST_APPS OFF CACHE BOOL "" FORCE)
+# Keep the old patched checkout and its populate stamps out of this release.
+set(FETCHCONTENT_BASE_DIR "${FETCHCONTENT_BASE_DIR}/libdatachannel-0.24.8")
 FetchContent_Declare(datachannel
     GIT_REPOSITORY https://github.com/paullouisageneau/libdatachannel.git
     GIT_TAG 6c50b6d88fd691957f1d7df0d80875e9cd57606b
