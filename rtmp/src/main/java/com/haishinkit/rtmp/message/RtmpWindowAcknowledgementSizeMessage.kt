@@ -22,10 +22,7 @@ internal class RtmpWindowAcknowledgementSizeMessage : RtmpMessage(TYPE_ACK) {
         return this
     }
 
-    override fun execute(
-        connection: RtmpConnection,
-        dispatch: (() -> Unit) -> Unit,
-    ): RtmpMessage {
+    override fun execute(connection: RtmpConnection): RtmpMessage {
         val ack = connection.messageFactory.createRtmpWindowAcknowledgementSizeMessage()
         ack.size = size
         ack.chunkStreamID = RtmpChunk.CONTROL

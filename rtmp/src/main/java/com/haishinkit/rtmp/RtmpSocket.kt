@@ -10,6 +10,7 @@ import java.util.concurrent.TimeUnit
 
 internal class RtmpSocket(
     val connection: RtmpConnection,
+    private val nanoTime: () -> Long = System::nanoTime,
 ) {
     enum class ReadyState {
         Uninitialized,
@@ -79,7 +80,7 @@ internal class RtmpSocket(
 
                 override fun onSocketError() {
                     if (closeTransport(transport, false)) {
-                        connection.dispatchEventWith(Event.IO_ERROR, false, null) { socket === transport }
+                        connection.dispatchEventWith(Event.IO_ERROR, false)
                         Log.i(TAG, "a connection was failed")
                     }
                 }
@@ -117,7 +118,7 @@ internal class RtmpSocket(
             }
         transport?.close(disconnected)
         if (disconnected) {
-            connection.dispatchEventWith(Event.RTMP_STATUS, false, code.data("")) { socket === transport }
+            connection.dispatchEventWith(Event.RTMP_STATUS, false, code.data(""))
         }
         synchronized(this) {
             if (socket === transport) {
@@ -136,7 +137,7 @@ internal class RtmpSocket(
         handshake = RtmpHandshake()
         readyState = ReadyState.VersionSent
         val c0C1Packet = handshake.c0C1Packet
-        handshakeStartedAtNanos = System.nanoTime()
+        handshakeStartedAtNanos = nanoTime()
         transport.doOutput(c0C1Packet)
     }
 
@@ -148,15 +149,11 @@ internal class RtmpSocket(
             if (socket !== transport) return
             readHandshake(transport, buffer)
         }
+        // Normal RTMP processing can synchronously call application listeners.
+        // Keep it outside the handshake lock, as before duration measurement.
+        if (!canReadChunks(transport) || !buffer.hasRemaining()) return
         try {
-            while (buffer.hasRemaining()) {
-                var callback: (() -> Unit)? = null
-                synchronized(this) {
-                    if (!canReadChunks(transport) || !connection.readChunk(buffer) { callback = it }) return
-                }
-                // Listeners and responders can close or replace the connection.
-                if (canReadChunks(transport)) callback?.invoke()
-            }
+            connection.listen(buffer)
         } catch (e: IndexOutOfBoundsException) {
             if (VERBOSE) Log.d(TAG, "", e)
         } catch (e: BufferUnderflowException) {
@@ -185,7 +182,7 @@ internal class RtmpSocket(
             if (buffer.remaining() < RtmpHandshake.SIGNAL_SIZE) return
             handshake.s2Packet = buffer
             buffer.position(buffer.position() + RtmpHandshake.SIGNAL_SIZE)
-            handshakeDurationMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - handshakeStartedAtNanos)
+            handshakeDurationMillis = TimeUnit.NANOSECONDS.toMillis(nanoTime() - handshakeStartedAtNanos)
             readyState = ReadyState.HandshakeDone
             isConnected = true
             connection.uri?.let {

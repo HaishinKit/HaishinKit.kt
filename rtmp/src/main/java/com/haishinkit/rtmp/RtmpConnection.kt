@@ -277,10 +277,7 @@ class RtmpConnection : EventDispatcher(null) {
         message.release()
     }
 
-    internal fun readChunk(
-        buffer: ByteBuffer,
-        dispatch: (() -> Unit) -> Unit,
-    ): Boolean {
+    internal tailrec fun listen(buffer: ByteBuffer) {
         val rollback = buffer.position()
         try {
             val first = buffer.get()
@@ -299,11 +296,11 @@ class RtmpConnection : EventDispatcher(null) {
                     buffer.position(buffer.position() + remaining)
                 } else {
                     buffer.position(rollback)
-                    return false
+                    return
                 }
                 if (!payload.hasRemaining()) {
                     payload.flip()
-                    message.decode(payload).execute(this, dispatch)
+                    message.decode(payload).execute(this)
                 }
             } else {
                 val message = chunk.decode(chunkStreamID, this, buffer)
@@ -323,7 +320,7 @@ class RtmpConnection : EventDispatcher(null) {
                     }
                 }
                 if (message.length <= chunkSizeC) {
-                    message.decode(buffer).execute(this, dispatch)
+                    message.decode(buffer).execute(this)
                 } else {
                     val payload = message.payload
                     if (buffer.position() + chunkSizeC <= buffer.limit()) {
@@ -331,7 +328,7 @@ class RtmpConnection : EventDispatcher(null) {
                         buffer.position(buffer.position() + chunkSizeC)
                     } else {
                         buffer.position(rollback)
-                        return false
+                        return
                     }
                 }
             }
@@ -342,7 +339,9 @@ class RtmpConnection : EventDispatcher(null) {
             buffer.position(rollback)
             throw e
         }
-        return true
+        if (buffer.hasRemaining()) {
+            listen(buffer)
+        }
     }
 
     internal fun createStream(stream: RtmpStream) {

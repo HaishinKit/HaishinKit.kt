@@ -37,10 +37,7 @@ internal class RtmpDataMessage(
         return this
     }
 
-    override fun execute(
-        connection: RtmpConnection,
-        dispatch: (() -> Unit) -> Unit,
-    ): RtmpMessage = this
+    override fun execute(connection: RtmpConnection): RtmpMessage = this
 
     companion object {
         private const val CAPACITY = 1024

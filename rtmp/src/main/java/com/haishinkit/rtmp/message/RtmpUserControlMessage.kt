@@ -46,10 +46,7 @@ internal class RtmpUserControlMessage(
         return this
     }
 
-    override fun execute(
-        connection: RtmpConnection,
-        dispatch: (() -> Unit) -> Unit,
-    ): RtmpMessage {
+    override fun execute(connection: RtmpConnection): RtmpMessage {
         when (event) {
             Event.PING -> {
                 val message = connection.messageFactory.createRtmpUserControlMessage()
@@ -68,7 +65,7 @@ internal class RtmpUserControlMessage(
                     } else {
                         RtmpStream.Code.BUFFER_EMPTY.data("")
                     }
-                dispatch { stream.dispatchEventWith(com.haishinkit.rtmp.event.Event.RTMP_STATUS, false, data) }
+                stream.dispatchEventWith(com.haishinkit.rtmp.event.Event.RTMP_STATUS, false, data)
             }
 
             else -> {

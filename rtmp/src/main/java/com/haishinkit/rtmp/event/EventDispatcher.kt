@@ -26,13 +26,6 @@ open class EventDispatcher(
     }
 
     override fun dispatchEvent(event: Event) {
-        dispatchEvent(event) { true }
-    }
-
-    private fun dispatchEvent(
-        event: Event,
-        isCurrent: () -> Boolean,
-    ) {
         if (event.type == null) {
             throw IllegalArgumentException()
         }
@@ -53,7 +46,6 @@ open class EventDispatcher(
             if (listeners != null) {
                 val snapshot = synchronized(listeners) { listeners.toList() }
                 for (listener in snapshot) {
-                    if (!isCurrent()) break
                     listener.handleEvent(event)
                 }
                 if (event.propagationStopped) {
@@ -77,29 +69,11 @@ open class EventDispatcher(
         bubbles: Boolean,
         data: Any?,
     ) {
-        dispatchPooledEvent(type, bubbles, data, ::dispatchEvent)
-    }
-
-    internal fun dispatchEventWith(
-        type: String,
-        bubbles: Boolean,
-        data: Any?,
-        isCurrent: () -> Boolean,
-    ) {
-        dispatchPooledEvent(type, bubbles, data) { dispatchEvent(it, isCurrent) }
-    }
-
-    private fun dispatchPooledEvent(
-        type: String,
-        bubbles: Boolean,
-        data: Any?,
-        dispatch: (Event) -> Unit,
-    ) {
         val event = pool.acquire() ?: Event(type, bubbles, data)
         event.type = type
         event.isBubbles = bubbles
         event.data = data
-        dispatch(event)
+        dispatchEvent(event)
         pool.release(event)
     }
 

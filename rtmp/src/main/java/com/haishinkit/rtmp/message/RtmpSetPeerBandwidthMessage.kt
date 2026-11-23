@@ -25,10 +25,7 @@ internal class RtmpSetPeerBandwidthMessage : RtmpMessage(TYPE_BANDWIDTH) {
         return this
     }
 
-    override fun execute(
-        connection: RtmpConnection,
-        dispatch: (() -> Unit) -> Unit,
-    ): RtmpMessage {
+    override fun execute(connection: RtmpConnection): RtmpMessage {
         connection.socket.bandWidth = size
         return this
     }

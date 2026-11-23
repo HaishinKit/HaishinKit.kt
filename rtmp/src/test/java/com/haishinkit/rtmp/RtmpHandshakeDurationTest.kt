@@ -10,11 +10,16 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.RuntimeEnvironment
+import org.robolectric.annotation.Config
 import java.nio.ByteBuffer
-import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 
+@RunWith(RobolectricTestRunner::class)
+@Config(manifest = Config.NONE, sdk = [28])
 class RtmpHandshakeDurationTest {
     @Test
     fun durationIsAvailableOnlyAfterReceivingFullS2() {
@@ -47,6 +52,26 @@ class RtmpHandshakeDurationTest {
     }
 
     @Test
+    fun parsesCompleteRtmpChunkReceivedAlongsideS2() {
+        val connection = RtmpConnection()
+        val listener = startHandshake(connection.socket)
+        val handshakeSize = 1 + 2 * RtmpHandshake.SIGNAL_SIZE
+        val input = ByteBuffer.allocate(handshakeSize + 16)
+        input.position(handshakeSize)
+        input.putInt(2 shl 24) // Type-0 control chunk.
+        input.putInt((4 shl 8) or 1) // Four-byte Set Chunk Size message.
+        input.putInt(0)
+        input.putInt(4096)
+        input.flip()
+
+        listener.onInput(input)
+
+        assertNotNull(connection.handshakeDurationMillis)
+        assertEquals(4096, connection.socket.chunkSizeC)
+        assertEquals(input.limit(), input.position())
+    }
+
+    @Test
     fun ignoresS2FromAReplacedTransport() {
         val connection = RtmpConnection()
         val packetSize = RtmpHandshake.SIGNAL_SIZE
@@ -60,37 +85,6 @@ class RtmpHandshakeDurationTest {
 
         newListener.onInput(ByteBuffer.allocate(packetSize))
         assertNotNull(connection.handshakeDurationMillis)
-    }
-
-    @Test
-    fun stopsParsingOldInputWhenMessageCallbackReconnects() {
-        val connection = RtmpConnection()
-        val socket = connection.socket
-        val oldListener = startHandshake(socket)
-        val packetSize = RtmpHandshake.SIGNAL_SIZE
-        oldListener.onInput(ByteBuffer.allocate(1 + 2 * packetSize))
-        connection.addEventListener(
-            Event.RTMP_STATUS,
-            object : IEventListener {
-                override fun handleEvent(event: Event) {
-                    connection.close()
-                    startHandshake(socket)
-                }
-            },
-        )
-        val input = statusMessage(trailingBytes = 16)
-        val messageSize = input.position()
-        input.putInt(2 shl 24)
-        input.putInt((4 shl 8) or 1)
-        input.putInt(0)
-        input.putInt(4096)
-        input.flip()
-
-        oldListener.onInput(input)
-
-        assertNull(connection.handshakeDurationMillis)
-        assertEquals(messageSize, input.position())
-        assertEquals(RtmpChunk.DEFAULT_SIZE, socket.chunkSizeC)
     }
 
     @Test
@@ -116,40 +110,57 @@ class RtmpHandshakeDurationTest {
     }
 
     @Test
-    fun ignoresFailureAfterTransportReplacement() {
+    fun measuresMonotonicMillisecondsAndRetainsThemUntilNextAttempt() {
+        var now = 1_000_000_000L
+        val socket = RtmpSocket(RtmpConnection()) { now }
+        val listener = startHandshake(socket)
+        listener.onInput(ByteBuffer.allocate(1 + RtmpHandshake.SIGNAL_SIZE))
+        now += 23_999_999L
+        assertNull(socket.handshakeDurationMillis)
+        listener.onInput(ByteBuffer.allocate(RtmpHandshake.SIGNAL_SIZE))
+        assertEquals(23L, socket.handshakeDurationMillis)
+
+        socket.close(false)
+        assertEquals(23L, socket.handshakeDurationMillis)
+        startHandshake(socket)
+        assertNull(socket.handshakeDurationMillis)
+    }
+
+    @Test
+    fun playbackBufferListenerCanWaitForCloseOnAnotherThread() {
         val connection = RtmpConnection()
-        val closing = CountDownLatch(1)
-        val finishClose = CountDownLatch(1)
-        val transport =
-            object : TestTransport() {
-                override fun close(disconnected: Boolean) {
-                    if (disconnected) {
-                        closing.countDown()
-                        assertTrue(finishClose.await(3, TimeUnit.SECONDS))
-                    }
-                }
-            }
-        val listener = startHandshake(connection.socket, transport)
-        val statuses = mutableListOf<Any?>()
-        connection.addEventListener(
-            Event.RTMP_STATUS,
-            object : IEventListener {
-                override fun handleEvent(event: Event) {
-                    statuses.add(event.data)
-                }
-            },
-        )
+        val stream = RtmpStream(RuntimeEnvironment.getApplication(), connection)
         val executor = Executors.newSingleThreadExecutor()
+        var notified = false
         try {
-            val close = executor.submit { listener.onClose(true) }
-            assertTrue(closing.await(3, TimeUnit.SECONDS))
-            startHandshake(connection.socket)
-            finishClose.countDown()
-            close.get(3, TimeUnit.SECONDS)
-            assertTrue(statuses.isEmpty())
+            val listener = startHandshake(connection.socket)
+            listener.onInput(ByteBuffer.allocate(1 + 2 * RtmpHandshake.SIGNAL_SIZE))
+            stream.id = 1
+            connection.streams[1] = stream
+            stream.addEventListener(
+                Event.RTMP_STATUS,
+                object : IEventListener {
+                    override fun handleEvent(event: Event) {
+                        if ((event.data as? Map<*, *>)?.get("code") == RtmpStream.Code.BUFFER_FULL.rawValue) {
+                            notified = true
+                            executor.submit { connection.close() }.get(3, TimeUnit.SECONDS)
+                        }
+                    }
+                },
+            )
+            val input = ByteBuffer.allocate(15)
+            input.putInt((4 shl 24) or 300) // Type-0 audio chunk, 300 ms timestamp.
+            input.putInt((3 shl 8) or 8) // Three-byte audio message.
+            input.put(byteArrayOf(1, 0, 0, 0)) // Little-endian stream ID.
+            input.put(byteArrayOf(0xaf.toByte(), 1, 0)) // Raw AAC data; no decoder setup.
+            input.flip()
+            listener.onInput(input)
+            assertTrue(notified)
+            assertEquals(false, connection.isConnected)
         } finally {
-            finishClose.countDown()
             executor.shutdownNow()
+            connection.close()
+            stream.dispose()
         }
     }
 
