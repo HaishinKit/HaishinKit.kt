@@ -106,9 +106,7 @@ even if server DELETE fails; the failure is returned from `close()`.
 
 ## 🛠️ Building and validation
 
-The NDK/CMake build pins libdatachannel 0.24.7 by commit and Mbed TLS 3.6.5 by SHA-256.
-It applies the bundled `websocket-url-regex.patch` for libc++ compatibility while
-preserving IPv6 URL support. The patch is included with the AAR license notices.
+The NDK/CMake build pins libdatachannel 0.24.8 by commit and Mbed TLS 3.6.8 by SHA-256.
 It builds arm64-v8a, armeabi-v7a, x86_64, and x86, with 16 KiB ELF segment alignment.
 The first native build needs network access. License notices are bundled in AAR assets.
 No separate software audio/video codec library is bundled.

@@ -1,14 +1,11 @@
-HaishinKit RTC includes libdatachannel 0.24.7 (MPL-2.0) and its pinned
+HaishinKit RTC includes libdatachannel 0.24.8 (MPL-2.0) and its pinned
 libjuice (MPL-2.0), libsrtp (BSD-3-Clause), usrsctp (BSD-3-Clause),
-plog (MIT), nlohmann/json (MIT), and Mbed TLS 3.6.5 (Apache-2.0) dependencies.
+plog (MIT), nlohmann/json (MIT), and Mbed TLS 3.6.8 (Apache-2.0) dependencies.
 License texts are included in this directory.
 
 Upstream libdatachannel source and dependency revisions:
-https://github.com/paullouisageneau/libdatachannel/tree/800e849a1ede5667caaf8f6caa1eb21e4906dd87
-https://github.com/paullouisageneau/libdatachannel/blob/800e849a1ede5667caaf8f6caa1eb21e4906dd87/.gitmodules
-Local modification: WebSocket IPv6 URL parsing uses POSIX bracket expressions
-compatible with libc++. The complete change is included alongside this notice
-in websocket-url-regex.patch and applied by rtc/src/main/cpp/CMakeLists.txt.
+https://github.com/paullouisageneau/libdatachannel/tree/6c50b6d88fd691957f1d7df0d80875e9cd57606b
+https://github.com/paullouisageneau/libdatachannel/blob/6c50b6d88fd691957f1d7df0d80875e9cd57606b/.gitmodules
 Mbed TLS source:
-https://github.com/Mbed-TLS/mbedtls/releases/tag/mbedtls-3.6.5
+https://github.com/Mbed-TLS/mbedtls/releases/tag/mbedtls-3.6.8
 The HaishinKit build enables MBEDTLS_SSL_DTLS_SRTP via a user config header.
