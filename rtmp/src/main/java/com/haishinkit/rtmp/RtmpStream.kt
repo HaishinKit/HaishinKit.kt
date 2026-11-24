@@ -575,6 +575,20 @@ class RtmpStream(
             pendingVpConfiguration = decoderConfigurationRecord
             return true
         }
+        // Reject an unsupported VP format before changing options or attaching a renderer.
+        val vpDecoderName =
+            if (decoderConfigurationRecord is VpDecoderConfigurationRecord) {
+                val size = decoderConfigurationRecord.videoSize ?: return false
+                val format = MediaFormat.createVideoFormat(decoderConfigurationRecord.mime, size.width, size.height)
+                format.setInteger(MediaFormat.KEY_PROFILE, 1 shl decoderConfigurationRecord.profile)
+                try {
+                    MediaCodecList(MediaCodecList.REGULAR_CODECS).findDecoderForFormat(format) ?: return false
+                } catch (cause: IllegalArgumentException) {
+                    return false
+                }
+            } else {
+                null
+            }
         if (decoderConfigurationRecord.configure(videoCodec)) {
             val size = decoderConfigurationRecord.videoSize
             if (size != null || nonNal) {
@@ -597,14 +611,7 @@ class RtmpStream(
                 return synchronized(this) {
                     if (!isRunning.get() || mode != Codec.MODE_DECODE) return@synchronized false
                     try {
-                        if (decoderConfigurationRecord is VpDecoderConfigurationRecord) {
-                            val format = MediaFormat.createVideoFormat(decoderConfigurationRecord.mime, videoCodec.width, videoCodec.height)
-                            format.setInteger(MediaFormat.KEY_PROFILE, 1 shl decoderConfigurationRecord.profile)
-                            val name =
-                                MediaCodecList(MediaCodecList.REGULAR_CODECS).findDecoderForFormat(format)
-                                    ?: return@synchronized false
-                            videoCodec.codec = MediaCodec.createByCodecName(name)
-                        }
+                        if (vpDecoderName != null) videoCodec.codec = MediaCodec.createByCodecName(vpDecoderName)
                         videoCodec.startRunning()
                     } catch (cause: IOException) {
                         Log.w(TAG, "The platform decoder could not be created", cause)

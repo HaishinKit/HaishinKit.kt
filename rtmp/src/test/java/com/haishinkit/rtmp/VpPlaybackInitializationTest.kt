@@ -111,6 +111,34 @@ class VpPlaybackInitializationTest {
     fun missingSurfaceDoesNotRetryOnEveryKeyframe() = checkStartup(MediaFormat.MIMETYPE_VIDEO_VP9, "vp9", surfaceFailure = true)
 
     @Test
+    fun unsupportedProfileDoesNotAttachRendererOrReplaceOptions() {
+        val mime = MediaFormat.MIMETYPE_VIDEO_VP9
+        ShadowMediaCodecList.reset()
+        val caps =
+            MediaCodecInfoBuilder.CodecCapabilitiesBuilder.newBuilder()
+                .setMediaFormat(MediaFormat.createVideoFormat(mime, 1280, 720)).setIsEncoder(false)
+                .setProfileLevels(
+                    arrayOf(
+                        MediaCodecInfo.CodecProfileLevel().apply {
+                            profile = MediaCodecInfo.CodecProfileLevel.VP9Profile0
+                            level = MediaCodecInfo.CodecProfileLevel.VP9Level31
+                        },
+                    ),
+                ).setColorFormats(intArrayOf(19)).build()
+        ShadowMediaCodecList.addCodec(MediaCodecInfoBuilder.newBuilder().setName("profile0.only").setIsEncoder(false).setCapabilities(caps).build())
+        stream.readyState = RtmpStream.ReadyState.PLAY
+        val originalOptions = listOf(com.haishinkit.codec.CodecOption("vendor-option", 7))
+        stream.videoSetting.options = originalOptions
+        val frame = keyframe("vp9-profile2")
+        val record = VpDecoderConfigurationRecord.fromKeyFrame(mime, frame)
+        assertTrue(stream.configure(VpDecoderConfigurationRecord.decode(mime, record.toByteBuffer())))
+        assertFalse(stream.prepareVpFrame(mime, frame))
+        assertTrue(screen.sources.isEmpty())
+        assertEquals(originalOptions, codec.options)
+        assertFalse(codec.isRunning.get())
+    }
+
+    @Test
     fun closeWhileWaitingForSurfaceCannotStartVpDecoder() {
         stream.readyState = RtmpStream.ReadyState.PLAY
         val executor = Executors.newSingleThreadExecutor()
