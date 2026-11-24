@@ -15,6 +15,7 @@ import com.haishinkit.screen.ScreenObject
 import com.haishinkit.stream.Stream
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -82,6 +83,30 @@ class Av1PlaybackTest {
             }
         } finally {
             ShadowMediaCodecList.reset()
+        }
+    }
+
+    @Test
+    fun headerOnlySequenceStartRevokesAcceptedConfiguration() {
+        withStream { stream, codec, _ ->
+            codec.inputMimeType = MediaFormat.MIMETYPE_VIDEO_AV1
+            codec.isRunning.set(true)
+            RtmpStream::class.java.getDeclaredField("av1ConfigurationAccepted").apply { isAccessible = true }.setBoolean(stream, true)
+            stream.connection.streams[1] = stream
+            try {
+                assertTrue(stream.canReceiveAv1)
+                val wire = ByteBuffer.wrap(byteArrayOf(0x90.toByte(), 0x61, 0x76, 0x30, 0x31))
+                val header =
+                    RtmpVideoMessage().apply {
+                        length = wire.remaining()
+                        streamID = 1
+                    }
+                header.decode(wire)
+                header.execute(stream.connection)
+                assertFalse(stream.canReceiveAv1)
+            } finally {
+                codec.isRunning.set(false)
+            }
         }
     }
 

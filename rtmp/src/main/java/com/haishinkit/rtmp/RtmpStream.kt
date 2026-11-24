@@ -556,12 +556,19 @@ class RtmpStream(
                     screen.attachVideo(0, playbackVideoSource)
                 }
             }
-            videoCodec.startRunning()
             if (av1) {
-                if (!videoCodec.isRunning.get()) return false
-                av1Configuration = configuration
-                av1ConfigurationAccepted = true
+                // Serialize startup/publication with Stream.stopRunning, after waiting without its monitor.
+                return synchronized(this) {
+                    if (!isRunning.get() || mode != Codec.MODE_DECODE) return@synchronized false
+                    videoCodec.startRunning()
+                    if (!videoCodec.isRunning.get()) return@synchronized false
+                    av1Configuration = configuration
+                    av1ConfigurationAccepted = true
+                    hasVideo = true
+                    true
+                }
             }
+            videoCodec.startRunning()
             hasVideo = true
             return true
         }

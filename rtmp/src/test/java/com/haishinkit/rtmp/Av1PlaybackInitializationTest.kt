@@ -104,6 +104,7 @@ class Av1PlaybackInitializationTest {
                         crypto: MediaCrypto?,
                         flags: Int,
                     ) {
+                        assertTrue("Decoder startup must be serialized with stream close", Thread.holdsLock(stream))
                         configuredSurface.set(surface)
                         configurations++
                         format.setString(MediaFormat.KEY_MIME, MediaFormat.MIMETYPE_VIDEO_RAW)
@@ -187,6 +188,45 @@ class Av1PlaybackInitializationTest {
         } finally {
             executor.shutdownNow()
             executor.awaitTermination(2, TimeUnit.SECONDS)
+            surface.release()
+            texture.release()
+        }
+    }
+
+    @Test
+    fun closeAfterSurfaceDeliveryCannotBeOvertakenByDecoderStartup() {
+        stream.readyState = RtmpStream.ReadyState.PLAY
+        codec.listener = null
+        val executor = Executors.newSingleThreadExecutor()
+        val worker = AtomicReference<Thread>()
+        val texture = SurfaceTexture(false)
+        val surface = Surface(texture)
+        try {
+            val configuring =
+                executor.submit<Boolean> {
+                    worker.set(Thread.currentThread())
+                    stream.configure(record())
+                }
+            val source = screen.sources.poll(2, TimeUnit.SECONDS)!!
+            synchronized(stream) {
+                source.surface = surface
+                val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(2)
+                while (!configuring.isDone &&
+                    (worker.get().state != Thread.State.BLOCKED || worker.get().stackTrace.firstOrNull()?.className != RtmpStream::class.java.name) &&
+                    System.nanoTime() < deadline
+                ) {
+                    Thread.sleep(1)
+                }
+                assertFalse("Startup must wait while close owns the stream monitor", configuring.isDone)
+                stream.close()
+            }
+            assertFalse(configuring.get(2, TimeUnit.SECONDS))
+            assertFalse(codec.isRunning.get())
+            assertFalse(stream.hasVideo)
+        } finally {
+            executor.shutdownNow()
+            executor.awaitTermination(2, TimeUnit.SECONDS)
+            stream.dispose()
             surface.release()
             texture.release()
         }

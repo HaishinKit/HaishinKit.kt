@@ -144,8 +144,11 @@ internal class RtmpVideoMessage(
     }
 
     override fun execute(connection: RtmpConnection): RtmpMessage {
-        val payload = data ?: return this
         val stream = connection.streams[streamID] ?: return this
+        if (isExHeader && fourCC == RtmpMuxer.FLV_VIDEO_FOUR_CC_AV01 && packetType == RtmpMuxer.FLV_VIDEO_PACKET_TYPE_SEQUENCE_START) {
+            stream.invalidateAv1Configuration()
+        }
+        val payload = data ?: return this
         if (!payload.hasRemaining()) return this
 
         if (isExHeader) {
@@ -160,7 +163,6 @@ internal class RtmpVideoMessage(
             }
             when (packetType) {
                 RtmpMuxer.FLV_VIDEO_PACKET_TYPE_SEQUENCE_START -> {
-                    if (fourCC == RtmpMuxer.FLV_VIDEO_FOUR_CC_AV01) stream.invalidateAv1Configuration()
                     val record =
                         try {
                             DecoderConfigurationRecord.decode(mime, payload) ?: return this
