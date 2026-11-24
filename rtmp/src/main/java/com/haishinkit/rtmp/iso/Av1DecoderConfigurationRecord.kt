@@ -21,7 +21,7 @@ internal class Av1DecoderConfigurationRecord private constructor(
     }
 
     override fun toCodecSpecificData(options: List<CodecOption>): List<CodecOption> =
-        options.filter { it.key != CSD0 } + CodecOption(CSD0, toByteBuffer())
+        options.filter { it.key != CSD0 && it.key != "csd-1" } + CodecOption(CSD0, toByteBuffer())
 
     private fun sequenceHeader(): ByteBuffer? {
         val buffer = ByteBuffer.wrap(bytes, 4, bytes.size - 4).slice()

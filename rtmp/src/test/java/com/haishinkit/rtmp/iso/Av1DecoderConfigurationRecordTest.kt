@@ -34,8 +34,9 @@ class Av1DecoderConfigurationRecordTest {
         assertFalse(input.hasRemaining())
         val encoded = ByteArray(record.capacity).also { record.toByteBuffer().get(it) }
         assertArrayEquals(fixture, encoded)
-        val options = record.toCodecSpecificData(listOf(CodecOption("csd-0", ByteBuffer.allocate(1)), CodecOption("test", 1)))
+        val options = record.toCodecSpecificData(listOf(CodecOption("csd-0", ByteBuffer.allocate(1)), CodecOption("csd-1", ByteBuffer.allocate(1)), CodecOption("test", 1)))
         assertEquals(1, options.count { it.key == "csd-0" })
+        assertFalse(options.any { it.key == "csd-1" })
         assertEquals(1, options.first { it.key == "test" }.value)
         assertEquals(ByteBuffer.wrap(fixture), options.first { it.key == "csd-0" }.value)
     }

@@ -172,7 +172,7 @@ internal class RtmpVideoMessage(
 
                 RtmpMuxer.FLV_VIDEO_PACKET_TYPE_CODED_FRAMES, RtmpMuxer.FLV_VIDEO_PACKET_TYPE_CODED_FRAMES_X -> {
                     if (fourCC == RtmpMuxer.FLV_VIDEO_FOUR_CC_AV01 &&
-                        packetType != RtmpMuxer.FLV_VIDEO_PACKET_TYPE_CODED_FRAMES
+                        (packetType != RtmpMuxer.FLV_VIDEO_PACKET_TYPE_CODED_FRAMES || !stream.canReceiveAv1)
                     ) {
                         return this
                     }

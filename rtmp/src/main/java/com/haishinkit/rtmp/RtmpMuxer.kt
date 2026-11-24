@@ -127,7 +127,7 @@ internal class RtmpMuxer(
                     mediaFormat.containsKey(MediaFormat.KEY_WIDTH) && mediaFormat.containsKey(MediaFormat.KEY_HEIGHT)
                 ) {
                     stream.updateVideoSize(
-                        Size(mediaFormat.getInteger(MediaFormat.KEY_WIDTH), mediaFormat.getInteger(MediaFormat.KEY_HEIGHT)),
+                        Size(MediaFormatUtil.getWidth(mediaFormat), MediaFormatUtil.getHeight(mediaFormat)),
                     )
                 }
                 stream.dispatchEventWith(

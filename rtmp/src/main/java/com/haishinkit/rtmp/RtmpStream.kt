@@ -302,6 +302,9 @@ class RtmpStream(
     internal val inputVideoMimeType: String
         get() = videoCodec.inputMimeType
 
+    internal val canReceiveAv1: Boolean
+        get() = mode == Codec.MODE_DECODE && videoCodec.isRunning.get() && inputVideoMimeType == MediaFormat.MIMETYPE_VIDEO_AV1
+
     private val dispatcher: EventDispatcher by lazy {
         EventDispatcher(this)
     }
@@ -511,6 +514,7 @@ class RtmpStream(
                 screen.attachVideo(0, playbackVideoSource)
             }
             videoCodec.startRunning()
+            if (decoderConfigurationRecord.mime == MediaFormat.MIMETYPE_VIDEO_AV1 && !videoCodec.isRunning.get()) return false
             hasVideo = true
             return true
         }
