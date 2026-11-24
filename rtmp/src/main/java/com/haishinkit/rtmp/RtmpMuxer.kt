@@ -5,6 +5,7 @@ import android.media.MediaFormat
 import android.os.Build
 import android.os.SystemClock
 import android.util.Log
+import android.util.Size
 import com.haishinkit.codec.Codec
 import com.haishinkit.media.BufferController
 import com.haishinkit.media.MediaType
@@ -91,7 +92,8 @@ internal class RtmpMuxer(
                         videoTimestamp += message.timestamp * 1000
                         if (success) {
                             if (message.frame == FLV_FRAME_TYPE_KEY) keyframes[videoTimestamp] = true
-                            codec.queueInputBuffer(index, 0, message.length, videoTimestamp, message.toFlags())
+                            // Only the codec payload was copied; exclude the RTMP video header.
+                            codec.queueInputBuffer(index, 0, inputBuffer.position(), videoTimestamp, message.toFlags())
                         }
                     }
                 }
@@ -121,6 +123,13 @@ internal class RtmpMuxer(
     ) {
         when (mime) {
             MediaFormat.MIMETYPE_VIDEO_RAW -> {
+                if (stream.inputVideoMimeType == MediaFormat.MIMETYPE_VIDEO_AV1 &&
+                    mediaFormat.containsKey(MediaFormat.KEY_WIDTH) && mediaFormat.containsKey(MediaFormat.KEY_HEIGHT)
+                ) {
+                    stream.updateVideoSize(
+                        Size(mediaFormat.getInteger(MediaFormat.KEY_WIDTH), mediaFormat.getInteger(MediaFormat.KEY_HEIGHT)),
+                    )
+                }
                 stream.dispatchEventWith(
                     Event.RTMP_STATUS,
                     false,
@@ -413,7 +422,7 @@ internal class RtmpMuxer(
             when (fourCC) {
                 FLV_VIDEO_FOUR_CC_HVC1 -> true
                 FLV_VIDEO_FOUR_CC_VP09 -> false
-                FLV_VIDEO_FOUR_CC_AV01 -> false
+                FLV_VIDEO_FOUR_CC_AV01 -> Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
                 else -> false
             }
 

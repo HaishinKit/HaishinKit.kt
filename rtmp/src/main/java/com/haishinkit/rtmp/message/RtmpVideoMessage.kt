@@ -1,6 +1,7 @@
 package com.haishinkit.rtmp.message
 
 import android.media.MediaCodec
+import android.media.MediaFormat
 import android.util.Log
 import androidx.core.util.Pools
 import com.haishinkit.codec.Codec
@@ -155,14 +156,26 @@ internal class RtmpVideoMessage(
             }
             when (packetType) {
                 RtmpMuxer.FLV_VIDEO_PACKET_TYPE_SEQUENCE_START -> {
-                    val record = DecoderConfigurationRecord.decode(mime, payload) ?: return this
-                    if (stream.configure(record)) {
+                    val record =
+                        try {
+                            DecoderConfigurationRecord.decode(mime, payload) ?: return this
+                        } catch (cause: IllegalArgumentException) {
+                            Log.w(TAG, "Invalid video configuration", cause)
+                            return this
+                        }
+                    // AV1 csd-0 is submitted automatically by MediaCodec.configure/start.
+                    if (stream.configure(record) && mime != MediaFormat.MIMETYPE_VIDEO_AV1) {
                         timestamp = 0
                         stream.muxer.enqueueVideo(this)
                     }
                 }
 
                 RtmpMuxer.FLV_VIDEO_PACKET_TYPE_CODED_FRAMES, RtmpMuxer.FLV_VIDEO_PACKET_TYPE_CODED_FRAMES_X -> {
+                    if (fourCC == RtmpMuxer.FLV_VIDEO_FOUR_CC_AV01 &&
+                        packetType != RtmpMuxer.FLV_VIDEO_PACKET_TYPE_CODED_FRAMES
+                    ) {
+                        return this
+                    }
                     if (chunk == RtmpChunk.ZERO) {
                         val currentTimestamp = timestamp
                         timestamp -= stream.videoTimestamp

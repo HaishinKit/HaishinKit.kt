@@ -5,6 +5,7 @@ import android.graphics.Rect
 import android.media.MediaCodec
 import android.media.MediaFormat
 import android.util.Log
+import android.util.Size
 import com.haishinkit.codec.Codec
 import com.haishinkit.media.MediaType
 import com.haishinkit.media.source.VideoCodecSource
@@ -298,9 +299,13 @@ class RtmpStream(
     internal var messageFactory = RtmpMessageFactory(4)
     internal var videoTimestamp = DEFAULT_TIMESTAMP
     internal var audioTimestamp = DEFAULT_TIMESTAMP
+    internal val inputVideoMimeType: String
+        get() = videoCodec.inputMimeType
+
     private val dispatcher: EventDispatcher by lazy {
         EventDispatcher(this)
     }
+    private var playbackVideoSource: VideoCodecSource? = null
     private val eventListener = EventListener(this)
     private var howToPublish = HowToPublish.LIVE
 
@@ -498,21 +503,26 @@ class RtmpStream(
 
     internal fun configure(decoderConfigurationRecord: DecoderConfigurationRecord): Boolean {
         if (decoderConfigurationRecord.configure(videoCodec)) {
-            decoderConfigurationRecord.videoSize?.let {
-                screen.frame = Rect(0, 0, it.width, it.height)
-                video.videoSize = it
-                screen.attachVideo(
-                    0,
-                    VideoCodecSource(videoCodec).apply {
-                        videoSize = it
-                    },
-                )
+            val size = decoderConfigurationRecord.videoSize
+            if (size != null || decoderConfigurationRecord.mime == MediaFormat.MIMETYPE_VIDEO_AV1) {
+                val initialSize = size ?: Size(videoCodec.width, videoCodec.height)
+                playbackVideoSource = VideoCodecSource(videoCodec).apply { videoSize = initialSize }
+                updateVideoSize(initialSize)
+                screen.attachVideo(0, playbackVideoSource)
             }
             videoCodec.startRunning()
             hasVideo = true
             return true
         }
         return false
+    }
+
+    internal fun updateVideoSize(size: Size) {
+        videoCodec.width = size.width
+        videoCodec.height = size.height
+        screen.frame = Rect(0, 0, size.width, size.height)
+        video.videoSize = size
+        playbackVideoSource?.videoSize = size
     }
 
     internal fun doOutput(

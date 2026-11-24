@@ -28,9 +28,17 @@ Please check [this repository](https://github.com/veovera/enhanced-rtmp/) for th
     - [ ] Playback
         - [x] HEVC(0.13.4)
         - [ ] VP9
-        - [ ] AV1
+        - [x] AV1
 - [ ] Extending NetConnection connect Command
 - [ ] Metadata Frame
+
+### AV1 playback
+
+AV1 playback uses Enhanced RTMP (`av01`) and the device's built-in Android decoder.
+It requires Android 10 or later, an available AV1 decoder, and an Enhanced RTMP server
+such as MediaMTX. No additional software codec is bundled. Use the normal
+[RtmpStream.play][com.haishinkit.rtmp.RtmpStream.play] API; codec selection follows the received stream.
+AV1 publishing is not implemented by this change.
 
 ### [v2](https://github.com/veovera/enhanced-rtmp/blob/main/docs/enhanced/enhanced-rtmp-v2.md)
 
