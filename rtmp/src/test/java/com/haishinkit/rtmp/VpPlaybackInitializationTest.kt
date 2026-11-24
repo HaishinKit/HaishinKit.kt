@@ -3,6 +3,7 @@ package com.haishinkit.rtmp
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.SurfaceTexture
+import android.media.MediaCodecInfo
 import android.media.MediaCrypto
 import android.media.MediaFormat
 import android.util.Size
@@ -62,7 +63,28 @@ class VpPlaybackInitializationTest {
             val caps =
                 MediaCodecInfoBuilder.CodecCapabilitiesBuilder.newBuilder()
                     .setMediaFormat(MediaFormat.createVideoFormat(mime, 1280, 720)).setIsEncoder(false)
-                    .setProfileLevels(emptyArray()).setColorFormats(intArrayOf(19)).build()
+                    .setProfileLevels(
+                        arrayOf(
+                            MediaCodecInfo.CodecProfileLevel().apply {
+                                profile = 1
+                                level = if (mime == MediaFormat.MIMETYPE_VIDEO_VP9) MediaCodecInfo.CodecProfileLevel.VP9Level31 else MediaCodecInfo.CodecProfileLevel.VP8Level_Version0
+                            },
+                        ),
+                    ).setColorFormats(intArrayOf(19)).build()
+            if (mime == MediaFormat.MIMETYPE_VIDEO_VP9) {
+                val otherCaps =
+                    MediaCodecInfoBuilder.CodecCapabilitiesBuilder.newBuilder()
+                        .setMediaFormat(MediaFormat.createVideoFormat(mime, 1280, 720)).setIsEncoder(false)
+                        .setProfileLevels(
+                            arrayOf(
+                                MediaCodecInfo.CodecProfileLevel().apply {
+                                    profile = MediaCodecInfo.CodecProfileLevel.VP9Profile2
+                                    level = MediaCodecInfo.CodecProfileLevel.VP9Level31
+                                },
+                            ),
+                        ).setColorFormats(intArrayOf(19)).build()
+                ShadowMediaCodecList.addCodec(MediaCodecInfoBuilder.newBuilder().setName("incompatible.$mime.decoder").setIsEncoder(false).setCapabilities(otherCaps).build())
+            }
             ShadowMediaCodecList.addCodec(MediaCodecInfoBuilder.newBuilder().setName("test.$mime.decoder").setIsEncoder(false).setCapabilities(caps).build())
         }
     }
@@ -84,6 +106,9 @@ class VpPlaybackInitializationTest {
 
     @Test
     fun decoderAllocationFailureDoesNotEscapePlayback() = checkStartup(MediaFormat.MIMETYPE_VIDEO_VP9, "vp9", true)
+
+    @Test
+    fun missingSurfaceDoesNotRetryOnEveryKeyframe() = checkStartup(MediaFormat.MIMETYPE_VIDEO_VP9, "vp9", surfaceFailure = true)
 
     @Test
     fun closeWhileWaitingForSurfaceCannotStartVpDecoder() {
@@ -111,6 +136,7 @@ class VpPlaybackInitializationTest {
         mime: String,
         name: String,
         allocationFailure: Boolean = false,
+        surfaceFailure: Boolean = false,
     ) {
         stream.readyState = RtmpStream.ReadyState.PLAY
         stream.connection.streams[1] = stream
@@ -119,7 +145,7 @@ class VpPlaybackInitializationTest {
         val consumed = AtomicReference<ByteArray>()
         var configurations = 0
         ShadowMediaCodec.addDecoder(
-            mime,
+            "test.$mime.decoder",
             ShadowMediaCodec.CodecConfig(
                 16384,
                 16384,
@@ -161,11 +187,20 @@ class VpPlaybackInitializationTest {
             val source = screen.sources.poll(2, TimeUnit.SECONDS)!!
             assertFalse(pending.isDone)
             assertNull(configuredSurface.get())
+            if (surfaceFailure) {
+                assertFalse(pending.get(7, TimeUnit.SECONDS))
+                assertFalse(stream.prepareVpFrame(mime, keyframe(name)))
+                assertTrue(screen.sources.isEmpty())
+                assertFalse(codec.isRunning.get())
+                return
+            }
             source.surface = surface
             if (allocationFailure) {
                 assertFalse(pending.get(2, TimeUnit.SECONDS))
                 assertFalse(stream.canReceiveCodedVideo)
                 assertFalse(codec.isRunning.get())
+                assertFalse(stream.prepareVpFrame(mime, keyframe(name)))
+                assertNull(Codec::class.java.getDeclaredField("backgroundHandler").apply { isAccessible = true }.get(codec))
                 return
             }
             assertTrue(pending.get(2, TimeUnit.SECONDS))

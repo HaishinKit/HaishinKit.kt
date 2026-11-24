@@ -67,7 +67,7 @@ available decoders. VP playback waits for a keyframe, reads its actual dimension
 and then waits up to five seconds for the decoder output surface.
 
 The first encoded keyframe supplies the VP configuration fields. Initialization does
-not depend on optional encoder CSD. Configuration records use the version-1 vpcC
+not depend on optional encoder CSD. VP8 sends the eight-byte VP configuration record; VP9 sends the version-1 vpcC
 fields used by FFmpeg; playback also accepts bare eight-byte and version-prefixed nine-byte VP
 configuration records. ISO VP configuration bytes are never queued as Android decoder CSD or frames.
 The record's initialization-data length must be zero, as required for VP8/VP9 by the

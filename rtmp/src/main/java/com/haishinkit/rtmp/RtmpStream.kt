@@ -3,6 +3,7 @@ package com.haishinkit.rtmp
 import android.content.Context
 import android.graphics.Rect
 import android.media.MediaCodec
+import android.media.MediaCodecList
 import android.media.MediaFormat
 import android.util.Log
 import android.util.Size
@@ -546,7 +547,9 @@ class RtmpStream(
         val record = pendingVpConfiguration ?: return false
         if (record.mime != mime) return false
         return try {
-            configure(record.withKeyFrameSize(frame))
+            val sizedRecord = record.withKeyFrameSize(frame)
+            pendingVpConfiguration = null
+            configure(sizedRecord)
         } catch (cause: IllegalArgumentException) {
             false // A mid-GOP join waits for a complete keyframe.
         }
@@ -594,19 +597,27 @@ class RtmpStream(
                 return synchronized(this) {
                     if (!isRunning.get() || mode != Codec.MODE_DECODE) return@synchronized false
                     try {
+                        if (decoderConfigurationRecord is VpDecoderConfigurationRecord) {
+                            val format = MediaFormat.createVideoFormat(decoderConfigurationRecord.mime, videoCodec.width, videoCodec.height)
+                            format.setInteger(MediaFormat.KEY_PROFILE, 1 shl decoderConfigurationRecord.profile)
+                            val name =
+                                MediaCodecList(MediaCodecList.REGULAR_CODECS).findDecoderForFormat(format)
+                                    ?: return@synchronized false
+                            videoCodec.codec = MediaCodec.createByCodecName(name)
+                        }
                         videoCodec.startRunning()
                     } catch (cause: IOException) {
                         Log.w(TAG, "The platform decoder could not be created", cause)
-                        videoCodec.codec = null
+                        releaseFailedVideoDecoder()
                         return@synchronized false
                     } catch (cause: RuntimeException) {
                         if (cause !is IllegalArgumentException && cause !is IllegalStateException) throw cause
                         Log.w(TAG, "The platform decoder rejected this configuration", cause)
-                        videoCodec.codec = null
+                        releaseFailedVideoDecoder()
                         return@synchronized false
                     }
                     if (!videoCodec.isRunning.get()) {
-                        videoCodec.codec = null
+                        releaseFailedVideoDecoder()
                         return@synchronized false
                     }
                     videoConfiguration = configuration
@@ -683,6 +694,14 @@ class RtmpStream(
             metadata["audiodatarate"] = audioCodec.bitRate / 1000
         }
         return metadata
+    }
+
+    private fun releaseFailedVideoDecoder() {
+        try {
+            videoCodec.dispose()
+        } catch (cause: IllegalStateException) {
+            Log.w(TAG, "Decoder release after failed startup", cause)
+        }
     }
 
     companion object {

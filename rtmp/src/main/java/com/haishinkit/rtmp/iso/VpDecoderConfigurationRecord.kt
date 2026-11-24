@@ -6,7 +6,7 @@ import android.util.Size
 import com.haishinkit.codec.CodecOption
 import java.nio.ByteBuffer
 
-/** VP configuration fields with the vpcC version/flags used by FFmpeg Enhanced RTMP. */
+/** VP record fields; VP9 uses the vpcC version/flags for FFmpeg interoperability. */
 internal class VpDecoderConfigurationRecord private constructor(
     override val mime: String,
     private val bytes: ByteArray,
@@ -14,7 +14,7 @@ internal class VpDecoderConfigurationRecord private constructor(
 ) : DecoderConfigurationRecord {
     val profile: Int get() = bytes[0].toInt() and 0xFF
     val bitDepth: Int get() = (bytes[2].toInt() and 0xFF) ushr 4
-    override val capacity: Int get() = bytes.size + 4
+    override val capacity: Int get() = bytes.size + if (mime == MediaFormat.MIMETYPE_VIDEO_VP9) 4 else 0
 
     fun withKeyFrameSize(frame: ByteBuffer): VpDecoderConfigurationRecord {
         val info = VpFrameHeader.read(mime, frame)
@@ -23,7 +23,8 @@ internal class VpDecoderConfigurationRecord private constructor(
     }
 
     override fun encode(buffer: ByteBuffer): VpDecoderConfigurationRecord {
-        buffer.put(byteArrayOf(1, 0, 0, 0)).put(bytes)
+        if (mime == MediaFormat.MIMETYPE_VIDEO_VP9) buffer.put(byteArrayOf(1, 0, 0, 0))
+        buffer.put(bytes)
         return this
     }
 

@@ -32,8 +32,10 @@ class VpDecoderConfigurationRecordTest {
             assertEquals(Size(1280, 720), record.videoSize)
             assertEquals(0, record.profile)
             assertEquals(8, record.bitDepth)
-            assertEquals(12, record.capacity)
-            assertArrayEquals(byteArrayOf(1, 0, 0, 0, 0, 0, 0x82.toByte(), 2, 2, 2, 0, 0), record.toByteBuffer().array())
+            val expected = byteArrayOf(0, 0, 0x82.toByte(), 2, 2, 2, 0, 0)
+            val wire = if (name == "vp9") byteArrayOf(1, 0, 0, 0) + expected else expected
+            assertEquals(wire.size, record.capacity)
+            assertArrayEquals(wire, record.toByteBuffer().array())
         }
     }
 
