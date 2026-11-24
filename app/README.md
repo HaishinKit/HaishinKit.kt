@@ -29,6 +29,10 @@ fits the whole composition; camera tools scroll while primary actions stay visib
 Narrow or short windows return to compact controls without recreating the preview.
 The launcher icon matches the Swift sample.
 
+In **Settings → Device codecs**, check video and audio encoding/decoding support,
+hardware/software implementations, and codec details reported by the device.
+Device support does not imply support in every HaishinKit streaming protocol.
+
 Open the repository in Android Studio and run the `app` configuration on a device.
 Grant camera and microphone permissions for camera publishing. For command-line
 builds, configure `JAVA_HOME` and the Android SDK/NDK versions used by Gradle:

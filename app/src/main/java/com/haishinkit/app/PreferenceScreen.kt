@@ -31,6 +31,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -52,6 +53,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun PreferenceScreen(
     modifier: Modifier = Modifier,
+    onOpenCodecs: () -> Unit,
     onApplyRenderer: suspend (Renderer) -> Unit,
 ) {
     Box(modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
@@ -157,7 +159,7 @@ fun PreferenceScreen(
 
             val scope = rememberCoroutineScope()
             val currentRenderer = remember { RendererPreference.selected(context) }
-            var selectedRenderer by remember { mutableStateOf(currentRenderer) }
+            var selectedRenderer by rememberSaveable(currentRenderer) { mutableStateOf(currentRenderer) }
             val vulkanAvailable = remember { RendererPreference.isVulkanAvailable() }
             var applyingRenderer by remember { mutableStateOf(false) }
             var rendererError by remember { mutableStateOf<String?>(null) }
@@ -201,6 +203,9 @@ fun PreferenceScreen(
                     },
                 ) { Text(stringResource(if (applyingRenderer) R.string.studio_applying else R.string.studio_apply)) }
                 rendererError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+            }
+            StudioSection(stringResource(R.string.studio_codecs_title), stringResource(R.string.studio_codecs_help)) {
+                Button(onClick = onOpenCodecs) { Text(stringResource(R.string.studio_codecs_open)) }
             }
             if (BuildConfig.VQMETRIX_AVAILABLE) {
                 StudioSection(stringResource(R.string.studio_tools), stringResource(R.string.studio_tools_help)) {

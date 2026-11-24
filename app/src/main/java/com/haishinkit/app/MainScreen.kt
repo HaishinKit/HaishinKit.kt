@@ -34,6 +34,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavGraph.Companion.findStartDestination
+import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
@@ -68,14 +69,10 @@ fun MainScreen(onApplyRenderer: suspend (Renderer) -> Unit) {
     BackHandler(enabled = changingRenderer) {}
     val navController = rememberNavController()
     val entry by navController.currentBackStackEntryAsState()
-    val selectedRoute = entry?.destination?.route ?: MainScreenTab.Camera.id
+    val selectedRoute = entry?.destination?.route?.let { if (it == "main/codecs") MainScreenTab.Preference.id else it } ?: MainScreenTab.Camera.id
     val navigate: (MainScreenTab) -> Unit = { tab ->
         if (!changingRenderer) {
-            navController.navigate(tab.id) {
-                popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                launchSingleTop = true
-                restoreState = true
-            }
+            navController.navigateToMainTab(tab)
         }
     }
     BoxWithConstraints(Modifier.fillMaxSize()) {
@@ -127,8 +124,9 @@ fun MainScreen(onApplyRenderer: suspend (Renderer) -> Unit) {
                         composable(MainScreenTab.Camera.id) { CameraScreen(onOpenSettings = { navigate(MainScreenTab.Preference) }) }
                         composable(MainScreenTab.MediaProjection.id) { MediaProjectionScreen(onOpenSettings = { navigate(MainScreenTab.Preference) }) }
                         composable(MainScreenTab.Playback.id) { PlaybackScreen(onOpenSettings = { navigate(MainScreenTab.Preference) }) }
+                        composable("main/codecs") { DeviceCodecScreen(onBack = { navController.popBackStack() }) }
                         composable(MainScreenTab.Preference.id) {
-                            PreferenceScreen(onApplyRenderer = { renderer ->
+                            PreferenceScreen(onOpenCodecs = { if (!changingRenderer) navController.navigate("main/codecs") }, onApplyRenderer = { renderer ->
                                 changingRenderer = true
                                 try {
                                     onApplyRenderer(renderer)
@@ -142,4 +140,14 @@ fun MainScreen(onApplyRenderer: suspend (Renderer) -> Unit) {
             }
         }
     }
+}
+
+internal fun NavHostController.navigateToMainTab(tab: MainScreenTab) {
+    navigate(tab.id) {
+        popUpTo(graph.findStartDestination().id) { saveState = true }
+        launchSingleTop = true
+        restoreState = true
+    }
+    // Explicit Settings actions open the form, not a restored codec-detail destination.
+    if (tab == MainScreenTab.Preference) popBackStack(MainScreenTab.Preference.id, false)
 }
