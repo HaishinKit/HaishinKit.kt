@@ -40,6 +40,11 @@ such as MediaMTX. No additional software codec is bundled. Use the normal
 [RtmpStream.play][com.haishinkit.rtmp.RtmpStream.play] API; codec selection follows the received stream.
 AV1 publishing is not implemented by this change.
 
+AV1 playback waits up to five seconds for the renderer's initial output surface. Changing
+to or from AV1, or changing its decoder configuration during playback, is rejected and logged.
+Close the stream and create a new playback stream for such changes. Repeated identical
+AV1 configuration records are accepted.
+
 ### [v2](https://github.com/veovera/enhanced-rtmp/blob/main/docs/enhanced/enhanced-rtmp-v2.md)
 
 - [ ] Enhancements to RTMP and FLV

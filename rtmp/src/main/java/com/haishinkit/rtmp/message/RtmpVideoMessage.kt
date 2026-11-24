@@ -151,11 +151,16 @@ internal class RtmpVideoMessage(
         if (isExHeader) {
             val mime = RtmpMuxer.getTypeByVideoFourCC(fourCC) ?: return this
             if (!RtmpMuxer.isSupportedVideoFourCC(fourCC)) return this
+            if (stream.isVideoCodecSwitch(mime)) {
+                Log.w(TAG, "Close playback before changing the video codec")
+                return this
+            }
             if (!CodecCapabilities.isCodecSupportedByType(Codec.MODE_DECODE, mime)) {
                 return this
             }
             when (packetType) {
                 RtmpMuxer.FLV_VIDEO_PACKET_TYPE_SEQUENCE_START -> {
+                    if (fourCC == RtmpMuxer.FLV_VIDEO_FOUR_CC_AV01) stream.invalidateAv1Configuration()
                     val record =
                         try {
                             DecoderConfigurationRecord.decode(mime, payload) ?: return this
@@ -193,6 +198,10 @@ internal class RtmpVideoMessage(
             }
         } else {
             if (codec != RtmpMuxer.FLV_VIDEO_CODEC_AVC) return this
+            if (stream.isVideoCodecSwitch(MediaFormat.MIMETYPE_VIDEO_AVC)) {
+                Log.w(TAG, "Close playback before changing the video codec")
+                return this
+            }
 
             when (packetType) {
                 RtmpMuxer.FLV_AVC_PACKET_TYPE_SEQ -> {
