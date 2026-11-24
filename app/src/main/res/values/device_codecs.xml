@@ -1,0 +1,20 @@
+<resources>
+    <string name="studio_codecs_title">Device codecs</string>
+    <string name="studio_codecs_help">Check video and audio support on this device.</string>
+    <string name="studio_codecs_open">View supported codecs</string>
+    <string name="studio_codecs_back">Back to settings</string>
+    <string name="studio_codecs_note">Reported by your device. App and streaming protocol support may differ. Available profiles, resolutions and frame rates depend on the codec.</string>
+    <string name="studio_codecs_video">Video</string>
+    <string name="studio_codecs_audio">Audio</string>
+    <string name="studio_codecs_encode">Encode</string>
+    <string name="studio_codecs_decode">Decode</string>
+    <string name="studio_codecs_unsupported">Not supported</string>
+    <string name="studio_codecs_hardware">Hardware</string>
+    <string name="studio_codecs_software">Software</string>
+    <string name="studio_codecs_hardware_software">Hardware + software</string>
+    <string name="studio_codecs_available">Supported</string>
+    <string name="studio_codecs_details">Codec details</string>
+    <string name="studio_codecs_hide_details">Hide details</string>
+    <string name="studio_codecs_error">Could not read this device’s codecs.</string>
+    <string name="studio_codecs_retry">Try again</string>
+</resources>

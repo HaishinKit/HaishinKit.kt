@@ -1,0 +1,20 @@
+<resources>
+    <string name="studio_codecs_title">端末のコーデック</string>
+    <string name="studio_codecs_help">この端末の映像・音声コーデックの対応状況を確認できます。</string>
+    <string name="studio_codecs_open">対応コーデックを表示</string>
+    <string name="studio_codecs_back">設定に戻る</string>
+    <string name="studio_codecs_note">端末が報告する対応状況です。アプリや配信方式の対応とは異なります。利用できるプロファイル・解像度・フレームレートはコーデックによって変わります。</string>
+    <string name="studio_codecs_video">映像</string>
+    <string name="studio_codecs_audio">音声</string>
+    <string name="studio_codecs_encode">エンコード</string>
+    <string name="studio_codecs_decode">デコード</string>
+    <string name="studio_codecs_unsupported">非対応</string>
+    <string name="studio_codecs_hardware">ハードウェア</string>
+    <string name="studio_codecs_software">ソフトウェア</string>
+    <string name="studio_codecs_hardware_software">ハードウェア＋ソフトウェア</string>
+    <string name="studio_codecs_available">対応</string>
+    <string name="studio_codecs_details">コーデックの詳細</string>
+    <string name="studio_codecs_hide_details">詳細を閉じる</string>
+    <string name="studio_codecs_error">端末のコーデック情報を取得できませんでした。</string>
+    <string name="studio_codecs_retry">再試行</string>
+</resources>

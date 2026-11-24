@@ -52,6 +52,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun PreferenceScreen(
     modifier: Modifier = Modifier,
+    onOpenCodecs: () -> Unit,
     onApplyRenderer: suspend (Renderer) -> Unit,
 ) {
     Box(modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
@@ -201,6 +202,9 @@ fun PreferenceScreen(
                     },
                 ) { Text(stringResource(if (applyingRenderer) R.string.studio_applying else R.string.studio_apply)) }
                 rendererError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+            }
+            StudioSection(stringResource(R.string.studio_codecs_title), stringResource(R.string.studio_codecs_help)) {
+                Button(onClick = onOpenCodecs) { Text(stringResource(R.string.studio_codecs_open)) }
             }
             if (BuildConfig.VQMETRIX_AVAILABLE) {
                 StudioSection(stringResource(R.string.studio_tools), stringResource(R.string.studio_tools_help)) {

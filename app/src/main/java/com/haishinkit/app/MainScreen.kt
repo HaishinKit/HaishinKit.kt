@@ -68,7 +68,7 @@ fun MainScreen(onApplyRenderer: suspend (Renderer) -> Unit) {
     BackHandler(enabled = changingRenderer) {}
     val navController = rememberNavController()
     val entry by navController.currentBackStackEntryAsState()
-    val selectedRoute = entry?.destination?.route ?: MainScreenTab.Camera.id
+    val selectedRoute = entry?.destination?.route?.let { if (it == "main/codecs") MainScreenTab.Preference.id else it } ?: MainScreenTab.Camera.id
     val navigate: (MainScreenTab) -> Unit = { tab ->
         if (!changingRenderer) {
             navController.navigate(tab.id) {
@@ -127,8 +127,9 @@ fun MainScreen(onApplyRenderer: suspend (Renderer) -> Unit) {
                         composable(MainScreenTab.Camera.id) { CameraScreen(onOpenSettings = { navigate(MainScreenTab.Preference) }) }
                         composable(MainScreenTab.MediaProjection.id) { MediaProjectionScreen(onOpenSettings = { navigate(MainScreenTab.Preference) }) }
                         composable(MainScreenTab.Playback.id) { PlaybackScreen(onOpenSettings = { navigate(MainScreenTab.Preference) }) }
+                        composable("main/codecs") { DeviceCodecScreen(onBack = { navController.popBackStack() }) }
                         composable(MainScreenTab.Preference.id) {
-                            PreferenceScreen(onApplyRenderer = { renderer ->
+                            PreferenceScreen(onOpenCodecs = { if (!changingRenderer) navController.navigate("main/codecs") }, onApplyRenderer = { renderer ->
                                 changingRenderer = true
                                 try {
                                     onApplyRenderer(renderer)
