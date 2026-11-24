@@ -1,6 +1,7 @@
 package com.haishinkit.rtmp.message
 
 import android.media.MediaCodec
+import android.media.MediaFormat
 import android.util.Log
 import androidx.core.util.Pools
 import com.haishinkit.codec.Codec
@@ -143,26 +144,45 @@ internal class RtmpVideoMessage(
     }
 
     override fun execute(connection: RtmpConnection): RtmpMessage {
-        val payload = data ?: return this
         val stream = connection.streams[streamID] ?: return this
+        if (isExHeader && fourCC == RtmpMuxer.FLV_VIDEO_FOUR_CC_AV01 && packetType == RtmpMuxer.FLV_VIDEO_PACKET_TYPE_SEQUENCE_START) {
+            stream.invalidateAv1Configuration()
+        }
+        val payload = data ?: return this
         if (!payload.hasRemaining()) return this
 
         if (isExHeader) {
             val mime = RtmpMuxer.getTypeByVideoFourCC(fourCC) ?: return this
             if (!RtmpMuxer.isSupportedVideoFourCC(fourCC)) return this
+            if (stream.isVideoCodecSwitch(mime)) {
+                Log.w(TAG, "Close playback before changing the video codec")
+                return this
+            }
             if (!CodecCapabilities.isCodecSupportedByType(Codec.MODE_DECODE, mime)) {
                 return this
             }
             when (packetType) {
                 RtmpMuxer.FLV_VIDEO_PACKET_TYPE_SEQUENCE_START -> {
-                    val record = DecoderConfigurationRecord.decode(mime, payload) ?: return this
-                    if (stream.configure(record)) {
+                    val record =
+                        try {
+                            DecoderConfigurationRecord.decode(mime, payload) ?: return this
+                        } catch (cause: IllegalArgumentException) {
+                            Log.w(TAG, "Invalid video configuration", cause)
+                            return this
+                        }
+                    // AV1 csd-0 is submitted automatically by MediaCodec.configure/start.
+                    if (stream.configure(record) && mime != MediaFormat.MIMETYPE_VIDEO_AV1) {
                         timestamp = 0
                         stream.muxer.enqueueVideo(this)
                     }
                 }
 
                 RtmpMuxer.FLV_VIDEO_PACKET_TYPE_CODED_FRAMES, RtmpMuxer.FLV_VIDEO_PACKET_TYPE_CODED_FRAMES_X -> {
+                    if (fourCC == RtmpMuxer.FLV_VIDEO_FOUR_CC_AV01 &&
+                        (packetType != RtmpMuxer.FLV_VIDEO_PACKET_TYPE_CODED_FRAMES || !stream.canReceiveAv1)
+                    ) {
+                        return this
+                    }
                     if (chunk == RtmpChunk.ZERO) {
                         val currentTimestamp = timestamp
                         timestamp -= stream.videoTimestamp
@@ -180,6 +200,10 @@ internal class RtmpVideoMessage(
             }
         } else {
             if (codec != RtmpMuxer.FLV_VIDEO_CODEC_AVC) return this
+            if (stream.isVideoCodecSwitch(MediaFormat.MIMETYPE_VIDEO_AVC)) {
+                Log.w(TAG, "Close playback before changing the video codec")
+                return this
+            }
 
             when (packetType) {
                 RtmpMuxer.FLV_AVC_PACKET_TYPE_SEQ -> {

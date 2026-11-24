@@ -31,7 +31,36 @@ class RtmpVideoMessageTestScreenObject : TestCase() {
         assertEquals(0x55.toByte(), message.data!!.get())
     }
 
-    private fun verifyCompositeTime(time: Int, enhanced: Boolean) {
+    fun testAv1PacketsPreserveObusWithoutCompositionTimeOrNalConversion() {
+        val obu = byteArrayOf(0x12, 0, 0x32, 4, 0, 0, 1, 0x55)
+        for (packetType in listOf(0, 1)) {
+            val message =
+                RtmpVideoMessage().apply {
+                    isExHeader = true
+                    fourCC = 0x61763031
+                    frame = 1
+                    this.packetType = packetType.toByte()
+                    data = ByteBuffer.wrap(obu)
+                    compositeTime = 1234
+                }
+            assertEquals(5 + obu.size, message.length)
+            val packet = ByteBuffer.allocate(message.length)
+            message.encode(packet)
+            packet.flip()
+            assertEquals((0x90 or packetType).toByte(), packet.get(0))
+            val received = RtmpVideoMessage().apply { length = packet.remaining() }
+            received.decode(packet)
+            assertEquals(0, received.compositeTime)
+            assertEquals(0x61763031, received.fourCC)
+            assertEquals(ByteBuffer.wrap(obu), received.data)
+            assertFalse(packet.hasRemaining())
+        }
+    }
+
+    private fun verifyCompositeTime(
+        time: Int,
+        enhanced: Boolean,
+    ) {
         val buffer = packet(time, enhanced)
         val message = RtmpVideoMessage()
         message.length = buffer.remaining()
@@ -42,7 +71,10 @@ class RtmpVideoMessageTestScreenObject : TestCase() {
         assertFalse(buffer.hasRemaining())
     }
 
-    private fun packet(time: Int, enhanced: Boolean): ByteBuffer {
+    private fun packet(
+        time: Int,
+        enhanced: Boolean,
+    ): ByteBuffer {
         val buffer = ByteBuffer.allocate(if (enhanced) 9 else 6)
         if (enhanced) {
             buffer.put(0x91.toByte()).putInt(0x68766331) // HEVC CodedFrames.

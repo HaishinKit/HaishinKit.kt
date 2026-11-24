@@ -5,6 +5,7 @@ import android.graphics.Rect
 import android.media.MediaCodec
 import android.media.MediaFormat
 import android.util.Log
+import android.util.Size
 import com.haishinkit.codec.Codec
 import com.haishinkit.media.MediaType
 import com.haishinkit.media.source.VideoCodecSource
@@ -298,9 +299,20 @@ class RtmpStream(
     internal var messageFactory = RtmpMessageFactory(4)
     internal var videoTimestamp = DEFAULT_TIMESTAMP
     internal var audioTimestamp = DEFAULT_TIMESTAMP
+    internal val inputVideoMimeType: String
+        get() = videoCodec.inputMimeType
+
+    internal val canReceiveAv1: Boolean
+        get() = av1ConfigurationAccepted && mode == Codec.MODE_DECODE && videoCodec.isRunning.get() && inputVideoMimeType == MediaFormat.MIMETYPE_VIDEO_AV1
+
     private val dispatcher: EventDispatcher by lazy {
         EventDispatcher(this)
     }
+    private var playbackVideoSource: VideoCodecSource? = null
+    private var av1Configuration: ByteBuffer? = null
+
+    @Volatile
+    private var av1ConfigurationAccepted = false
     private val eventListener = EventListener(this)
     private var howToPublish = HowToPublish.LIVE
 
@@ -395,7 +407,12 @@ class RtmpStream(
                 messages.add(message)
             }
 
-            ReadyState.OPEN, ReadyState.PLAYING -> {
+            ReadyState.OPEN -> {
+                readyState = ReadyState.PLAY
+                connection.doOutput(RtmpChunk.ZERO, message)
+            }
+
+            ReadyState.PLAYING -> {
                 connection.doOutput(RtmpChunk.ZERO, message)
             }
 
@@ -485,6 +502,8 @@ class RtmpStream(
     override fun startRunning() {
         if (isRunning.get()) return
         muxer.clear()
+        av1Configuration = null
+        av1ConfigurationAccepted = false
         audioCodec.listener = muxer
         videoCodec.listener = muxer
         super.startRunning()
@@ -496,23 +515,72 @@ class RtmpStream(
         hasAudio = true
     }
 
+    internal fun isVideoCodecSwitch(mime: String): Boolean =
+        videoCodec.isRunning.get() && inputVideoMimeType != mime &&
+            (mime == MediaFormat.MIMETYPE_VIDEO_AV1 || inputVideoMimeType == MediaFormat.MIMETYPE_VIDEO_AV1)
+
+    internal fun invalidateAv1Configuration() {
+        av1ConfigurationAccepted = false
+    }
+
     internal fun configure(decoderConfigurationRecord: DecoderConfigurationRecord): Boolean {
+        val av1 = decoderConfigurationRecord.mime == MediaFormat.MIMETYPE_VIDEO_AV1
+        if (isVideoCodecSwitch(decoderConfigurationRecord.mime)) {
+            Log.w(TAG, "Close playback before changing to a different video codec")
+            return false
+        }
+        val configuration = if (av1) decoderConfigurationRecord.toByteBuffer() else null
+        if (av1 && videoCodec.isRunning.get()) {
+            av1ConfigurationAccepted = configuration == av1Configuration
+            if (!av1ConfigurationAccepted) Log.w(TAG, "Close playback before changing the AV1 configuration")
+            return av1ConfigurationAccepted
+        }
+        if (av1) {
+            av1ConfigurationAccepted = false
+            if (mode != Codec.MODE_DECODE || !isRunning.get()) return false
+        }
         if (decoderConfigurationRecord.configure(videoCodec)) {
-            decoderConfigurationRecord.videoSize?.let {
-                screen.frame = Rect(0, 0, it.width, it.height)
-                video.videoSize = it
-                screen.attachVideo(
-                    0,
-                    VideoCodecSource(videoCodec).apply {
-                        videoSize = it
-                    },
-                )
+            val size = decoderConfigurationRecord.videoSize
+            if (size != null || decoderConfigurationRecord.mime == MediaFormat.MIMETYPE_VIDEO_AV1) {
+                val initialSize = size ?: Size(videoCodec.width, videoCodec.height)
+                playbackVideoSource = VideoCodecSource(videoCodec).apply { videoSize = initialSize }
+                updateVideoSize(initialSize)
+                if (av1) {
+                    val source = RtmpPlaybackVideoSource(playbackVideoSource!!)
+                    screen.attachVideo(0, source)
+                    if (!source.awaitSurface() || !isRunning.get() || mode != Codec.MODE_DECODE) {
+                        Log.w(TAG, "AV1 playback surface was not ready")
+                        return false
+                    }
+                } else {
+                    screen.attachVideo(0, playbackVideoSource)
+                }
+            }
+            if (av1) {
+                // Serialize startup/publication with Stream.stopRunning, after waiting without its monitor.
+                return synchronized(this) {
+                    if (!isRunning.get() || mode != Codec.MODE_DECODE) return@synchronized false
+                    videoCodec.startRunning()
+                    if (!videoCodec.isRunning.get()) return@synchronized false
+                    av1Configuration = configuration
+                    av1ConfigurationAccepted = true
+                    hasVideo = true
+                    true
+                }
             }
             videoCodec.startRunning()
             hasVideo = true
             return true
         }
         return false
+    }
+
+    internal fun updateVideoSize(size: Size) {
+        videoCodec.width = size.width
+        videoCodec.height = size.height
+        screen.frame = Rect(0, 0, size.width, size.height)
+        video.videoSize = size
+        playbackVideoSource?.videoSize = size
     }
 
     internal fun doOutput(

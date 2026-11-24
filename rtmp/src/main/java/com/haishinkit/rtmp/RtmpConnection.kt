@@ -1,6 +1,10 @@
 package com.haishinkit.rtmp
 
+import android.media.MediaFormat
+import android.os.Build
 import android.util.Log
+import com.haishinkit.codec.Codec
+import com.haishinkit.codec.CodecCapabilities
 import com.haishinkit.rtmp.event.Event
 import com.haishinkit.rtmp.event.EventDispatcher
 import com.haishinkit.rtmp.event.EventUtils
@@ -417,7 +421,16 @@ class RtmpConnection : EventDispatcher(null) {
         commandObject["pageUrl"] = pageUrl
         commandObject["objectEncoding"] = objectEncoding.rawValue
         // Extending NetConnection connect Command fourCcList
-        // commandObject["fourCcList"] = SUPPORTED_FOURCC_LIST
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q &&
+            CodecCapabilities.isCodecSupportedByType(Codec.MODE_DECODE, MediaFormat.MIMETYPE_VIDEO_AV1)
+        ) {
+            commandObject["fourCcList"] =
+                if (CodecCapabilities.isCodecSupportedByType(Codec.MODE_DECODE, MediaFormat.MIMETYPE_VIDEO_HEVC)) {
+                    SUPPORTED_FOURCC_LIST + "av01"
+                } else {
+                    listOf("av01")
+                }
+        }
         message.chunkStreamID = RtmpChunk.COMMAND
         message.streamID = 0
         message.commandName = "connect"
@@ -437,7 +450,7 @@ class RtmpConnection : EventDispatcher(null) {
         val SUPPORTED_PROTOCOLS = mapOf("rtmp" to 1935, "rtmps" to 443)
 
         /**
-         * Supported Enhanced RTMP video codec identifiers. Not currently advertised in the connect command.
+         * Legacy Enhanced RTMP video codec identifiers. AV1-capable receivers also advertise `av01`.
          */
         val SUPPORTED_FOURCC_LIST = listOf("hvc1")
 

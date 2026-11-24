@@ -43,6 +43,7 @@ internal interface DecoderConfigurationRecord {
             buffer: ByteBuffer,
         ): DecoderConfigurationRecord? =
             when (mime) {
+                MediaFormat.MIMETYPE_VIDEO_AV1 -> Av1DecoderConfigurationRecord.decode(buffer)
                 MediaFormat.MIMETYPE_VIDEO_AVC -> AvcDecoderConfigurationRecord.decode(buffer)
                 MediaFormat.MIMETYPE_VIDEO_HEVC -> HevcDecoderConfigurationRecord.decode(buffer)
                 else -> null
