@@ -91,7 +91,7 @@ class Av1PlaybackTest {
         withStream { stream, codec, _ ->
             codec.inputMimeType = MediaFormat.MIMETYPE_VIDEO_AV1
             codec.isRunning.set(true)
-            RtmpStream::class.java.getDeclaredField("av1ConfigurationAccepted").apply { isAccessible = true }.setBoolean(stream, true)
+            RtmpStream::class.java.getDeclaredField("videoConfigurationAccepted").apply { isAccessible = true }.setBoolean(stream, true)
             stream.connection.streams[1] = stream
             try {
                 assertTrue(stream.canReceiveAv1)

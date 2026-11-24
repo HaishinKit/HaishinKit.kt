@@ -44,6 +44,7 @@ internal interface DecoderConfigurationRecord {
         ): DecoderConfigurationRecord? =
             when (mime) {
                 MediaFormat.MIMETYPE_VIDEO_AV1 -> Av1DecoderConfigurationRecord.decode(buffer)
+                MediaFormat.MIMETYPE_VIDEO_VP8, MediaFormat.MIMETYPE_VIDEO_VP9 -> VpDecoderConfigurationRecord.decode(mime, buffer)
                 MediaFormat.MIMETYPE_VIDEO_AVC -> AvcDecoderConfigurationRecord.decode(buffer)
                 MediaFormat.MIMETYPE_VIDEO_HEVC -> HevcDecoderConfigurationRecord.decode(buffer)
                 else -> null

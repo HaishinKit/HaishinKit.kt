@@ -421,16 +421,15 @@ class RtmpConnection : EventDispatcher(null) {
         commandObject["pageUrl"] = pageUrl
         commandObject["objectEncoding"] = objectEncoding.rawValue
         // Extending NetConnection connect Command fourCcList
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q &&
-            CodecCapabilities.isCodecSupportedByType(Codec.MODE_DECODE, MediaFormat.MIMETYPE_VIDEO_AV1)
-        ) {
-            commandObject["fourCcList"] =
-                if (CodecCapabilities.isCodecSupportedByType(Codec.MODE_DECODE, MediaFormat.MIMETYPE_VIDEO_HEVC)) {
-                    SUPPORTED_FOURCC_LIST + "av01"
-                } else {
-                    listOf("av01")
-                }
-        }
+        val videoTypes =
+            mutableListOf(
+                "hvc1" to MediaFormat.MIMETYPE_VIDEO_HEVC,
+                "vp08" to MediaFormat.MIMETYPE_VIDEO_VP8,
+                "vp09" to MediaFormat.MIMETYPE_VIDEO_VP9,
+            )
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) videoTypes.add("av01" to MediaFormat.MIMETYPE_VIDEO_AV1)
+        val supported = videoTypes.filter { CodecCapabilities.isCodecSupportedByType(Codec.MODE_DECODE, it.second) }.map { it.first }
+        if (supported.isNotEmpty()) commandObject["fourCcList"] = supported
         message.chunkStreamID = RtmpChunk.COMMAND
         message.streamID = 0
         message.commandName = "connect"
@@ -450,7 +449,7 @@ class RtmpConnection : EventDispatcher(null) {
         val SUPPORTED_PROTOCOLS = mapOf("rtmp" to 1935, "rtmps" to 443)
 
         /**
-         * Legacy Enhanced RTMP video codec identifiers. AV1-capable receivers also advertise `av01`.
+         * Legacy HEVC identifier list. Connect dynamically advertises available HEVC, VP8, VP9 and AV1 decoders.
          */
         val SUPPORTED_FOURCC_LIST = listOf("hvc1")
 

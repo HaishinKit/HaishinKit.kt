@@ -303,16 +303,19 @@ class RtmpStream(
         get() = videoCodec.inputMimeType
 
     internal val canReceiveAv1: Boolean
-        get() = av1ConfigurationAccepted && mode == Codec.MODE_DECODE && videoCodec.isRunning.get() && inputVideoMimeType == MediaFormat.MIMETYPE_VIDEO_AV1
+        get() = canReceiveCodedVideo && inputVideoMimeType == MediaFormat.MIMETYPE_VIDEO_AV1
+
+    internal val canReceiveCodedVideo: Boolean
+        get() = videoConfigurationAccepted && mode == Codec.MODE_DECODE && videoCodec.isRunning.get()
 
     private val dispatcher: EventDispatcher by lazy {
         EventDispatcher(this)
     }
     private var playbackVideoSource: VideoCodecSource? = null
-    private var av1Configuration: ByteBuffer? = null
+    private var videoConfiguration: ByteBuffer? = null
 
     @Volatile
-    private var av1ConfigurationAccepted = false
+    private var videoConfigurationAccepted = false
     private val eventListener = EventListener(this)
     private var howToPublish = HowToPublish.LIVE
 
@@ -502,8 +505,8 @@ class RtmpStream(
     override fun startRunning() {
         if (isRunning.get()) return
         muxer.clear()
-        av1Configuration = null
-        av1ConfigurationAccepted = false
+        videoConfiguration = null
+        videoConfigurationAccepted = false
         audioCodec.listener = muxer
         videoCodec.listener = muxer
         super.startRunning()
@@ -517,53 +520,63 @@ class RtmpStream(
 
     internal fun isVideoCodecSwitch(mime: String): Boolean =
         videoCodec.isRunning.get() && inputVideoMimeType != mime &&
-            (mime == MediaFormat.MIMETYPE_VIDEO_AV1 || inputVideoMimeType == MediaFormat.MIMETYPE_VIDEO_AV1)
+            (RtmpMuxer.isNonNalVideo(mime) || RtmpMuxer.isNonNalVideo(inputVideoMimeType))
 
-    internal fun invalidateAv1Configuration() {
-        av1ConfigurationAccepted = false
+    internal fun invalidateVideoConfiguration() {
+        videoConfigurationAccepted = false
     }
 
     internal fun configure(decoderConfigurationRecord: DecoderConfigurationRecord): Boolean {
-        val av1 = decoderConfigurationRecord.mime == MediaFormat.MIMETYPE_VIDEO_AV1
+        val nonNal = RtmpMuxer.isNonNalVideo(decoderConfigurationRecord.mime)
         if (isVideoCodecSwitch(decoderConfigurationRecord.mime)) {
             Log.w(TAG, "Close playback before changing to a different video codec")
             return false
         }
-        val configuration = if (av1) decoderConfigurationRecord.toByteBuffer() else null
-        if (av1 && videoCodec.isRunning.get()) {
-            av1ConfigurationAccepted = configuration == av1Configuration
-            if (!av1ConfigurationAccepted) Log.w(TAG, "Close playback before changing the AV1 configuration")
-            return av1ConfigurationAccepted
+        val configuration = if (nonNal) decoderConfigurationRecord.toByteBuffer() else null
+        if (nonNal && videoCodec.isRunning.get()) {
+            videoConfigurationAccepted = configuration == videoConfiguration
+            if (!videoConfigurationAccepted) Log.w(TAG, "Close playback before changing the video configuration")
+            return videoConfigurationAccepted
         }
-        if (av1) {
-            av1ConfigurationAccepted = false
+        if (nonNal) {
+            videoConfigurationAccepted = false
             if (mode != Codec.MODE_DECODE || !isRunning.get()) return false
         }
         if (decoderConfigurationRecord.configure(videoCodec)) {
             val size = decoderConfigurationRecord.videoSize
-            if (size != null || decoderConfigurationRecord.mime == MediaFormat.MIMETYPE_VIDEO_AV1) {
+            if (size != null || nonNal) {
                 val initialSize = size ?: Size(videoCodec.width, videoCodec.height)
                 playbackVideoSource = VideoCodecSource(videoCodec).apply { videoSize = initialSize }
                 updateVideoSize(initialSize)
-                if (av1) {
+                if (nonNal) {
                     val source = RtmpPlaybackVideoSource(playbackVideoSource!!)
                     screen.attachVideo(0, source)
                     if (!source.awaitSurface() || !isRunning.get() || mode != Codec.MODE_DECODE) {
-                        Log.w(TAG, "AV1 playback surface was not ready")
+                        Log.w(TAG, "Video playback surface was not ready")
                         return false
                     }
                 } else {
                     screen.attachVideo(0, playbackVideoSource)
                 }
             }
-            if (av1) {
+            if (nonNal) {
                 // Serialize startup/publication with Stream.stopRunning, after waiting without its monitor.
                 return synchronized(this) {
                     if (!isRunning.get() || mode != Codec.MODE_DECODE) return@synchronized false
-                    videoCodec.startRunning()
-                    if (!videoCodec.isRunning.get()) return@synchronized false
-                    av1Configuration = configuration
-                    av1ConfigurationAccepted = true
+                    try {
+                        videoCodec.startRunning()
+                    } catch (cause: RuntimeException) {
+                        if (cause !is IllegalArgumentException && cause !is IllegalStateException) throw cause
+                        Log.w(TAG, "The platform decoder rejected this configuration", cause)
+                        videoCodec.codec = null
+                        return@synchronized false
+                    }
+                    if (!videoCodec.isRunning.get()) {
+                        videoCodec.codec = null
+                        return@synchronized false
+                    }
+                    videoConfiguration = configuration
+                    videoConfigurationAccepted = true
                     hasVideo = true
                     true
                 }
@@ -617,6 +630,9 @@ class RtmpStream(
             when (videoCodec.profileLevel.mime) {
                 MediaFormat.MIMETYPE_VIDEO_HEVC ->
                     metadata["videocodecid"] = RtmpMuxer.FLV_VIDEO_FOUR_CC_HVC1
+
+                MediaFormat.MIMETYPE_VIDEO_VP8, MediaFormat.MIMETYPE_VIDEO_VP9 ->
+                    metadata["videocodecid"] = RtmpMuxer.getVideoFourCCByType(videoCodec.profileLevel.mime)
 
                 MediaFormat.MIMETYPE_VIDEO_AVC -> {
                     metadata["videocodecid"] = RtmpMuxer.FLV_VIDEO_CODEC_AVC.toInt()

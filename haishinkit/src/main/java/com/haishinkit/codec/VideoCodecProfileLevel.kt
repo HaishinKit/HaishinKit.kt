@@ -252,6 +252,13 @@ enum class VideoCodecProfileLevel(
         MediaCodecInfo.CodecProfileLevel.HEVCMainTierLevel62,
     ),
 
+    VP8_MAIN(
+        "VP8_Main",
+        MediaFormat.MIMETYPE_VIDEO_VP8,
+        MediaCodecInfo.CodecProfileLevel.VP8ProfileMain,
+        MediaCodecInfo.CodecProfileLevel.VP8Level_Version0,
+    ),
+
     @RequiresApi(Build.VERSION_CODES.N)
     VP9_PROFILE0_1(
         "VP9_Profile0_1",
