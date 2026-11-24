@@ -15,11 +15,13 @@ import com.haishinkit.rtmp.event.EventUtils
 import com.haishinkit.rtmp.event.IEventDispatcher
 import com.haishinkit.rtmp.event.IEventListener
 import com.haishinkit.rtmp.iso.DecoderConfigurationRecord
+import com.haishinkit.rtmp.iso.VpDecoderConfigurationRecord
 import com.haishinkit.rtmp.message.RtmpCommandMessage
 import com.haishinkit.rtmp.message.RtmpDataMessage
 import com.haishinkit.rtmp.message.RtmpMessage
 import com.haishinkit.rtmp.message.RtmpMessageFactory
 import com.haishinkit.stream.Stream
+import java.io.IOException
 import java.nio.ByteBuffer
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -313,6 +315,7 @@ class RtmpStream(
     }
     private var playbackVideoSource: VideoCodecSource? = null
     private var videoConfiguration: ByteBuffer? = null
+    private var pendingVpConfiguration: VpDecoderConfigurationRecord? = null
 
     @Volatile
     private var videoConfigurationAccepted = false
@@ -506,10 +509,18 @@ class RtmpStream(
         if (isRunning.get()) return
         muxer.clear()
         videoConfiguration = null
+        pendingVpConfiguration = null
         videoConfigurationAccepted = false
         audioCodec.listener = muxer
         videoCodec.listener = muxer
         super.startRunning()
+    }
+
+    @Synchronized
+    override fun stopRunning() {
+        super.stopRunning()
+        pendingVpConfiguration = null
+        videoCodec.options = videoSetting.options
     }
 
     internal fun configure(inputMimeType: String) {
@@ -524,6 +535,21 @@ class RtmpStream(
 
     internal fun invalidateVideoConfiguration() {
         videoConfigurationAccepted = false
+        pendingVpConfiguration = null
+    }
+
+    internal fun prepareVpFrame(
+        mime: String,
+        frame: ByteBuffer,
+    ): Boolean {
+        if (canReceiveCodedVideo) return inputVideoMimeType == mime
+        val record = pendingVpConfiguration ?: return false
+        if (record.mime != mime) return false
+        return try {
+            configure(record.withKeyFrameSize(frame))
+        } catch (cause: IllegalArgumentException) {
+            false // A mid-GOP join waits for a complete keyframe.
+        }
     }
 
     internal fun configure(decoderConfigurationRecord: DecoderConfigurationRecord): Boolean {
@@ -541,6 +567,10 @@ class RtmpStream(
         if (nonNal) {
             videoConfigurationAccepted = false
             if (mode != Codec.MODE_DECODE || !isRunning.get()) return false
+        }
+        if (decoderConfigurationRecord is VpDecoderConfigurationRecord && decoderConfigurationRecord.videoSize == null) {
+            pendingVpConfiguration = decoderConfigurationRecord
+            return true
         }
         if (decoderConfigurationRecord.configure(videoCodec)) {
             val size = decoderConfigurationRecord.videoSize
@@ -565,6 +595,10 @@ class RtmpStream(
                     if (!isRunning.get() || mode != Codec.MODE_DECODE) return@synchronized false
                     try {
                         videoCodec.startRunning()
+                    } catch (cause: IOException) {
+                        Log.w(TAG, "The platform decoder could not be created", cause)
+                        videoCodec.codec = null
+                        return@synchronized false
                     } catch (cause: RuntimeException) {
                         if (cause !is IllegalArgumentException && cause !is IllegalStateException) throw cause
                         Log.w(TAG, "The platform decoder rejected this configuration", cause)

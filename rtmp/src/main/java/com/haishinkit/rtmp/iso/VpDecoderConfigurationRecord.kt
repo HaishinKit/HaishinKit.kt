@@ -16,6 +16,12 @@ internal class VpDecoderConfigurationRecord private constructor(
     val bitDepth: Int get() = (bytes[2].toInt() and 0xFF) ushr 4
     override val capacity: Int get() = bytes.size + 4
 
+    fun withKeyFrameSize(frame: ByteBuffer): VpDecoderConfigurationRecord {
+        val info = VpFrameHeader.read(mime, frame)
+        require(info.profile == profile && info.bitDepth == bitDepth) { "VP keyframe does not match configuration" }
+        return VpDecoderConfigurationRecord(mime, bytes, info.size)
+    }
+
     override fun encode(buffer: ByteBuffer): VpDecoderConfigurationRecord {
         buffer.put(byteArrayOf(1, 0, 0, 0)).put(bytes)
         return this

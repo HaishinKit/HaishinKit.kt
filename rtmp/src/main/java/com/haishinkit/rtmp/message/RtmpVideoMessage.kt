@@ -181,6 +181,12 @@ internal class RtmpVideoMessage(
                 }
 
                 RtmpMuxer.FLV_VIDEO_PACKET_TYPE_CODED_FRAMES, RtmpMuxer.FLV_VIDEO_PACKET_TYPE_CODED_FRAMES_X -> {
+                    if (packetType == RtmpMuxer.FLV_VIDEO_PACKET_TYPE_CODED_FRAMES &&
+                        (mime == MediaFormat.MIMETYPE_VIDEO_VP8 || mime == MediaFormat.MIMETYPE_VIDEO_VP9) &&
+                        !stream.prepareVpFrame(mime, payload)
+                    ) {
+                        return this
+                    }
                     if (RtmpMuxer.isNonNalVideo(mime) &&
                         (packetType != RtmpMuxer.FLV_VIDEO_PACKET_TYPE_CODED_FRAMES || !stream.canReceiveCodedVideo)
                     ) {

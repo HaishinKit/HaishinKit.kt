@@ -161,7 +161,7 @@ internal class RtmpMuxer(
             }
 
             MediaFormat.MIMETYPE_VIDEO_VP8, MediaFormat.MIMETYPE_VIDEO_VP9 -> {
-                vpxConfigurationSent = false
+                // One sequence header per publication; repeated format callbacks must not reset its clock.
                 val level = if (mediaFormat.containsKey("level")) mediaFormat.getInteger("level") else 0
                 val levels = intArrayOf(10, 11, 20, 21, 30, 31, 40, 41, 50, 51, 52, 60, 61, 62)
                 vpxLevel =

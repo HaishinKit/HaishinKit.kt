@@ -83,13 +83,16 @@ class VpPlaybackInitializationTest {
     fun vp9WaitsForSurfaceAndQueuesOnlyRawCodedData() = checkStartup(MediaFormat.MIMETYPE_VIDEO_VP9, "vp9")
 
     @Test
+    fun decoderAllocationFailureDoesNotEscapePlayback() = checkStartup(MediaFormat.MIMETYPE_VIDEO_VP9, "vp9", true)
+
+    @Test
     fun closeWhileWaitingForSurfaceCannotStartVpDecoder() {
         stream.readyState = RtmpStream.ReadyState.PLAY
         val executor = Executors.newSingleThreadExecutor()
         val texture = SurfaceTexture(false)
         val surface = Surface(texture)
         try {
-            val pending = executor.submit<Boolean> { stream.configure(record(MediaFormat.MIMETYPE_VIDEO_VP9)) }
+            val pending = executor.submit<Boolean> { stream.configure(record(MediaFormat.MIMETYPE_VIDEO_VP9).withKeyFrameSize(keyframe("vp9"))) }
             val source = screen.sources.poll(2, TimeUnit.SECONDS)!!
             stream.close()
             source.surface = surface
@@ -107,6 +110,7 @@ class VpPlaybackInitializationTest {
     private fun checkStartup(
         mime: String,
         name: String,
+        allocationFailure: Boolean = false,
     ) {
         stream.readyState = RtmpStream.ReadyState.PLAY
         stream.connection.streams[1] = stream
@@ -126,7 +130,10 @@ class VpPlaybackInitializationTest {
                         crypto: MediaCrypto?,
                         flags: Int,
                     ) {
+                        if (allocationFailure) throw java.io.IOException("decoder allocation failed")
                         assertTrue(Thread.holdsLock(stream))
+                        assertEquals(1280, format.getInteger(MediaFormat.KEY_WIDTH))
+                        assertEquals(720, format.getInteger(MediaFormat.KEY_HEIGHT))
                         assertFalse(format.containsKey("csd-0"))
                         assertFalse(format.containsKey("csd-1"))
                         configuredSurface.set(surface)
@@ -147,11 +154,20 @@ class VpPlaybackInitializationTest {
         val texture = SurfaceTexture(false)
         val surface = Surface(texture)
         try {
-            val pending = executor.submit<Boolean> { stream.configure(record(mime)) }
+            assertTrue(stream.configure(record(mime)))
+            assertFalse(codec.isRunning.get())
+            assertFalse(stream.prepareVpFrame(mime, ByteBuffer.wrap(byteArrayOf(1))))
+            val pending = executor.submit<Boolean> { stream.prepareVpFrame(mime, keyframe(name)) }
             val source = screen.sources.poll(2, TimeUnit.SECONDS)!!
             assertFalse(pending.isDone)
             assertNull(configuredSurface.get())
             source.surface = surface
+            if (allocationFailure) {
+                assertFalse(pending.get(2, TimeUnit.SECONDS))
+                assertFalse(stream.canReceiveCodedVideo)
+                assertFalse(codec.isRunning.get())
+                return
+            }
             assertTrue(pending.get(2, TimeUnit.SECONDS))
             assertSame(surface, configuredSurface.get())
             assertTrue(stream.canReceiveCodedVideo)
@@ -177,6 +193,8 @@ class VpPlaybackInitializationTest {
             message(mime, RtmpMuxer.FLV_VIDEO_PACKET_TYPE_CODED_FRAMES, bytes).execute(stream.connection)
             assertEquals(0, queuedFrames())
             assertTrue(stream.configure(record(mime)))
+            stream.close()
+            assertEquals(stream.videoSetting.options, codec.options)
         } finally {
             executor.shutdownNow()
             executor.awaitTermination(2, TimeUnit.SECONDS)
@@ -190,6 +208,8 @@ class VpPlaybackInitializationTest {
         val queue = BufferController::class.java.getDeclaredField("messages").apply { isAccessible = true }.get(controller) as java.util.concurrent.BlockingQueue<*>
         return queue.size
     }
+
+    private fun keyframe(name: String) = ByteBuffer.wrap(javaClass.getResourceAsStream("/vpx/$name-keyframe.bin")!!.use { it.readBytes() })
 
     private fun record(mime: String) = VpDecoderConfigurationRecord.decode(mime, ByteBuffer.wrap(byteArrayOf(0, 0, 0x82.toByte(), 2, 2, 2, 0, 0)))
 

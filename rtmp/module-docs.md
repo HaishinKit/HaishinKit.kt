@@ -63,7 +63,8 @@ stream.videoSetting.profileLevel = VideoCodecProfileLevel.VP9_PROFILE0_31
 The setting rejects MIME types without an installed encoder. The requested profile,
 level, resolution and rate must also be supported by that encoder. Playback selects
 the installed decoder from the received FourCC; the connect command advertises only
-available decoders. Decoder startup waits up to five seconds for its output surface.
+available decoders. VP playback waits for a keyframe, reads its actual dimensions,
+and then waits up to five seconds for the decoder output surface.
 
 The first encoded keyframe supplies the VP configuration fields. Initialization does
 not depend on optional encoder CSD. Configuration records use the version-1 vpcC

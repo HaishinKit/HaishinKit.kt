@@ -87,6 +87,12 @@ class VpPublicationTest {
             assertEquals(3, packets.size)
             assertArrayEquals(interframe, decode(packets[2]).data!!.array())
             assertEquals(33, decode(packets[2]).timestamp)
+            stream.muxer.onFormatChanged(mime, format)
+            info.set(0, interframe.size, 1_099_999, 0)
+            stream.muxer.onSampleOutput(mime, 0, info, ByteBuffer.wrap(interframe))
+            assertEquals(4, packets.size)
+            assertEquals(RtmpMuxer.FLV_VIDEO_PACKET_TYPE_CODED_FRAMES, decode(packets[3]).packetType)
+            assertEquals(33, decode(packets[3]).timestamp)
         } finally {
             stream.dispose()
             Screen.factory = oldScreen
