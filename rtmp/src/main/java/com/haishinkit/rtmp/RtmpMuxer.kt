@@ -13,6 +13,7 @@ import com.haishinkit.metrics.FrameTracker
 import com.haishinkit.rtmp.event.Event
 import com.haishinkit.rtmp.iso.AvcDecoderConfigurationRecord
 import com.haishinkit.rtmp.iso.DecoderConfigurationRecord
+import com.haishinkit.rtmp.iso.VpDecoderConfigurationRecord
 import com.haishinkit.rtmp.message.RtmpAudioMessage
 import com.haishinkit.rtmp.message.RtmpVideoMessage
 import com.haishinkit.util.MediaFormatUtil
@@ -22,6 +23,9 @@ internal class RtmpMuxer(
     private val stream: RtmpStream,
 ) : BufferController.Listener,
     Codec.Listener {
+    @Volatile
+    private var vpxConfigurationSent = false
+    private var vpxLevel = 0
     private var bufferTime = BufferController.DEFAULT_BUFFER_TIME
         set(value) {
             if (value == field) return
@@ -61,6 +65,7 @@ internal class RtmpMuxer(
     }
 
     fun clear() {
+        vpxConfigurationSent = false
         audioTimestamp = 0L
         videoTimestamp = 0L
         frameTracker?.clear()
@@ -123,7 +128,7 @@ internal class RtmpMuxer(
     ) {
         when (mime) {
             MediaFormat.MIMETYPE_VIDEO_RAW -> {
-                if (stream.inputVideoMimeType == MediaFormat.MIMETYPE_VIDEO_AV1 &&
+                if (isNonNalVideo(stream.inputVideoMimeType) &&
                     mediaFormat.containsKey(MediaFormat.KEY_WIDTH) && mediaFormat.containsKey(MediaFormat.KEY_HEIGHT)
                 ) {
                     stream.updateVideoSize(
@@ -155,10 +160,21 @@ internal class RtmpMuxer(
                 )
             }
 
+            MediaFormat.MIMETYPE_VIDEO_VP8, MediaFormat.MIMETYPE_VIDEO_VP9 -> {
+                // One sequence header per publication; repeated format callbacks must not reset its clock.
+                val level = if (mediaFormat.containsKey("level")) mediaFormat.getInteger("level") else 0
+                val levels = intArrayOf(10, 11, 20, 21, 30, 31, 40, 41, 50, 51, 52, 60, 61, 62)
+                vpxLevel =
+                    if (mime == MediaFormat.MIMETYPE_VIDEO_VP9 && level > 0 && level and (level - 1) == 0) {
+                        levels.getOrElse(Integer.numberOfTrailingZeros(level)) { 0 }
+                    } else {
+                        0
+                    }
+            }
+
             // Enhanced RTMP
             MediaFormat.MIMETYPE_VIDEO_AV1,
             MediaFormat.MIMETYPE_VIDEO_HEVC,
-            MediaFormat.MIMETYPE_VIDEO_VP9,
             -> {
                 val config = DecoderConfigurationRecord.create(mime, mediaFormat) ?: return
                 stream.doOutput(
@@ -252,18 +268,55 @@ internal class RtmpMuxer(
 
             // Enhanced RTMP
             MediaFormat.MIMETYPE_VIDEO_AV1,
+            MediaFormat.MIMETYPE_VIDEO_VP8,
             MediaFormat.MIMETYPE_VIDEO_VP9,
             MediaFormat.MIMETYPE_VIDEO_HEVC,
             -> {
                 if (info.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG != 0) {
                     return true
                 }
+                val vpx = mime == MediaFormat.MIMETYPE_VIDEO_VP8 || mime == MediaFormat.MIMETYPE_VIDEO_VP9
+                val codedBuffer =
+                    if (vpx) {
+                        if (info.offset < 0 || info.size <= 0 || info.size > buffer.capacity() - info.offset) return true
+                        buffer.duplicate().apply {
+                            limit(info.offset + info.size)
+                            position(info.offset)
+                        }.slice()
+                    } else {
+                        buffer
+                    }
                 frameTracker?.track(FrameTracker.TYPE_VIDEO, SystemClock.uptimeMillis())
                 if (videoTimestamp == 0L) {
                     videoTimestamp = info.presentationTimeUs
                 }
                 val timestamp = (info.presentationTimeUs - videoTimestamp).toInt()
                 val keyframe = info.flags and MediaCodec.BUFFER_FLAG_KEY_FRAME != 0
+                if ((mime == MediaFormat.MIMETYPE_VIDEO_VP8 || mime == MediaFormat.MIMETYPE_VIDEO_VP9) && !vpxConfigurationSent) {
+                    if (!keyframe) return true
+                    val record =
+                        try {
+                            VpDecoderConfigurationRecord.fromKeyFrame(mime, codedBuffer, vpxLevel)
+                        } catch (cause: IllegalArgumentException) {
+                            Log.w(TAG, "Invalid VP keyframe header", cause)
+                            return true
+                        }
+                    stream.doOutput(
+                        RtmpChunk.ZERO,
+                        stream.messageFactory.createRtmpVideoMessage().apply {
+                            isExHeader = true
+                            frame = FLV_FRAME_TYPE_KEY
+                            packetType = FLV_VIDEO_PACKET_TYPE_SEQUENCE_START
+                            fourCC = getVideoFourCCByType(mime)
+                            data = record.toByteBuffer()
+                            chunkStreamID = RtmpChunk.VIDEO
+                            streamID = stream.id
+                            this.timestamp = 0
+                            compositeTime = 0
+                        },
+                    )
+                    vpxConfigurationSent = true
+                }
                 val video = stream.messageFactory.createRtmpVideoMessage()
                 stream.doOutput(
                     RtmpChunk.ONE,
@@ -277,7 +330,7 @@ internal class RtmpMuxer(
                                 FLV_VIDEO_PACKET_TYPE_CODED_FRAMES
                             }
                         fourCC = getVideoFourCCByType(mime)
-                        data = buffer
+                        data = codedBuffer
                         chunkStreamID = RtmpChunk.VIDEO
                         streamID = stream.id
                         this.timestamp = timestamp / 1000
@@ -386,6 +439,7 @@ internal class RtmpMuxer(
         const val FLV_AUDIO_CODEC_MP3_8K: Byte = 0x0E
 
         const val FLV_VIDEO_FOUR_CC_AV01: Int = 0x61763031 // { 'a', 'v', '0', '1' }
+        const val FLV_VIDEO_FOUR_CC_VP08: Int = 0x76703038 // { 'v', 'p', '0', '8' }
         const val FLV_VIDEO_FOUR_CC_VP09: Int = 0x76703039 // { 'v', 'p', '0', '9' }
         const val FLV_VIDEO_FOUR_CC_HVC1: Int = 0x68766331 // { 'h', 'v', 'c', '1' }
 
@@ -396,10 +450,17 @@ internal class RtmpMuxer(
         const val FLV_VIDEO_PACKET_TYPE_METADATA: Byte = 4
         const val FLV_VIDEO_PACKET_TYPE_MPEG2TS_SEQUENCE_START: Byte = 5
 
+        private const val VERBOSE = false
+        private val TAG = RtmpMuxer::class.java.simpleName
+
+        fun isNonNalVideo(type: String): Boolean =
+            type == MediaFormat.MIMETYPE_VIDEO_AV1 || type == MediaFormat.MIMETYPE_VIDEO_VP8 || type == MediaFormat.MIMETYPE_VIDEO_VP9
+
         fun getVideoFourCCByType(type: String): Int =
             when (type) {
                 MediaFormat.MIMETYPE_VIDEO_AV1 -> FLV_VIDEO_FOUR_CC_AV01
                 MediaFormat.MIMETYPE_VIDEO_HEVC -> FLV_VIDEO_FOUR_CC_HVC1
+                MediaFormat.MIMETYPE_VIDEO_VP8 -> FLV_VIDEO_FOUR_CC_VP08
                 MediaFormat.MIMETYPE_VIDEO_VP9 -> FLV_VIDEO_FOUR_CC_VP09
                 else -> 0
             }
@@ -407,6 +468,7 @@ internal class RtmpMuxer(
         fun getTypeByVideoFourCC(fourCC: Int): String? =
             when (fourCC) {
                 FLV_VIDEO_FOUR_CC_HVC1 -> MediaFormat.MIMETYPE_VIDEO_HEVC
+                FLV_VIDEO_FOUR_CC_VP08 -> MediaFormat.MIMETYPE_VIDEO_VP8
                 FLV_VIDEO_FOUR_CC_VP09 -> MediaFormat.MIMETYPE_VIDEO_VP9
                 FLV_VIDEO_FOUR_CC_AV01 ->
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -421,12 +483,9 @@ internal class RtmpMuxer(
         fun isSupportedVideoFourCC(fourCC: Int): Boolean =
             when (fourCC) {
                 FLV_VIDEO_FOUR_CC_HVC1 -> true
-                FLV_VIDEO_FOUR_CC_VP09 -> false
+                FLV_VIDEO_FOUR_CC_VP08, FLV_VIDEO_FOUR_CC_VP09 -> true
                 FLV_VIDEO_FOUR_CC_AV01 -> Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
                 else -> false
             }
-
-        private const val VERBOSE = false
-        private val TAG = RtmpMuxer::class.java.simpleName
     }
 }

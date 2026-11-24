@@ -3,7 +3,9 @@ package com.haishinkit.codec
 import android.media.MediaCodecList
 
 object CodecCapabilities {
-    private val mediaCodecList: MediaCodecList by lazy { MediaCodecList(MediaCodecList.REGULAR_CODECS) }
+    // MediaCodecList already caches the system catalog; avoid retaining a second snapshot.
+    private val codecInfos
+        get() = MediaCodecList(MediaCodecList.REGULAR_CODECS).codecInfos
 
     fun isCodecSupportedByType(
         mode: Int,
@@ -11,13 +13,13 @@ object CodecCapabilities {
     ): Boolean =
         when (mode) {
             Codec.MODE_ENCODE -> {
-                mediaCodecList.codecInfos.any {
+                codecInfos.any {
                     it.isEncoder && it.supportedTypes.contains(type)
                 }
             }
 
             Codec.MODE_DECODE -> {
-                mediaCodecList.codecInfos.any {
+                codecInfos.any {
                     !it.isEncoder && it.supportedTypes.contains(type)
                 }
             }

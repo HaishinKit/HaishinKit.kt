@@ -25,18 +25,6 @@ internal class RtmpVideoMessage(
     var fourCC: Int = 0
     var compositeTime: Int = 0
 
-    private val headerSize: Int
-        get() =
-            5 +
-                if (isExHeader &&
-                    fourCC == RtmpMuxer.FLV_VIDEO_FOUR_CC_HVC1 &&
-                    packetType == RtmpMuxer.FLV_VIDEO_PACKET_TYPE_CODED_FRAMES
-                ) {
-                    3
-                } else {
-                    0
-                }
-
     override var length: Int
         get() {
             if (super.length == -1) {
@@ -51,6 +39,18 @@ internal class RtmpVideoMessage(
         set(value) {
             super.length = value
         }
+
+    private val headerSize: Int
+        get() =
+            5 +
+                if (isExHeader &&
+                    fourCC == RtmpMuxer.FLV_VIDEO_FOUR_CC_HVC1 &&
+                    packetType == RtmpMuxer.FLV_VIDEO_PACKET_TYPE_CODED_FRAMES
+                ) {
+                    3
+                } else {
+                    0
+                }
 
     override fun encode(buffer: ByteBuffer): RtmpMessage {
         if (isExHeader) {
@@ -145,8 +145,11 @@ internal class RtmpVideoMessage(
 
     override fun execute(connection: RtmpConnection): RtmpMessage {
         val stream = connection.streams[streamID] ?: return this
-        if (isExHeader && fourCC == RtmpMuxer.FLV_VIDEO_FOUR_CC_AV01 && packetType == RtmpMuxer.FLV_VIDEO_PACKET_TYPE_SEQUENCE_START) {
-            stream.invalidateAv1Configuration()
+        if (isExHeader && packetType == RtmpMuxer.FLV_VIDEO_PACKET_TYPE_SEQUENCE_START) {
+            val mime = RtmpMuxer.getTypeByVideoFourCC(fourCC)
+            if (mime != null && RtmpMuxer.isNonNalVideo(mime) && !stream.isVideoCodecSwitch(mime)) {
+                stream.invalidateVideoConfiguration()
+            }
         }
         val payload = data ?: return this
         if (!payload.hasRemaining()) return this
@@ -170,16 +173,22 @@ internal class RtmpVideoMessage(
                             Log.w(TAG, "Invalid video configuration", cause)
                             return this
                         }
-                    // AV1 csd-0 is submitted automatically by MediaCodec.configure/start.
-                    if (stream.configure(record) && mime != MediaFormat.MIMETYPE_VIDEO_AV1) {
+                    // AV1 CSD is submitted by configure/start; VP8/VP9 have no ISO CSD to queue.
+                    if (stream.configure(record) && !RtmpMuxer.isNonNalVideo(mime)) {
                         timestamp = 0
                         stream.muxer.enqueueVideo(this)
                     }
                 }
 
                 RtmpMuxer.FLV_VIDEO_PACKET_TYPE_CODED_FRAMES, RtmpMuxer.FLV_VIDEO_PACKET_TYPE_CODED_FRAMES_X -> {
-                    if (fourCC == RtmpMuxer.FLV_VIDEO_FOUR_CC_AV01 &&
-                        (packetType != RtmpMuxer.FLV_VIDEO_PACKET_TYPE_CODED_FRAMES || !stream.canReceiveAv1)
+                    if (packetType == RtmpMuxer.FLV_VIDEO_PACKET_TYPE_CODED_FRAMES &&
+                        (mime == MediaFormat.MIMETYPE_VIDEO_VP8 || mime == MediaFormat.MIMETYPE_VIDEO_VP9) &&
+                        !stream.prepareVpFrame(mime, payload)
+                    ) {
+                        return this
+                    }
+                    if (RtmpMuxer.isNonNalVideo(mime) &&
+                        (packetType != RtmpMuxer.FLV_VIDEO_PACKET_TYPE_CODED_FRAMES || !stream.canReceiveCodedVideo)
                     ) {
                         return this
                     }
