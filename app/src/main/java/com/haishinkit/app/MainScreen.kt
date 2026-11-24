@@ -34,6 +34,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavGraph.Companion.findStartDestination
+import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
@@ -71,11 +72,7 @@ fun MainScreen(onApplyRenderer: suspend (Renderer) -> Unit) {
     val selectedRoute = entry?.destination?.route?.let { if (it == "main/codecs") MainScreenTab.Preference.id else it } ?: MainScreenTab.Camera.id
     val navigate: (MainScreenTab) -> Unit = { tab ->
         if (!changingRenderer) {
-            navController.navigate(tab.id) {
-                popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                launchSingleTop = true
-                restoreState = true
-            }
+            navController.navigateToMainTab(tab)
         }
     }
     BoxWithConstraints(Modifier.fillMaxSize()) {
@@ -143,4 +140,14 @@ fun MainScreen(onApplyRenderer: suspend (Renderer) -> Unit) {
             }
         }
     }
+}
+
+internal fun NavHostController.navigateToMainTab(tab: MainScreenTab) {
+    navigate(tab.id) {
+        popUpTo(graph.findStartDestination().id) { saveState = true }
+        launchSingleTop = true
+        restoreState = true
+    }
+    // Explicit Settings actions open the form, not a restored codec-detail destination.
+    if (tab == MainScreenTab.Preference) popBackStack(MainScreenTab.Preference.id, false)
 }
