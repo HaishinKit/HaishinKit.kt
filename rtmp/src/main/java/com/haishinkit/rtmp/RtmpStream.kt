@@ -309,6 +309,9 @@ class RtmpStream(
     internal val inputVideoMimeType: String
         get() = videoCodec.inputMimeType
 
+    internal val isAacDecoderRunning: Boolean
+        get() = mode == Codec.MODE_DECODE && audioCodec.isRunning.get() && audioCodec.inputMimeType == MediaFormat.MIMETYPE_AUDIO_AAC
+
     internal val canReceiveAv1: Boolean
         get() = canReceiveCodedVideo && inputVideoMimeType == MediaFormat.MIMETYPE_VIDEO_AV1
 
@@ -579,7 +582,14 @@ class RtmpStream(
                 put(payload.duplicate())
                 flip()
             }
+        if (mime == MediaFormat.MIMETYPE_AUDIO_AAC && data.remaining() < 2) return false
         if (audioCodec.isRunning.get()) {
+            // AAC supports in-band ASC updates; preserve that pre-existing receive path.
+            if (!audioSequenceEnded && isAacDecoderRunning && mime == MediaFormat.MIMETYPE_AUDIO_AAC) {
+                audioConfiguration = data
+                audioConfigurationAccepted = true
+                return true
+            }
             audioConfigurationAccepted = !audioSequenceEnded && audioCodec.inputMimeType == mime && data == audioConfiguration
             if (!audioConfigurationAccepted) Log.w(TAG, "Close playback before changing the audio codec or sequence")
             return audioConfigurationAccepted

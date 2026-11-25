@@ -106,6 +106,7 @@ internal enum class RtmpChunk(
             TWO -> {
                 val message = connection.messages[chunkStreamID]!!
                 message.timestamp = getInt(buffer)
+                message.chunk = this
                 return message
             }
 

@@ -296,6 +296,9 @@ class RtmpConnection : EventDispatcher(null) {
                     remaining = chunkSizeC
                 }
                 if (buffer.position() + remaining <= buffer.limit()) {
+                    // An empty assembly starts a new compact message; a partially filled
+                    // assembly is a continuation and must retain its original header type.
+                    if (payload.position() == 0) message.chunk = RtmpChunk.THREE
                     payload.put(buffer.array(), buffer.position(), remaining)
                     buffer.position(buffer.position() + remaining)
                 } else {
@@ -305,6 +308,7 @@ class RtmpConnection : EventDispatcher(null) {
                 if (!payload.hasRemaining()) {
                     payload.flip()
                     message.decode(payload).execute(this)
+                    payload.clear()
                 }
             } else {
                 val message = chunk.decode(chunkStreamID, this, buffer)

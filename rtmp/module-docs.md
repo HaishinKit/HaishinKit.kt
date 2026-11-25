@@ -126,6 +126,7 @@ AudioCodec through Android CSD. Invalid/unsupported headers and coded packets
 without an accepted header are ignored. Multitrack,
 multichannel mapping, and headerless Enhanced RTMP Opus are not supported.
 
-Repeated identical headers are accepted. Changing the active audio codec or its
+Repeated identical headers are accepted, and AAC configuration updates are passed
+in order to the running decoder. Changing the active audio codec or its Opus
 configuration, or starting a new sequence after SequenceEnd, requires closing
 playback and starting a new stream; these operations do not replace a running decoder.

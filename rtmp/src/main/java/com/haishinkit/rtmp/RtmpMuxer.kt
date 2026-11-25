@@ -117,7 +117,7 @@ internal class RtmpMuxer(
                         val data = message.data?.duplicate()
                         if (data != null && data.remaining() <= inputBuffer.remaining()) {
                             inputBuffer.put(data)
-                            codec.queueInputBuffer(index, 0, inputBuffer.position(), message.presentationTimeUs, 0)
+                            codec.queueInputBuffer(index, 0, inputBuffer.position(), message.presentationTimeUs, message.toFlags())
                         } else {
                             Log.w(TAG, "Audio input buffer too small; dropping packet")
                             codec.queueInputBuffer(index, 0, 0, message.presentationTimeUs, 0)

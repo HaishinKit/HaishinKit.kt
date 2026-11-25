@@ -1,5 +1,6 @@
 package com.haishinkit.rtmp.message
 
+import android.media.MediaCodec
 import android.media.MediaFormat
 import androidx.core.util.Pools
 import com.haishinkit.rtmp.RtmpChunk
@@ -81,9 +82,19 @@ internal class RtmpAudioMessage(
             }
         when (aacPacketType) {
             RtmpMuxer.FLV_AAC_PACKET_TYPE_SEQ -> {
+                val updateAac = mime == MediaFormat.MIMETYPE_AUDIO_AAC && stream.isAacDecoderRunning
                 stream.invalidateAudioConfiguration()
                 val payload = data ?: return this
-                if (mime != null) stream.configureAudio(mime, payload)
+                if (mime != null && stream.configureAudio(mime, payload) && updateAac) {
+                    stream.muxer.enqueueAudio(
+                        RtmpAudioMessage().also {
+                            it.codec = codec
+                            it.aacPacketType = RtmpMuxer.FLV_AAC_PACKET_TYPE_SEQ
+                            it.data = payload.duplicate()
+                            it.presentationTimeUs = absolute.toLong() * 1000
+                        },
+                    )
+                }
             }
             RtmpMuxer.FLV_AAC_PACKET_TYPE_RAW -> {
                 val payload = data ?: return this
@@ -114,6 +125,13 @@ internal class RtmpAudioMessage(
         payload.clear()
         return super.release()
     }
+
+    fun toFlags(): Int =
+        if (codec == RtmpMuxer.FLV_AUDIO_CODEC_AAC && aacPacketType == RtmpMuxer.FLV_AAC_PACKET_TYPE_SEQ) {
+            MediaCodec.BUFFER_FLAG_CODEC_CONFIG
+        } else {
+            0
+        }
 
     companion object {
         private const val AAC = (0x0A shl 4 or (0x03 shl 2) or (0x01 shl 1) or 0x01).toByte()

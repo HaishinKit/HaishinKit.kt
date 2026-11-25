@@ -134,6 +134,21 @@ class RtmpOpusMessageTest {
         }
     }
 
+    @Test fun nativeDecoderDelayRoundTripRetainsSingleSamples() {
+        for (skip in listOf(1, 312, 313, 65535)) {
+            val bytes =
+                header().apply {
+                    this[10] = skip.toByte()
+                    this[11] = (skip shr 8).toByte()
+                }
+            val codec = AudioCodec()
+            OpusConfiguration.decode(ByteBuffer.wrap(bytes))!!.apply(codec)
+            val delay = codec.options.first { it.key == "csd-1" }.value as ByteBuffer
+            val nanoseconds = delay.duplicate().order(ByteOrder.nativeOrder()).long
+            assertEquals(skip.toLong(), nanoseconds * 48_000 / 1_000_000_000)
+        }
+    }
+
     @Test fun encoderMimeSettingIsExplicitAndValidatesUnsupportedFormats() {
         val codec = AudioCodec()
         val settings = AudioCodec.Setting(codec)

@@ -19,7 +19,8 @@ internal class OpusConfiguration private constructor(
         codec.options = codec.options.filterNot { it.key.startsWith("csd-") } +
             listOf(
                 CodecOption("csd-0", toByteBuffer()),
-                CodecOption("csd-1", longBuffer(preSkip * 1_000_000_000L / 48_000)),
+                // Android truncates ns back to samples; ceil here to retain every sample.
+                CodecOption("csd-1", longBuffer((preSkip * 1_000_000_000L + 47_999) / 48_000)),
                 CodecOption("csd-2", longBuffer(80_000_000)),
             )
     }

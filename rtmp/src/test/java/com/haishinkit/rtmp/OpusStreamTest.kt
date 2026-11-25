@@ -208,6 +208,75 @@ class OpusStreamTest {
         assertEquals(0, queued().size)
     }
 
+    @Test fun socketAcceptsRepeatedType3OpusMessagesAndType2AfterAbsoluteTime() {
+        stream.readyState = RtmpStream.ReadyState.PLAY
+        codec.listener = null
+        val headerBytes = byteArrayOf(0x90.toByte(), 0x4f, 0x70, 0x75, 0x73) + header().array()
+        val audio = byteArrayOf(0x91.toByte(), 0x4f, 0x70, 0x75, 0x73, 0xf8.toByte(), 0xff.toByte(), 0xfe.toByte())
+        val wire =
+            ByteBuffer.allocate(256).apply {
+                putInt(4 shl 24)
+                putInt((headerBytes.size shl 8) or 8)
+                putInt(Integer.reverseBytes(1))
+                put(headerBytes)
+                put(0x44)
+                put(byteArrayOf(0, 0, 20))
+                put(byteArrayOf(0, 0, audio.size.toByte(), 8))
+                put(audio)
+                put(0x84.toByte())
+                put(byteArrayOf(0, 0, 20))
+                put(audio)
+                repeat(2) {
+                    put(0xC4.toByte())
+                    put(audio)
+                }
+                flip()
+            }
+        stream.connection.listen(wire)
+        assertFalse(wire.hasRemaining())
+        assertEquals(4, queued().size)
+        assertEquals(listOf(20_000L, 40_000L, 60_000L, 80_000L), queued().map { it.presentationTimeUs })
+        queued().clear()
+        val absolute =
+            ByteBuffer.allocate(64).apply {
+                putInt((4 shl 24) or 1000)
+                putInt((audio.size shl 8) or 8)
+                putInt(Integer.reverseBytes(1))
+                put(audio)
+                put(0x84.toByte())
+                put(byteArrayOf(0, 0, 20))
+                put(audio)
+                flip()
+            }
+        stream.connection.listen(absolute)
+        assertEquals(listOf(1_000_000L, 1_020_000L), queued().map { it.presentationTimeUs })
+    }
+
+    @Test fun aacConfigurationChangesAreQueuedBeforeTheFollowingFrames() {
+        val caps =
+            MediaCodecInfoBuilder.CodecCapabilitiesBuilder.newBuilder()
+                .setMediaFormat(MediaFormat.createAudioFormat(MediaFormat.MIMETYPE_AUDIO_AAC, 44100, 2)).setIsEncoder(false).build()
+        ShadowMediaCodecList.addCodec(
+            MediaCodecInfoBuilder.newBuilder().setName("test.aac.decoder")
+                .setIsEncoder(false).setCapabilities(caps).build(),
+        )
+        stream.readyState = RtmpStream.ReadyState.PLAY
+        codec.listener = null
+        assertTrue(stream.configureAudio(MediaFormat.MIMETYPE_AUDIO_AAC, ByteBuffer.wrap(byteArrayOf(0x12, 0x10))))
+        val originalDecoder = codec.codec
+        val packet = RtmpAudioMessage()
+        decode(packet, byteArrayOf(0xAF.toByte(), 0, 0x11, 0x90.toByte()), 0, RtmpChunk.ZERO)
+        decode(packet, byteArrayOf(0xAF.toByte(), 1, 1, 2), 20, RtmpChunk.ONE)
+        assertTrue(stream.canReceiveAudio(MediaFormat.MIMETYPE_AUDIO_AAC))
+        assertTrue(originalDecoder === codec.codec)
+        val config = queued().poll()!!
+        val frame = queued().poll()!!
+        assertArrayEquals(byteArrayOf(0x11, 0x90.toByte()), config.data!!.array())
+        assertEquals(MediaCodec.BUFFER_FLAG_CODEC_CONFIG, config.toFlags())
+        assertArrayEquals(byteArrayOf(1, 2), frame.data!!.array())
+        assertEquals(0, frame.toFlags())
+    }
+
     private fun capture(): MutableList<ByteArray> {
         val packets = mutableListOf<ByteArray>()
         val transport =
