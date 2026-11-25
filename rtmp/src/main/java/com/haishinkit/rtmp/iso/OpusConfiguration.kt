@@ -28,6 +28,57 @@ internal class OpusConfiguration private constructor(
         ByteBuffer.allocate(8).order(ByteOrder.nativeOrder()).putLong(value).apply { flip() }
 
     companion object {
+        /** Android encoder CSD may wrap OpusHead and a nanosecond codec delay. */
+        fun fromEncoderCsd(
+            buffer: ByteBuffer,
+            codecDelay: ByteBuffer? = null,
+        ): OpusConfiguration? {
+            val data = buffer.duplicate().order(ByteOrder.LITTLE_ENDIAN)
+            if (data.remaining() < 8) return null
+            val signature = ByteArray(8).also { data.duplicate().get(it) }.toString(Charsets.US_ASCII)
+            var header: ByteArray? = null
+            var delay: Long? = null
+            if (signature == "OpusHead") {
+                header = ByteArray(data.remaining()).also { data.get(it) }
+            } else {
+                if (signature != "AOPUSHDR") return null
+                while (data.hasRemaining()) {
+                    if (data.remaining() < 16) return null
+                    val marker = ByteArray(8).also { data.get(it) }.toString(Charsets.US_ASCII)
+                    val size = data.long
+                    if (size < 0 || size > data.remaining().toLong()) return null
+                    val end = data.position() + size.toInt()
+                    when (marker) {
+                        "AOPUSHDR" -> {
+                            if (header != null || size < 19) return null
+                            header = ByteArray(size.toInt()).also { data.get(it) }
+                        }
+                        "AOPUSDLY" -> {
+                            if (size != 8L || delay != null) return null
+                            delay = data.long
+                        }
+                    }
+                    data.position(end)
+                }
+            }
+            if (codecDelay != null) {
+                val separate = codecDelay.duplicate().order(ByteOrder.nativeOrder())
+                if (separate.remaining() != 8) return null
+                delay = separate.long
+            }
+            val bytes = header ?: return null
+            if (bytes.size < 19) return null
+            if (delay != null) {
+                // OpusHead uses 48-kHz samples even when the encoder's input rate differs.
+                if (delay < 0 || delay > 2_000_000_000L) return null
+                val skip = (delay * 48_000 + 500_000_000) / 1_000_000_000
+                if (skip > 65535) return null
+                bytes[10] = skip.toByte()
+                bytes[11] = (skip shr 8).toByte()
+            }
+            return decode(ByteBuffer.wrap(bytes))
+        }
+
         fun decode(buffer: ByteBuffer): OpusConfiguration? {
             val data = buffer.duplicate()
             if (data.remaining() < 19) return null

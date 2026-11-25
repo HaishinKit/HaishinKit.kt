@@ -5,6 +5,7 @@ import androidx.core.util.Pools
 import com.haishinkit.rtmp.RtmpChunk
 import com.haishinkit.rtmp.RtmpConnection
 import com.haishinkit.rtmp.RtmpMuxer
+import java.nio.BufferUnderflowException
 import java.nio.ByteBuffer
 
 internal class RtmpAudioMessage(
@@ -39,15 +40,16 @@ internal class RtmpAudioMessage(
     }
 
     override fun decode(buffer: ByteBuffer): RtmpMessage {
+        // The connection retries a TCP fragment from its RTMP chunk header on underflow.
+        if (length > buffer.remaining()) throw BufferUnderflowException()
         data = null
         fourCC = 0
         aacPacketType = -1
         codec = -1
         if (length <= 0 || !buffer.hasRemaining()) return this
-        val size = minOf(length, buffer.remaining())
+        val size = length
         val bytes = buffer.slice().apply { limit(size) }
         buffer.position(buffer.position() + size)
-        if (size != length) return this
         val first = bytes.get().toInt() and 255
         codec = (first shr 4).toByte()
         soundRate = ((first and 12) shr 2).toByte()

@@ -349,6 +349,7 @@ class RtmpStream(
      *
      * @param name The stream name, or `null` to send a close-stream request while publishing.
      * @param howToPublish The publishing mode; defaults to [HowToPublish.LIVE].
+     * @throws IllegalArgumentException If selected Opus settings or the installed encoder are unsupported.
      */
     fun publish(
         name: String?,
@@ -362,16 +363,21 @@ class RtmpStream(
 
         if (name == null) {
             when (readyState) {
-                ReadyState.PUBLISHING -> {
-                    muxer.endAudioPublishing()
-                    connection.doOutput(RtmpChunk.ZERO, message)
-                }
+                ReadyState.PUBLISHING -> connection.doOutput(RtmpChunk.ZERO, message)
                 else -> {}
             }
             return
         }
 
         this.howToPublish = howToPublish
+        if (audioSetting.mimeType == MediaFormat.MIMETYPE_AUDIO_OPUS) {
+            require(audioSetting.sampleRate in setOf(8000, 12000, 16000, 24000, 48000) && audioSetting.channelCount in 1..2) {
+                "Opus publishing requires mono/stereo PCM at 8/12/16/24/48 kHz; set audioSetting before publish"
+            }
+            require(CodecCapabilities.isCodecSupportedByType(Codec.MODE_ENCODE, MediaFormat.MIMETYPE_AUDIO_OPUS)) {
+                "No Opus encoder is available on this device"
+            }
+        }
         info.resourceName = name
 
         val arguments = mutableListOf<Any?>()
@@ -472,7 +478,6 @@ class RtmpStream(
         if (readyState == ReadyState.CLOSED) {
             return
         }
-        if (readyState == ReadyState.PUBLISHING) muxer.endAudioPublishing()
         val message = RtmpCommandMessage(RtmpObjectEncoding.AMF0)
         message.streamID = 0
         message.chunkStreamID = RtmpChunk.COMMAND
@@ -588,9 +593,20 @@ class RtmpStream(
                 }
                 MediaFormat.MIMETYPE_AUDIO_AAC -> {
                     if (data.remaining() < 2) return false
-                    val config = AudioSpecificConfig.decode(data.duplicate())
-                    if (config.channel.rawValue.toInt() !in 1..7 || config.type == AudioSpecificConfig.AudioObjectType.UNKNOWN) return false
-                    config.apply(audioCodec)
+                    // This helper only supplies hints; Android remains authoritative for
+                    // full ASC variants such as HE-AACv2 and program-config elements.
+                    val config =
+                        try {
+                            AudioSpecificConfig.decode(data.duplicate())
+                        } catch (_: NoSuchElementException) {
+                            null
+                        }
+                    if (config != null && config.channel.rawValue.toInt() in 1..7 && config.type != AudioSpecificConfig.AudioObjectType.UNKNOWN) {
+                        config.apply(audioCodec)
+                    } else {
+                        audioCodec.sampleRate = audioSetting.sampleRate
+                        audioCodec.channelCount = audioSetting.channelCount
+                    }
                     audioCodec.options = audioSetting.options.filterNot { it.key.startsWith("csd-") } + CodecOption("csd-0", data.duplicate())
                 }
                 else -> return false

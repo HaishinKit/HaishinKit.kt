@@ -18,6 +18,7 @@ import org.junit.After
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -66,7 +67,7 @@ class OpusStreamTest {
         Screen.factory = originalFactory
     }
 
-    @Test fun publishingSendsHeaderSlicedPacketsZeroTimelineAndEnd() {
+    @Test fun publishingSendsHeaderSlicedPacketsAndZeroTimeline() {
         val packets = capture()
         val format = MediaFormat.createAudioFormat(MediaFormat.MIMETYPE_AUDIO_OPUS, 48000, 2).apply { setByteBuffer("csd-0", header()) }
         stream.muxer.onFormatChanged(MediaFormat.MIMETYPE_AUDIO_OPUS, format)
@@ -81,11 +82,9 @@ class OpusStreamTest {
         assertArrayEquals(byteArrayOf(0x91.toByte(), 0x4f, 0x70, 0x75, 0x73, 0xf8.toByte(), 0xff.toByte(), 0xfe.toByte()), body(packets[1]))
         assertEquals(20, timestamp(packets[2]))
         assertEquals(0, encoded.position())
-        stream.muxer.endAudioPublishing()
-        assertArrayEquals(byteArrayOf(0x92.toByte(), 0x4f, 0x70, 0x75, 0x73), body(packets[3]))
         stream.muxer.clear()
         stream.muxer.onSampleOutput(MediaFormat.MIMETYPE_AUDIO_OPUS, 0, MediaCodec.BufferInfo().apply { set(0, 3, 0, 0) }, encoded)
-        assertEquals(4, packets.size)
+        assertEquals(3, packets.size)
     }
 
     @Test fun capabilitiesAndMetadataAdvertiseOpus() {
@@ -96,6 +95,81 @@ class OpusStreamTest {
         stream.audioSetting.mimeType = MediaFormat.MIMETYPE_AUDIO_OPUS
         val metadata = RtmpStream::class.java.getDeclaredMethod("toMetaData").apply { isAccessible = true }.invoke(stream) as Map<*, *>
         assertEquals(RtmpMuxer.FLV_AUDIO_FOUR_CC_OPUS, metadata["audiocodecid"])
+    }
+
+    @Test fun publishingUnwrapsAndroidCsdAndNormalizesItsDelay() {
+        val packets = capture()
+        val inner =
+            header().apply {
+                putShort(10, 104)
+                putInt(12, 16000)
+            }
+        val csd =
+            ByteBuffer.allocate(16 + inner.remaining() + 24).order(ByteOrder.LITTLE_ENDIAN).apply {
+                put("AOPUSHDR".toByteArray())
+                putLong(inner.remaining().toLong())
+                put(inner.duplicate())
+                put("AOPUSDLY".toByteArray())
+                putLong(8)
+                putLong(6_500_000)
+                flip()
+            }
+        val format = MediaFormat.createAudioFormat(MediaFormat.MIMETYPE_AUDIO_OPUS, 16000, 2).apply { setByteBuffer("csd-0", csd) }
+        stream.muxer.onFormatChanged(MediaFormat.MIMETYPE_AUDIO_OPUS, format)
+        assertEquals(1, packets.size)
+        val expected =
+            inner.array().copyOf().apply {
+                this[10] = 0x38
+                this[11] = 1
+            }
+        assertArrayEquals(byteArrayOf(0x90.toByte(), 0x4f, 0x70, 0x75, 0x73) + expected, body(packets.single()))
+        assertEquals(0, csd.position())
+    }
+
+    @Test fun unpublishingUsesTheNormalCloseCommandWithoutAnExtraAudioEndPacket() {
+        val packets = capture()
+        stream.readyState = RtmpStream.ReadyState.PUBLISHING
+        stream.muxer.onFormatChanged(
+            MediaFormat.MIMETYPE_AUDIO_OPUS,
+            MediaFormat.createAudioFormat(MediaFormat.MIMETYPE_AUDIO_OPUS, 48000, 2).apply { setByteBuffer("csd-0", header()) },
+        )
+        packets.clear()
+        stream.publish(null)
+        assertEquals(1, packets.size)
+        assertEquals(20, packets.single()[7].toInt()) // RTMP command, not an audio SequenceEnd.
+    }
+
+    @Test fun invalidOpusPublishingFailsBeforeTouchingTheConnection() {
+        val packets = capture()
+        stream.hasAudio = true
+        stream.audioSetting.mimeType = MediaFormat.MIMETYPE_AUDIO_OPUS
+        assertThrows(IllegalArgumentException::class.java) { stream.publish("invalid-rate") }
+        assertTrue(stream.connection.isConnected)
+        assertTrue(packets.isEmpty())
+        assertTrue(stream.messages.isEmpty())
+        stream.audioSetting.sampleRate = 48000
+        ShadowMediaCodecList.reset()
+        assertThrows(IllegalArgumentException::class.java) { stream.publish("missing-encoder") }
+        assertTrue(stream.connection.isConnected)
+        assertTrue(packets.isEmpty())
+    }
+
+    @Test fun nativeAacGetsTheCompleteHeAacV2AndProgramConfigHeaders() {
+        for (bytes in listOf(byteArrayOf(0xEB.toByte(), 0x8A.toByte(), 0x08, 0), byteArrayOf(0x12, 0, 0x05, 0x04, 0, 0, 0x20, 0))) {
+            val caps =
+                MediaCodecInfoBuilder.CodecCapabilitiesBuilder.newBuilder()
+                    .setMediaFormat(MediaFormat.createAudioFormat(MediaFormat.MIMETYPE_AUDIO_AAC, 44100, 2)).setIsEncoder(false).build()
+            ShadowMediaCodecList.addCodec(
+                MediaCodecInfoBuilder.newBuilder().setName("test.aac.decoder")
+                    .setIsEncoder(false).setCapabilities(caps).build(),
+            )
+            stream.readyState = RtmpStream.ReadyState.PLAY
+            codec.listener = null
+            assertTrue(stream.configureAudio(MediaFormat.MIMETYPE_AUDIO_AAC, ByteBuffer.wrap(bytes)))
+            val csd = codec.options.first { it.key == "csd-0" }.value as ByteBuffer
+            assertArrayEquals(bytes, csd.array())
+            codec.stopRunning()
+        }
     }
 
     @Test fun playbackConfiguresSharedAudioCodecAndRejectsChangingSequence() {

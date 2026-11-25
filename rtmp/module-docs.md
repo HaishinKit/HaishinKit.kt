@@ -114,6 +114,9 @@ stream.audioSetting.channelCount = 2
 The audio source must provide matching 16-bit PCM. Supported encoder input rates are
 8, 12, 16, 24 and 48 kHz; AAC remains the default. Opus publishes `OpusHead` from the
 encoder's configuration, followed by compressed packets with the `Opus` FourCC.
+Android's encoder CSD wrapper is removed and its codec delay is converted to
+48-kHz pre-skip units before publication. Invalid Opus rates/channels or a missing
+encoder are rejected synchronously by `publish`, before a request is queued.
 `audiocodecid` metadata uses the numeric FourCC value.
 
 Playback uses the normal `RtmpStream.play` flow without receiver encoder settings.

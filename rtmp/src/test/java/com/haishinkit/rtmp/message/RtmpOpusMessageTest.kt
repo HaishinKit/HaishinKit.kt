@@ -92,6 +92,48 @@ class RtmpOpusMessageTest {
         assertArrayEquals(byteArrayOf(1, 2, 3), decoded.data!!.array())
     }
 
+    @Test fun encoderCsdBoundsAndDelayUnitsAreValidated() {
+        val nanoseconds = ByteBuffer.allocate(8).order(ByteOrder.nativeOrder()).putLong(6_500_000).apply { flip() }
+        for (size in 0 until 19) {
+            assertNull(OpusConfiguration.fromEncoderCsd(ByteBuffer.wrap(header().copyOf(size)), nanoseconds))
+        }
+        for (rate in listOf(8000, 12000, 16000, 24000, 48000)) {
+            val inputSkip = rate * 65 / 10000
+            val raw =
+                ByteBuffer.wrap(header()).order(ByteOrder.LITTLE_ENDIAN).apply {
+                    putShort(10, inputSkip.toShort())
+                    putInt(12, rate)
+                }
+            val csd =
+                ByteBuffer.allocate(16 + raw.remaining() + 24).order(ByteOrder.LITTLE_ENDIAN).apply {
+                    put("AOPUSHDR".toByteArray())
+                    putLong(raw.remaining().toLong())
+                    put(raw.duplicate())
+                    put("AOPUSDLY".toByteArray())
+                    putLong(8)
+                    putLong(6_500_000)
+                    flip()
+                }
+            assertEquals(312, OpusConfiguration.fromEncoderCsd(csd)!!.preSkip)
+            assertEquals(inputSkip, OpusConfiguration.decode(raw)!!.preSkip)
+            assertEquals(312, OpusConfiguration.fromEncoderCsd(raw, nanoseconds)!!.preSkip)
+        }
+        for (size in listOf(-1L, 18L, Long.MAX_VALUE)) {
+            val csd =
+                ByteBuffer.allocate(35).order(ByteOrder.LITTLE_ENDIAN).apply {
+                    put("AOPUSHDR".toByteArray())
+                    putLong(size)
+                    put(header())
+                    flip()
+                }
+            assertNull(OpusConfiguration.fromEncoderCsd(csd))
+        }
+        for (delay in listOf(-1L, Long.MAX_VALUE, 2_000_000_000L)) {
+            val invalid = ByteBuffer.allocate(8).order(ByteOrder.nativeOrder()).putLong(delay).apply { flip() }
+            assertNull(OpusConfiguration.fromEncoderCsd(ByteBuffer.wrap(header()), invalid))
+        }
+    }
+
     @Test fun encoderMimeSettingIsExplicitAndValidatesUnsupportedFormats() {
         val codec = AudioCodec()
         val settings = AudioCodec.Setting(codec)

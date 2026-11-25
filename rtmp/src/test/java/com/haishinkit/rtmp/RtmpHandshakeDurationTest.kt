@@ -4,7 +4,9 @@ import com.haishinkit.net.NetSocket
 import com.haishinkit.net.NetSocketImpl
 import com.haishinkit.rtmp.event.Event
 import com.haishinkit.rtmp.event.IEventListener
+import com.haishinkit.rtmp.message.RtmpAudioMessage
 import com.haishinkit.rtmp.message.RtmpCommandMessage
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
@@ -21,6 +23,39 @@ import java.util.concurrent.TimeUnit
 @RunWith(RobolectricTestRunner::class)
 @Config(manifest = Config.NONE, sdk = [28])
 class RtmpHandshakeDurationTest {
+    @Test fun audioPayloadSplitAcrossReadsRetriesFromTheChunkHeader() {
+        val opus =
+            ByteBuffer.allocate(24).put(0x90.toByte()).put("Opus".toByteArray()).put("OpusHead".toByteArray())
+                .put(byteArrayOf(1, 2, 0, 0, 0x80.toByte(), 0xBB.toByte(), 0, 0, 0, 0, 0)).array()
+        for (payload in listOf(byteArrayOf(0xAF.toByte(), 1, 1), opus)) {
+            for (split in 13 until 12 + payload.size) {
+                val connection = RtmpConnection()
+                val listener = startHandshake(connection.socket)
+                listener.onInput(ByteBuffer.allocate(1 + 2 * RtmpHandshake.SIGNAL_SIZE))
+                val wire =
+                    ByteBuffer.allocate(12 + payload.size + 16).apply {
+                        putInt(4 shl 24)
+                        putInt((payload.size shl 8) or 8)
+                        putInt(0)
+                        put(payload)
+                        putInt(2 shl 24)
+                        putInt((4 shl 8) or 1)
+                        putInt(0)
+                        putInt(4096)
+                        flip()
+                    }
+                val partial = ByteBuffer.wrap(wire.array().copyOf(split))
+                listener.onInput(partial)
+                assertEquals("Incomplete audio must leave the RTMP header buffered", 0, partial.position())
+                listener.onInput(wire)
+                assertEquals(4096, connection.socket.chunkSizeC)
+                val message = connection.messages[4] as RtmpAudioMessage
+                assertArrayEquals(payload.copyOfRange(message.headerSize, payload.size), message.data!!.array())
+                connection.close()
+            }
+        }
+    }
+
     @Test
     fun durationIsAvailableOnlyAfterReceivingFullS2() {
         val connection = RtmpConnection()

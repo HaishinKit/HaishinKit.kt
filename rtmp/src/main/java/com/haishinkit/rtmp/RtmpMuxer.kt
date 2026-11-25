@@ -80,21 +80,6 @@ internal class RtmpMuxer(
         videoBufferController.clear()
     }
 
-    fun endAudioPublishing() {
-        if (!opusConfigurationSent) return
-        stream.doOutput(
-            RtmpChunk.ONE,
-            stream.messageFactory.createRtmpAudioMessage().apply {
-                codec = FLV_AUDIO_CODEC_EX_HEADER
-                fourCC = FLV_AUDIO_FOUR_CC_OPUS
-                aacPacketType = FLV_AUDIO_PACKET_TYPE_SEQUENCE_END
-                chunkStreamID = RtmpChunk.AUDIO
-                streamID = stream.id
-            },
-        )
-        opusConfigurationSent = false
-    }
-
     override fun onInputBufferAvailable(
         mime: String,
         codec: MediaCodec,
@@ -237,7 +222,10 @@ internal class RtmpMuxer(
             }
             MediaFormat.MIMETYPE_AUDIO_OPUS -> {
                 if (opusConfigurationSent) return
-                val config = mediaFormat.getByteBuffer(CSD0)?.let { OpusConfiguration.decode(it) } ?: return
+                val config =
+                    mediaFormat.getByteBuffer(CSD0)?.let {
+                        OpusConfiguration.fromEncoderCsd(it, mediaFormat.getByteBuffer("csd-1"))
+                    } ?: return
                 stream.doOutput(
                     RtmpChunk.ZERO,
                     stream.messageFactory.createRtmpAudioMessage().apply {
