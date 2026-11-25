@@ -88,6 +88,16 @@ lane :document do |options|
   docs = File.join(source, 'docs')
   UI.user_error!('Generated documentation is missing') unless File.file?(File.join(docs, 'index.html'))
 
+  # Dokka keeps the README's relative screenshot links but does not copy the images.
+  # Use the release checkout so a republish keeps that release's screenshots.
+  screenshot_path = File.join('app', 'design', 'screenshots')
+  screenshots = Dir.glob(File.join(source, screenshot_path, '*.png'))
+  unless screenshots.empty?
+    target = File.join(docs, screenshot_path)
+    FileUtils.mkdir_p(target)
+    FileUtils.cp(screenshots, target)
+  end
+
   Dir.mktmpdir('haishinkit-documentation-') do |directory|
     repository = File.join(directory, 'site')
     sh('git', 'clone', 'git@github.com:HaishinKit/docs.haishinkit.com.git', repository)
