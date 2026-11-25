@@ -3,6 +3,7 @@ package com.haishinkit.rtmp
 import android.content.Context
 import android.graphics.Bitmap
 import android.media.MediaCodec
+import android.media.MediaCodecInfo
 import android.media.MediaFormat
 import com.haishinkit.codec.AudioCodec
 import com.haishinkit.media.BufferController
@@ -275,6 +276,47 @@ class OpusStreamTest {
         assertEquals(MediaCodec.BUFFER_FLAG_CODEC_CONFIG, config.toFlags())
         assertArrayEquals(byteArrayOf(1, 2), frame.data!!.array())
         assertEquals(0, frame.toFlags())
+    }
+
+    @Test fun audioReceiveClockSurvivesSignedAndUnsigned32BitBoundaries() {
+        stream.readyState = RtmpStream.ReadyState.PLAY
+        codec.listener = null
+        assertTrue(stream.configureAudio(MediaFormat.MIMETYPE_AUDIO_OPUS, header()))
+        val packet = RtmpAudioMessage()
+        val raw = byteArrayOf(0x91.toByte(), 0x4f, 0x70, 0x75, 0x73, 0xf8.toByte(), 0xff.toByte(), 0xfe.toByte())
+        decode(packet, raw, 0x7FFF_FFF0, RtmpChunk.ZERO)
+        decode(packet, raw, 20, RtmpChunk.ONE)
+        assertEquals(listOf(2_147_483_632_000L, 2_147_483_652_000L), queued().map { it.presentationTimeUs })
+        queued().clear()
+        // A fresh receive clock must accept the full unsigned first absolute time.
+        stream.close()
+        stream.readyState = RtmpStream.ReadyState.PLAY
+        codec.listener = null
+        assertTrue(stream.configureAudio(MediaFormat.MIMETYPE_AUDIO_OPUS, header()))
+        decode(packet, raw, 0xFFFF_FFF0.toInt(), RtmpChunk.ZERO)
+        decode(packet, raw, 4, RtmpChunk.ZERO)
+        decode(packet, raw, 20, RtmpChunk.TWO)
+        assertEquals(listOf(4_294_967_280_000L, 4_294_967_300_000L, 4_294_967_320_000L), queued().map { it.presentationTimeUs })
+    }
+
+    @Test fun aacPlaybackDoesNotChangeTheNextEncoderProfile() {
+        val caps =
+            MediaCodecInfoBuilder.CodecCapabilitiesBuilder.newBuilder()
+                .setMediaFormat(MediaFormat.createAudioFormat(MediaFormat.MIMETYPE_AUDIO_AAC, 44100, 2)).setIsEncoder(false).build()
+        ShadowMediaCodecList.addCodec(
+            MediaCodecInfoBuilder.newBuilder().setName("test.aac.decoder")
+                .setIsEncoder(false).setCapabilities(caps).build(),
+        )
+        stream.readyState = RtmpStream.ReadyState.PLAY
+        codec.listener = null
+        assertTrue(stream.configureAudio(MediaFormat.MIMETYPE_AUDIO_AAC, ByteBuffer.wrap(byteArrayOf(0x0A, 0x10))))
+        assertEquals(MediaCodecInfo.CodecProfileLevel.AACObjectLC, codec.aacProfile)
+        stream.close()
+        codec.mode = com.haishinkit.codec.Codec.MODE_ENCODE
+        val format =
+            AudioCodec::class.java.getDeclaredMethod("createMediaFormat", String::class.java)
+                .apply { isAccessible = true }.invoke(codec, MediaFormat.MIMETYPE_AUDIO_AAC) as MediaFormat
+        assertEquals(MediaCodecInfo.CodecProfileLevel.AACObjectLC, format.getInteger(MediaFormat.KEY_AAC_PROFILE))
     }
 
     private fun capture(): MutableList<ByteArray> {

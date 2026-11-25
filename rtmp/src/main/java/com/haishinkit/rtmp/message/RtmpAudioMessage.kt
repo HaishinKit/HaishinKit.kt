@@ -3,6 +3,7 @@ package com.haishinkit.rtmp.message
 import android.media.MediaCodec
 import android.media.MediaFormat
 import androidx.core.util.Pools
+import com.haishinkit.media.BufferController
 import com.haishinkit.rtmp.RtmpChunk
 import com.haishinkit.rtmp.RtmpConnection
 import com.haishinkit.rtmp.RtmpMuxer
@@ -71,8 +72,20 @@ internal class RtmpAudioMessage(
 
     override fun execute(connection: RtmpConnection): RtmpMessage {
         val stream = connection.streams[streamID] ?: return this
-        val absolute = if (chunk == RtmpChunk.ZERO) timestamp else stream.audioTimestamp + timestamp
-        val delta = absolute - stream.audioTimestamp
+        val previous = stream.audioTimestamp
+        val raw = timestamp.toLong() and 0xFFFF_FFFFL
+        val absolute =
+            if (chunk == RtmpChunk.ZERO && previous != null) {
+                var difference = raw - (previous and 0xFFFF_FFFFL)
+                if (difference < -0x8000_0000L) difference += 0x1_0000_0000L
+                if (difference > 0x8000_0000L) difference -= 0x1_0000_0000L
+                previous + difference
+            } else if (chunk == RtmpChunk.ZERO) {
+                raw
+            } else {
+                (previous ?: 0L) + raw
+            }
+        val delta = absolute - (previous ?: 0L)
         stream.audioTimestamp = absolute
         val mime =
             when {
@@ -91,7 +104,7 @@ internal class RtmpAudioMessage(
                             it.codec = codec
                             it.aacPacketType = RtmpMuxer.FLV_AAC_PACKET_TYPE_SEQ
                             it.data = payload.duplicate()
-                            it.presentationTimeUs = absolute.toLong() * 1000
+                            it.presentationTimeUs = absolute * 1000
                         },
                     )
                 }
@@ -105,8 +118,10 @@ internal class RtmpAudioMessage(
                         it.codec = codec
                         it.aacPacketType = aacPacketType
                         it.fourCC = fourCC
-                        it.timestamp = delta
-                        it.presentationTimeUs = absolute.toLong() * 1000
+                        // Buffer accounting only needs to reach the startup threshold;
+                        // large timestamp gaps belong to the independent Long decoder PTS.
+                        it.timestamp = delta.coerceAtMost(BufferController.DEFAULT_BUFFER_TIME.toLong()).toInt()
+                        it.presentationTimeUs = absolute * 1000
                         it.data = payload.duplicate()
                     }
                 stream.muxer.enqueueAudio(snapshot)

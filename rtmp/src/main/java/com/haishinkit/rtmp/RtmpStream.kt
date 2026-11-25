@@ -251,7 +251,7 @@ class RtmpStream(
             when (field) {
                 ReadyState.PLAYING -> {
                     videoTimestamp = DEFAULT_TIMESTAMP
-                    audioTimestamp = DEFAULT_TIMESTAMP
+                    audioTimestamp = null
                     muxer.clear()
                 }
 
@@ -305,7 +305,7 @@ class RtmpStream(
     internal var frameCount = AtomicInteger(0)
     internal var messageFactory = RtmpMessageFactory(4)
     internal var videoTimestamp = DEFAULT_TIMESTAMP
-    internal var audioTimestamp = DEFAULT_TIMESTAMP
+    internal var audioTimestamp: Long? = null
     internal val inputVideoMimeType: String
         get() = videoCodec.inputMimeType
 
@@ -530,6 +530,7 @@ class RtmpStream(
     override fun startRunning() {
         if (isRunning.get()) return
         muxer.clear()
+        audioTimestamp = null
         audioConfiguration = null
         audioConfigurationAccepted = false
         audioSequenceEnded = false
@@ -612,7 +613,9 @@ class RtmpStream(
                             null
                         }
                     if (config != null && config.channel.rawValue.toInt() in 1..7 && config.type != AudioSpecificConfig.AudioObjectType.UNKNOWN) {
-                        config.apply(audioCodec)
+                        // Decode hints must not overwrite the encoder-only AAC profile.
+                        audioCodec.sampleRate = config.frequency.int
+                        audioCodec.channelCount = if (config.channel.rawValue.toInt() == 7) 8 else config.channel.rawValue.toInt()
                     } else {
                         audioCodec.sampleRate = audioSetting.sampleRate
                         audioCodec.channelCount = audioSetting.channelCount
