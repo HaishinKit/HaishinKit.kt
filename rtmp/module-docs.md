@@ -22,7 +22,7 @@ numeric FourCC in `audiocodecid`. H.264 and AAC retain their legacy numeric IDs.
 | --- | --- | --- |
 | HEVC | ☑️ | ☑️ |
 | VP9 | ☑️ | ☑️ |
-| AV1 | — | ☑️ |
+| AV1 | ☑️ | ☑️ |
 
 | Other features | Status |
 | --- | --- |
@@ -32,13 +32,22 @@ numeric FourCC in `audiocodecid`. H.264 and AAC retain their legacy numeric IDs.
 
 ☑️ Supported · — Not implemented. Codec availability also depends on the device.
 
-### AV1 playback
+### AV1 publishing and playback
+
+AV1 publishing uses Enhanced RTMP (`av01`) and an installed Android `MediaCodec`
+encoder. It requires Android 10 or later, an available AV1 encoder, and server support
+for Enhanced RTMP AV1. Select a supported AV1 profile before publishing, for example:
+
+```kotlin
+stream.videoSetting.profileLevel = VideoCodecProfileLevel.AV1_MAIN8_3_1
+```
+
+The encoder must support the requested profile, level, resolution and rate.
 
 AV1 playback uses Enhanced RTMP (`av01`) and the device's built-in Android decoder.
 It requires Android 10 or later, an available AV1 decoder, and an Enhanced RTMP server
 such as MediaMTX. No additional software codec is bundled. Use the normal
 [RtmpStream.play][com.haishinkit.rtmp.RtmpStream.play] API; codec selection follows the received stream.
-AV1 publishing is not implemented by this change.
 
 AV1 playback waits up to five seconds for the renderer's initial output surface. Changing
 to or from AV1, or changing its decoder configuration during playback, is rejected and logged.
