@@ -27,14 +27,14 @@ numeric FourCC in `audiocodecid`. H.264 and AAC retain their legacy numeric IDs.
 
 | Video codec | Publishing | Playback |
 | --- | --- | --- |
-| HEVC (since 0.13.4) | ☑️ | ☑️ |
+| HEVC | ☑️ | ☑️ |
 | VP9 | ☑️ | ☑️ |
 | AV1 | — | ☑️ |
 
 | Other features | Status |
 | --- | --- |
 | Enhancing onMetaData | ☑️ |
-| Extending NetConnection connect Command | — |
+| Extending NetConnection connect Command (`fourCcList`) | ☑️ |
 | Metadata Frame | — |
 
 ### AV1 playback
@@ -96,7 +96,13 @@ are accepted. This does not add SRT/TS codec support or a new HDR publishing pip
 | Enhancing onMetaData | ☑️ |
 | Reconnect Request | — |
 | Multitrack Streaming via Enhanced RTMP | — |
-| Enhancing NetConnection connect Command | — |
+| Enhancing NetConnection connect Command (`fourCcList`, Opus `audioFourCcInfoMap`) | ☑️ |
+
+The connect command advertises installed HEVC, VP8, VP9 and AV1 decoders through
+`fourCcList`. For Opus, it also sends `audioFourCcInfoMap` with the available
+decode/encode flags, and adds `Opus` to `fourCcList` when either capability is available.
+`videoFourCcInfoMap` and `capsEx` are not sent; this does not claim support for
+reconnection, multitrack streaming or the other optional v2 capabilities.
 
 ### Opus publishing and playback
 
