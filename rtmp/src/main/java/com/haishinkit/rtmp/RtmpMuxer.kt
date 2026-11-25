@@ -13,6 +13,7 @@ import com.haishinkit.metrics.FrameTracker
 import com.haishinkit.rtmp.event.Event
 import com.haishinkit.rtmp.iso.AvcDecoderConfigurationRecord
 import com.haishinkit.rtmp.iso.DecoderConfigurationRecord
+import com.haishinkit.rtmp.iso.OpusConfiguration
 import com.haishinkit.rtmp.iso.VpDecoderConfigurationRecord
 import com.haishinkit.rtmp.message.RtmpAudioMessage
 import com.haishinkit.rtmp.message.RtmpVideoMessage
@@ -34,6 +35,10 @@ internal class RtmpMuxer(
             field = value
         }
     private var audioTimestamp = 0L
+    private var audioTimestampInitialized = false
+
+    @Volatile
+    private var opusConfigurationSent = false
     private var videoTimestamp = 0L
     private var frameTracker: FrameTracker? = null
         get() {
@@ -67,10 +72,27 @@ internal class RtmpMuxer(
     fun clear() {
         vpxConfigurationSent = false
         audioTimestamp = 0L
+        audioTimestampInitialized = false
+        opusConfigurationSent = false
         videoTimestamp = 0L
         frameTracker?.clear()
         audioBufferController.clear()
         videoBufferController.clear()
+    }
+
+    fun endAudioPublishing() {
+        if (!opusConfigurationSent) return
+        stream.doOutput(
+            RtmpChunk.ONE,
+            stream.messageFactory.createRtmpAudioMessage().apply {
+                codec = FLV_AUDIO_CODEC_EX_HEADER
+                fourCC = FLV_AUDIO_FOUR_CC_OPUS
+                aacPacketType = FLV_AUDIO_PACKET_TYPE_SEQUENCE_END
+                chunkStreamID = RtmpChunk.AUDIO
+                streamID = stream.id
+            },
+        )
+        opusConfigurationSent = false
     }
 
     override fun onInputBufferAvailable(
@@ -107,12 +129,14 @@ internal class RtmpMuxer(
                     val message = audioBufferController.take()
                     audioBufferController.consume(message.timestamp)
                     stream.withInputBuffer(MediaType.AUDIO, codec, index) { inputBuffer ->
-                        message.data?.let {
-                            it.position(1)
-                            inputBuffer.put(it)
+                        val data = message.data?.duplicate()
+                        if (data != null && data.remaining() <= inputBuffer.remaining()) {
+                            inputBuffer.put(data)
+                            codec.queueInputBuffer(index, 0, inputBuffer.position(), message.presentationTimeUs, 0)
+                        } else {
+                            Log.w(TAG, "Audio input buffer too small; dropping packet")
+                            codec.queueInputBuffer(index, 0, 0, message.presentationTimeUs, 0)
                         }
-                        audioTimestamp += message.timestamp * 1000
-                        codec.queueInputBuffer(index, 0, message.length - 2, audioTimestamp, message.toFlags())
                     }
                 }
             }
@@ -210,6 +234,23 @@ internal class RtmpMuxer(
                         timestamp = 0
                     },
                 )
+            }
+            MediaFormat.MIMETYPE_AUDIO_OPUS -> {
+                if (opusConfigurationSent) return
+                val config = mediaFormat.getByteBuffer(CSD0)?.let { OpusConfiguration.decode(it) } ?: return
+                stream.doOutput(
+                    RtmpChunk.ZERO,
+                    stream.messageFactory.createRtmpAudioMessage().apply {
+                        codec = FLV_AUDIO_CODEC_EX_HEADER
+                        fourCC = FLV_AUDIO_FOUR_CC_OPUS
+                        aacPacketType = FLV_AAC_PACKET_TYPE_SEQ
+                        data = config.toByteBuffer()
+                        chunkStreamID = RtmpChunk.AUDIO
+                        streamID = stream.id
+                        timestamp = 0
+                    },
+                )
+                opusConfigurationSent = true
             }
         }
     }
@@ -353,28 +394,38 @@ internal class RtmpMuxer(
                 return false
             }
 
-            MediaFormat.MIMETYPE_AUDIO_AAC -> {
+            MediaFormat.MIMETYPE_AUDIO_AAC, MediaFormat.MIMETYPE_AUDIO_OPUS -> {
                 if (info.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG != 0) {
                     return true
                 }
+                if (mime == MediaFormat.MIMETYPE_AUDIO_OPUS && !opusConfigurationSent) return true
+                if (info.offset < 0 || info.size <= 0 || info.size > buffer.capacity() - info.offset) return true
+                val codedBuffer =
+                    buffer.duplicate().apply {
+                        limit(info.offset + info.size)
+                        position(info.offset)
+                    }.slice()
                 frameTracker?.track(FrameTracker.TYPE_AUDIO, SystemClock.uptimeMillis())
-                if (audioTimestamp == 0L) {
+                if (!audioTimestampInitialized) {
                     audioTimestamp = info.presentationTimeUs
+                    audioTimestampInitialized = true
                 }
-                val timestamp = (info.presentationTimeUs - audioTimestamp).toInt()
+                val timestamp = (info.presentationTimeUs - audioTimestamp) / 1000
+                if (timestamp < 0 || timestamp > Int.MAX_VALUE) return true
                 val audio = stream.messageFactory.createRtmpAudioMessage()
                 stream.doOutput(
                     RtmpChunk.ONE,
                     audio.apply {
-                        codec = FLV_AUDIO_CODEC_AAC
+                        codec = if (mime == MediaFormat.MIMETYPE_AUDIO_OPUS) FLV_AUDIO_CODEC_EX_HEADER else FLV_AUDIO_CODEC_AAC
+                        fourCC = if (mime == MediaFormat.MIMETYPE_AUDIO_OPUS) FLV_AUDIO_FOUR_CC_OPUS else 0
                         aacPacketType = FLV_AAC_PACKET_TYPE_RAW
-                        data = buffer
+                        data = codedBuffer
                         chunkStreamID = RtmpChunk.AUDIO
-                        this.timestamp = timestamp / 1000
+                        this.timestamp = timestamp.toInt()
                         streamID = stream.id
                     },
                 )
-                audioTimestamp += audio.timestamp * 1000
+                audioTimestamp += audio.timestamp.toLong() * 1000
                 return true
             }
         }
@@ -408,6 +459,9 @@ internal class RtmpMuxer(
         const val CSD0 = "csd-0"
         const val FLV_AAC_PACKET_TYPE_SEQ: Byte = 0x00
         const val FLV_AAC_PACKET_TYPE_RAW: Byte = 0x01
+        const val FLV_AUDIO_PACKET_TYPE_SEQUENCE_END: Byte = 0x02
+        const val FLV_AUDIO_CODEC_EX_HEADER: Byte = 0x09
+        const val FLV_AUDIO_FOUR_CC_OPUS = 0x4F707573
 
         const val FLV_FRAME_TYPE_KEY: Byte = 0x01
         const val FLV_FRAME_TYPE_INTER: Byte = 0x02

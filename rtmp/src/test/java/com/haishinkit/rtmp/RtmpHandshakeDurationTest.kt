@@ -130,6 +130,15 @@ class RtmpHandshakeDurationTest {
     fun playbackBufferListenerCanWaitForCloseOnAnotherThread() {
         val connection = RtmpConnection()
         val stream = RtmpStream(RuntimeEnvironment.getApplication(), connection)
+        val audioCodec =
+            com.haishinkit.stream.Stream::class.java.getDeclaredMethod("getAudioCodec")
+                .apply { isAccessible = true }.invoke(stream) as com.haishinkit.codec.AudioCodec
+        // This test exercises callback locking, with an already accepted AAC decoder.
+        com.haishinkit.stream.Stream::class.java.getDeclaredMethod("setMode", Int::class.javaPrimitiveType)
+            .apply { isAccessible = true }.invoke(stream, com.haishinkit.codec.Codec.MODE_DECODE)
+        audioCodec.isRunning.set(true)
+        audioCodec.inputMimeType = android.media.MediaFormat.MIMETYPE_AUDIO_AAC
+        RtmpStream::class.java.getDeclaredField("audioConfigurationAccepted").apply { isAccessible = true }.setBoolean(stream, true)
         val executor = Executors.newSingleThreadExecutor()
         var notified = false
         try {
@@ -152,12 +161,13 @@ class RtmpHandshakeDurationTest {
             input.putInt((4 shl 24) or 300) // Type-0 audio chunk, 300 ms timestamp.
             input.putInt((3 shl 8) or 8) // Three-byte audio message.
             input.put(byteArrayOf(1, 0, 0, 0)) // Little-endian stream ID.
-            input.put(byteArrayOf(0xaf.toByte(), 1, 0)) // Raw AAC data; no decoder setup.
+            input.put(byteArrayOf(0xaf.toByte(), 1, 0)) // Raw AAC data for the accepted decoder.
             input.flip()
             listener.onInput(input)
             assertTrue(notified)
             assertEquals(false, connection.isConnected)
         } finally {
+            audioCodec.isRunning.set(false)
             executor.shutdownNow()
             connection.close()
             stream.dispose()

@@ -8,6 +8,8 @@ import android.media.MediaFormat
 import android.util.Log
 import android.util.Size
 import com.haishinkit.codec.Codec
+import com.haishinkit.codec.CodecCapabilities
+import com.haishinkit.codec.CodecOption
 import com.haishinkit.media.MediaType
 import com.haishinkit.media.source.VideoCodecSource
 import com.haishinkit.rtmp.event.Event
@@ -15,7 +17,9 @@ import com.haishinkit.rtmp.event.EventDispatcher
 import com.haishinkit.rtmp.event.EventUtils
 import com.haishinkit.rtmp.event.IEventDispatcher
 import com.haishinkit.rtmp.event.IEventListener
+import com.haishinkit.rtmp.iso.AudioSpecificConfig
 import com.haishinkit.rtmp.iso.DecoderConfigurationRecord
+import com.haishinkit.rtmp.iso.OpusConfiguration
 import com.haishinkit.rtmp.iso.VpDecoderConfigurationRecord
 import com.haishinkit.rtmp.message.RtmpCommandMessage
 import com.haishinkit.rtmp.message.RtmpDataMessage
@@ -316,6 +320,11 @@ class RtmpStream(
     }
     private var playbackVideoSource: VideoCodecSource? = null
     private var videoConfiguration: ByteBuffer? = null
+    private var audioConfiguration: ByteBuffer? = null
+    private var audioSequenceEnded = false
+
+    @Volatile
+    private var audioConfigurationAccepted = false
     private var pendingVpConfiguration: VpDecoderConfigurationRecord? = null
 
     @Volatile
@@ -353,7 +362,10 @@ class RtmpStream(
 
         if (name == null) {
             when (readyState) {
-                ReadyState.PUBLISHING -> connection.doOutput(RtmpChunk.ZERO, message)
+                ReadyState.PUBLISHING -> {
+                    muxer.endAudioPublishing()
+                    connection.doOutput(RtmpChunk.ZERO, message)
+                }
                 else -> {}
             }
             return
@@ -460,6 +472,7 @@ class RtmpStream(
         if (readyState == ReadyState.CLOSED) {
             return
         }
+        if (readyState == ReadyState.PUBLISHING) muxer.endAudioPublishing()
         val message = RtmpCommandMessage(RtmpObjectEncoding.AMF0)
         message.streamID = 0
         message.chunkStreamID = RtmpChunk.COMMAND
@@ -509,6 +522,17 @@ class RtmpStream(
     override fun startRunning() {
         if (isRunning.get()) return
         muxer.clear()
+        audioConfiguration = null
+        audioConfigurationAccepted = false
+        audioSequenceEnded = false
+        audioCodec.options = audioSetting.options
+        if (mode == Codec.MODE_ENCODE) {
+            audioCodec.inputMimeType = MediaFormat.MIMETYPE_AUDIO_RAW
+            audioCodec.outputMimeType = audioSetting.mimeType
+            audioCodec.sampleRate = audioSetting.sampleRate
+            audioCodec.channelCount = audioSetting.channelCount
+            audioCodec.bitRate = audioSetting.bitRate
+        }
         videoConfiguration = null
         pendingVpConfiguration = null
         videoConfigurationAccepted = false
@@ -520,14 +544,74 @@ class RtmpStream(
     @Synchronized
     override fun stopRunning() {
         super.stopRunning()
+        audioConfigurationAccepted = false
+        audioCodec.options = audioSetting.options
         pendingVpConfiguration = null
         videoCodec.options = videoSetting.options
     }
 
-    internal fun configure(inputMimeType: String) {
-        audioCodec.inputMimeType = MediaFormat.MIMETYPE_AUDIO_AAC
-        audioCodec.startRunning()
-        hasAudio = true
+    internal fun canReceiveAudio(mime: String): Boolean =
+        audioConfigurationAccepted && mode == Codec.MODE_DECODE && audioCodec.isRunning.get() && audioCodec.inputMimeType == mime
+
+    internal fun invalidateAudioConfiguration() {
+        audioConfigurationAccepted = false
+    }
+
+    internal fun endAudioSequence() {
+        audioConfigurationAccepted = false
+        audioSequenceEnded = true
+    }
+
+    @Synchronized
+    internal fun configureAudio(
+        mime: String,
+        payload: ByteBuffer,
+    ): Boolean {
+        if (mode != Codec.MODE_DECODE || !isRunning.get()) return false
+        if (!CodecCapabilities.isCodecSupportedByType(Codec.MODE_DECODE, mime)) return false
+        val data =
+            ByteBuffer.allocate(payload.remaining()).apply {
+                put(payload.duplicate())
+                flip()
+            }
+        if (audioCodec.isRunning.get()) {
+            audioConfigurationAccepted = !audioSequenceEnded && audioCodec.inputMimeType == mime && data == audioConfiguration
+            if (!audioConfigurationAccepted) Log.w(TAG, "Close playback before changing the audio codec or sequence")
+            return audioConfigurationAccepted
+        }
+        try {
+            audioCodec.options = audioSetting.options
+            when (mime) {
+                MediaFormat.MIMETYPE_AUDIO_OPUS -> {
+                    val config = OpusConfiguration.decode(data) ?: return false
+                    config.apply(audioCodec)
+                }
+                MediaFormat.MIMETYPE_AUDIO_AAC -> {
+                    if (data.remaining() < 2) return false
+                    val config = AudioSpecificConfig.decode(data.duplicate())
+                    if (config.channel.rawValue.toInt() !in 1..7 || config.type == AudioSpecificConfig.AudioObjectType.UNKNOWN) return false
+                    config.apply(audioCodec)
+                    audioCodec.options = audioSetting.options.filterNot { it.key.startsWith("csd-") } + CodecOption("csd-0", data.duplicate())
+                }
+                else -> return false
+            }
+            audioCodec.inputMimeType = mime
+            audioCodec.outputMimeType = MediaFormat.MIMETYPE_AUDIO_RAW
+            audioCodec.startRunning()
+            if (!audioCodec.isRunning.get()) {
+                runCatching { audioCodec.dispose() }
+                return false
+            }
+            audioConfiguration = data
+            audioConfigurationAccepted = true
+            hasAudio = true
+            return true
+        } catch (cause: Exception) {
+            if (cause !is IllegalArgumentException && cause !is IllegalStateException && cause !is NoSuchElementException && cause !is IOException) throw cause
+            Log.w(TAG, "Audio decoder rejected the configuration", cause)
+            runCatching { audioCodec.dispose() }
+            return false
+        }
     }
 
     internal fun isVideoCodecSwitch(mime: String): Boolean =
@@ -697,7 +781,7 @@ class RtmpStream(
             metadata["videodatarate"] = videoCodec.bitRate / 1000
         }
         if (hasAudio) {
-            metadata["audiocodecid"] = RtmpMuxer.FLV_AUDIO_CODEC_AAC.toInt()
+            metadata["audiocodecid"] = if (audioCodec.outputMimeType == MediaFormat.MIMETYPE_AUDIO_OPUS) RtmpMuxer.FLV_AUDIO_FOUR_CC_OPUS else RtmpMuxer.FLV_AUDIO_CODEC_AAC.toInt()
             metadata["audiodatarate"] = audioCodec.bitRate / 1000
         }
         return metadata

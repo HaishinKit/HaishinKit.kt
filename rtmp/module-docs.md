@@ -90,4 +90,39 @@ are accepted. This does not add SRT/TS codec support or a new HDR publishing pip
         - [x] VP8
         - [ ] AV1(HDR)
 - [ ] Multitrack Streaming via Enhanced RTMP
+- [ ] Enhanced Audio
+    - [x] Opus publishing (mono/stereo)
+    - [x] Opus playback (mono/stereo)
 - [ ] Enhancing NetConnection connect Command
+
+### Opus publishing and playback
+
+Both directions use the shared [AudioCodec][com.haishinkit.codec.AudioCodec] and
+Android's installed `MediaCodec`. No separate RTMP decoder or bundled audio codec is used.
+Publishing requires an installed Opus encoder (provided by Android 10+); playback
+requires an installed Opus decoder. The connect command advertises the available
+Opus encoding/decoding capabilities. The server must support Enhanced RTMP audio.
+
+Select Opus before starting publication, with a matching PCM capture configuration:
+
+```kotlin
+stream.audioSetting.mimeType = MediaFormat.MIMETYPE_AUDIO_OPUS
+stream.audioSetting.sampleRate = 48_000
+stream.audioSetting.channelCount = 2
+```
+
+The audio source must provide matching 16-bit PCM. Supported encoder input rates are
+8, 12, 16, 24 and 48 kHz; AAC remains the default. Opus publishes `OpusHead` from the
+encoder's configuration, followed by compressed packets with the `Opus` FourCC.
+`audiocodecid` metadata uses the numeric FourCC value.
+
+Playback uses the normal `RtmpStream.play` flow without receiver encoder settings.
+It accepts a single mono/stereo Opus stream with ID-header mapping family zero,
+uses a 48-kHz decode clock, and passes ID-header gain and pre-skip to the shared
+AudioCodec through Android CSD. Invalid/unsupported headers and coded packets
+without an accepted header are ignored. Multitrack,
+multichannel mapping, and headerless Enhanced RTMP Opus are not supported.
+
+Repeated identical headers are accepted. Changing the active audio codec or its
+configuration, or starting a new sequence after SequenceEnd, requires closing
+playback and starting a new stream; these operations do not replace a running decoder.

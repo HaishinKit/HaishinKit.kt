@@ -428,7 +428,14 @@ class RtmpConnection : EventDispatcher(null) {
                 "vp09" to MediaFormat.MIMETYPE_VIDEO_VP9,
             )
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) videoTypes.add("av01" to MediaFormat.MIMETYPE_VIDEO_AV1)
-        val supported = videoTypes.filter { CodecCapabilities.isCodecSupportedByType(Codec.MODE_DECODE, it.second) }.map { it.first }
+        val supported = videoTypes.filter { CodecCapabilities.isCodecSupportedByType(Codec.MODE_DECODE, it.second) }.map { it.first }.toMutableList()
+        val opusFlags =
+            (if (CodecCapabilities.isCodecSupportedByType(Codec.MODE_DECODE, MediaFormat.MIMETYPE_AUDIO_OPUS)) 1 else 0) or
+                (if (CodecCapabilities.isCodecSupportedByType(Codec.MODE_ENCODE, MediaFormat.MIMETYPE_AUDIO_OPUS)) 2 else 0)
+        if (opusFlags != 0) {
+            supported.add("Opus")
+            commandObject["audioFourCcInfoMap"] = mapOf("Opus" to opusFlags)
+        }
         if (supported.isNotEmpty()) commandObject["fourCcList"] = supported
         message.chunkStreamID = RtmpChunk.COMMAND
         message.streamID = 0
