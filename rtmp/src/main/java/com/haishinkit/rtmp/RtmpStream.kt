@@ -12,6 +12,7 @@ import com.haishinkit.codec.CodecCapabilities
 import com.haishinkit.codec.CodecOption
 import com.haishinkit.media.MediaType
 import com.haishinkit.media.source.VideoCodecSource
+import com.haishinkit.rtmp.amf.AmfEcmaArray
 import com.haishinkit.rtmp.event.Event
 import com.haishinkit.rtmp.event.EventDispatcher
 import com.haishinkit.rtmp.event.EventUtils
@@ -786,8 +787,8 @@ class RtmpStream(
         }
     }
 
-    private fun toMetaData(): Map<String, Any> {
-        val metadata = mutableMapOf<String, Any>()
+    private fun toMetaData(): AmfEcmaArray {
+        val metadata = AmfEcmaArray()
         if (hasVideo) {
             metadata["width"] = videoCodec.width
             metadata["height"] = videoCodec.height

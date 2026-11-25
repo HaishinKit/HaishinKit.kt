@@ -19,6 +19,10 @@ Please check [this repository](https://github.com/veovera/enhanced-rtmp/) for th
 
 ☑️ Supported · — Not implemented. Codec availability also depends on the device.
 
+Publishing sends `onMetaData` as an AMF ECMA array. Enhanced video codecs use
+numeric FourCC values in `videocodecid` (HEVC, VP8 and VP9), and Opus uses its
+numeric FourCC in `audiocodecid`. H.264 and AAC retain their legacy numeric IDs.
+
 ### [v1](https://github.com/veovera/enhanced-rtmp/blob/main/docs/enhanced/enhanced-rtmp-v1.md)
 
 | Video codec | Publishing | Playback |
@@ -29,7 +33,7 @@ Please check [this repository](https://github.com/veovera/enhanced-rtmp/) for th
 
 | Other features | Status |
 | --- | --- |
-| Enhancing onMetaData | — |
+| Enhancing onMetaData | ☑️ |
 | Extending NetConnection connect Command | — |
 | Metadata Frame | — |
 
@@ -89,7 +93,7 @@ are accepted. This does not add SRT/TS codec support or a new HDR publishing pip
 | Other features | Status |
 | --- | --- |
 | Enhancements to RTMP and FLV | — |
-| Enhancing onMetaData | — |
+| Enhancing onMetaData | ☑️ |
 | Reconnect Request | — |
 | Multitrack Streaming via Enhanced RTMP | — |
 | Enhancing NetConnection connect Command | — |

@@ -6,10 +6,14 @@ import android.media.MediaCodec
 import android.media.MediaCodecInfo
 import android.media.MediaFormat
 import com.haishinkit.codec.AudioCodec
+import com.haishinkit.codec.VideoCodec
+import com.haishinkit.codec.VideoCodecProfileLevel
 import com.haishinkit.media.BufferController
 import com.haishinkit.media.source.VideoSource
 import com.haishinkit.net.NetSocket
 import com.haishinkit.net.NetSocketImpl
+import com.haishinkit.rtmp.amf.AmfEcmaArray
+import com.haishinkit.rtmp.amf.AmfTypeBuffer
 import com.haishinkit.rtmp.message.RtmpAudioMessage
 import com.haishinkit.rtmp.message.RtmpCommandMessage
 import com.haishinkit.screen.Screen
@@ -94,8 +98,40 @@ class OpusStreamTest {
         assertTrue((command.commandObject!!["fourCcList"] as List<*>).contains("Opus"))
         stream.hasAudio = true
         stream.audioSetting.mimeType = MediaFormat.MIMETYPE_AUDIO_OPUS
-        val metadata = RtmpStream::class.java.getDeclaredMethod("toMetaData").apply { isAccessible = true }.invoke(stream) as Map<*, *>
+        val metadata = RtmpStream::class.java.getDeclaredMethod("toMetaData").apply { isAccessible = true }.invoke(stream) as AmfEcmaArray
         assertEquals(RtmpMuxer.FLV_AUDIO_FOUR_CC_OPUS, metadata["audiocodecid"])
+    }
+
+    @Test fun metadataEncodesNumericCodecIdsInEcmaArray() {
+        val videoCodec = Stream::class.java.getDeclaredMethod("getVideoCodec").apply { isAccessible = true }.invoke(stream) as VideoCodec
+        stream.hasVideo = true
+        stream.hasAudio = true
+        val videoProfiles =
+            listOf(
+                VideoCodecProfileLevel.H264_BASELINE_3_1 to 7,
+                VideoCodecProfileLevel.HEVC_MAIN_3_1 to 0x68766331,
+                VideoCodecProfileLevel.VP8_MAIN to 0x76703038,
+                VideoCodecProfileLevel.VP9_PROFILE0_31 to 0x76703039,
+            )
+        for ((profile, videoId) in videoProfiles) {
+            videoCodec.profileLevel = profile
+            for ((mime, audioId) in listOf(MediaFormat.MIMETYPE_AUDIO_AAC to 10, MediaFormat.MIMETYPE_AUDIO_OPUS to 0x4f707573)) {
+                stream.audioSetting.mimeType = mime
+                val metadata = RtmpStream::class.java.getDeclaredMethod("toMetaData").apply { isAccessible = true }.invoke(stream)
+                val buffer = ByteBuffer.allocate(4096)
+                AmfTypeBuffer(buffer).putData(metadata)
+                buffer.flip()
+                assertEquals(8, buffer.get(0).toInt()) // AMF0 ECMA array, not an object or string.
+                val decoded = AmfTypeBuffer(buffer).data as AmfEcmaArray
+                assertEquals(videoId.toDouble(), decoded["videocodecid"])
+                assertEquals(audioId.toDouble(), decoded["audiocodecid"])
+                assertEquals(videoCodec.width.toDouble(), decoded["width"])
+            }
+        }
+        stream.hasVideo = false
+        stream.hasAudio = false
+        val empty = RtmpStream::class.java.getDeclaredMethod("toMetaData").apply { isAccessible = true }.invoke(stream) as AmfEcmaArray
+        assertFalse(empty.iterator().hasNext())
     }
 
     @Test fun publishingUnwrapsAndroidCsdAndNormalizesItsDelay() {
