@@ -23,7 +23,7 @@ Publishing sends `onMetaData` as an AMF ECMA array. Enhanced video codecs use
 numeric FourCC values in `videocodecid` (HEVC, VP8 and VP9), and Opus uses its
 numeric FourCC in `audiocodecid`. H.264 and AAC retain their legacy numeric IDs.
 
-### [v1](https://github.com/veovera/enhanced-rtmp/blob/main/docs/enhanced/enhanced-rtmp-v1.md)
+### [Enhanced RTMP v1 support](https://github.com/veovera/enhanced-rtmp/blob/main/docs/enhanced/enhanced-rtmp-v1.md)
 
 | Video codec | Publishing | Playback |
 | --- | --- | --- |
@@ -37,7 +37,7 @@ numeric FourCC in `audiocodecid`. H.264 and AAC retain their legacy numeric IDs.
 | Extending NetConnection connect Command (`fourCcList`) | ☑️ |
 | Metadata Frame | — |
 
-### AV1 playback
+#### AV1 playback
 
 AV1 playback uses Enhanced RTMP (`av01`) and the device's built-in Android decoder.
 It requires Android 10 or later, an available AV1 decoder, and an Enhanced RTMP server
@@ -50,7 +50,7 @@ to or from AV1, or changing its decoder configuration during playback, is reject
 Close the stream and create a new playback stream for such changes. Repeated identical
 AV1 configuration records are accepted.
 
-### VP8 / VP9 publishing and playback
+#### VP8 / VP9 publishing and playback
 
 Enhanced RTMP uses `vp08` for VP8 (v2) and `vp09` for VP9. Both directions use only
 Android's installed `MediaCodec` encoders/decoders. No additional codec is bundled.
@@ -82,7 +82,7 @@ Codec changes involving VP8, VP9 or AV1, and changes to an active codec configur
 are rejected. Close playback before making those changes. Identical repeated headers
 are accepted. This does not add SRT/TS codec support or a new HDR publishing pipeline.
 
-### [v2](https://github.com/veovera/enhanced-rtmp/blob/main/docs/enhanced/enhanced-rtmp-v2.md)
+### [Enhanced RTMP v2 support](https://github.com/veovera/enhanced-rtmp/blob/main/docs/enhanced/enhanced-rtmp-v2.md)
 
 | Codec | Publishing | Playback |
 | --- | --- | --- |
@@ -104,7 +104,7 @@ decode/encode flags, and adds `Opus` to `fourCcList` when either capability is a
 `videoFourCcInfoMap` and `capsEx` are not sent; this does not claim support for
 reconnection, multitrack streaming or the other optional v2 capabilities.
 
-### Opus publishing and playback
+#### Opus publishing and playback
 
 Both directions use the shared [AudioCodec][com.haishinkit.codec.AudioCodec] and
 Android's installed `MediaCodec`. No separate RTMP decoder or bundled audio codec is used.
