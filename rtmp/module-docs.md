@@ -17,20 +17,21 @@ Please check [this repository](https://github.com/veovera/enhanced-rtmp/) for th
 - Enhanced RTMP also requires support on the server side. Please check the support status of the
   server you are using.
 
+☑️ Supported · — Not implemented. Codec availability also depends on the device.
+
 ### [v1](https://github.com/veovera/enhanced-rtmp/blob/main/docs/enhanced/enhanced-rtmp-v1.md)
 
-- [ ] Enhancing onMetaData
-- [ ] Defining Additional Video Codecs
-    - [ ] Ingest
-        - [x] HEVC(0.13.4)
-        - [x] VP9
-        - [ ] AV1
-    - [ ] Playback
-        - [x] HEVC(0.13.4)
-        - [x] VP9
-        - [x] AV1
-- [ ] Extending NetConnection connect Command
-- [ ] Metadata Frame
+| Video codec | Publishing | Playback |
+| --- | --- | --- |
+| HEVC (since 0.13.4) | ☑️ | ☑️ |
+| VP9 | ☑️ | ☑️ |
+| AV1 | — | ☑️ |
+
+| Other features | Status |
+| --- | --- |
+| Enhancing onMetaData | — |
+| Extending NetConnection connect Command | — |
+| Metadata Frame | — |
 
 ### AV1 playback
 
@@ -79,21 +80,19 @@ are accepted. This does not add SRT/TS codec support or a new HDR publishing pip
 
 ### [v2](https://github.com/veovera/enhanced-rtmp/blob/main/docs/enhanced/enhanced-rtmp-v2.md)
 
-- [ ] Enhancements to RTMP and FLV
-- [ ] Enhancing onMetaData
-- [ ] Reconnect Request
-- [ ] Enhanced Video
-    - [ ] Ingest
-        - [x] VP8
-        - [ ] AV1(HDR)
-    - [ ] Playback
-        - [x] VP8
-        - [ ] AV1(HDR)
-- [ ] Multitrack Streaming via Enhanced RTMP
-- [ ] Enhanced Audio
-    - [x] Opus publishing (mono/stereo)
-    - [x] Opus playback (mono/stereo)
-- [ ] Enhancing NetConnection connect Command
+| Codec | Publishing | Playback |
+| --- | --- | --- |
+| VP8 (Enhanced Video) | ☑️ | ☑️ |
+| AV1 HDR (Enhanced Video) | — | — |
+| Opus, mono/stereo (Enhanced Audio) | ☑️ | ☑️ |
+
+| Other features | Status |
+| --- | --- |
+| Enhancements to RTMP and FLV | — |
+| Enhancing onMetaData | — |
+| Reconnect Request | — |
+| Multitrack Streaming via Enhanced RTMP | — |
+| Enhancing NetConnection connect Command | — |
 
 ### Opus publishing and playback
 
