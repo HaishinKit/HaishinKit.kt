@@ -75,6 +75,7 @@ internal class Screen(
         when (screenObject) {
             is VideoScreenObject -> {
                 screenObject.textureId = 0
+                updateCameraOrientation(screenObject, null)
             }
 
             else -> {

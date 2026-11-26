@@ -6,9 +6,12 @@ import android.view.Surface
 import com.haishinkit.graphics.ImageOrientation
 import com.haishinkit.graphics.VideoGravity
 import org.junit.Assert.assertArrayEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.RuntimeEnvironment
 
 @RunWith(RobolectricTestRunner::class)
 class VideoScreenObjectTest {
@@ -45,6 +48,38 @@ class VideoScreenObjectTest {
                 assertArrayEquals("$source / display=$display / $gravity", upright.matrix, camera.matrix, 0.0001f)
             }
         }
+    }
+
+    @Test
+    fun removingCameraObjectClearsSourceMetadataBeforeReuse() {
+        val screen = com.haishinkit.gles.screen.Screen(RuntimeEnvironment.getApplication())
+        val video =
+            VideoScreenObject().apply {
+                frame = Rect(0, 0, 1280, 720)
+                videoSize = Size(1920, 1080)
+                imageOrientation = ImageOrientation.RIGHT
+                isRotatesWithContent = true
+                deviceOrientation = Surface.ROTATION_270
+            }
+        screen.addChild(video)
+        // Simulate metadata supplied by a bound back-camera track.
+        video.isBackCamera = true
+        video.layout(MockRenderer())
+        assertTrue(video.isBackCamera)
+        screen.removeChild(video)
+        assertFalse(video.isBackCamera)
+        assertTrue(video.shouldInvalidateLayout)
+        val nonCamera =
+            VideoScreenObject().apply {
+                frame = video.frame
+                videoSize = video.videoSize
+                imageOrientation = video.imageOrientation
+                isRotatesWithContent = true
+                deviceOrientation = video.deviceOrientation
+            }
+        video.layout(MockRenderer())
+        nonCamera.layout(MockRenderer())
+        assertArrayEquals(nonCamera.matrix, video.matrix, 0.0001f)
     }
 
     @Test
