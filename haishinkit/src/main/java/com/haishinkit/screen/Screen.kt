@@ -86,6 +86,15 @@ abstract class Screen(
         video.isBackCamera = source is Camera2Source && source.isBackFacing
     }
 
+    /** Releases source-derived rotation metadata, including videos inside detached containers. */
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    protected fun clearCameraOrientation(screenObject: ScreenObject) {
+        if (screenObject is VideoScreenObject) updateCameraOrientation(screenObject, null)
+        if (screenObject is ScreenObjectContainer) {
+            screenObject.findByClass(VideoScreenObject::class.java).forEach { updateCameraOrientation(it, null) }
+        }
+    }
+
     companion object {
         const val DEFAULT_WIDTH = 1280
         const val DEFAULT_HEIGHT = 720

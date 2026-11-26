@@ -95,7 +95,7 @@ class VkScreen private constructor(context: Context) : Screen(context), Choreogr
 
     override fun unbind(screenObject: ScreenObject) =
         VkWorker.run {
-            if (screenObject is VideoScreenObject) updateCameraOrientation(screenObject, null)
+            clearCameraOrientation(screenObject)
             convertedBitmaps.remove(screenObject)?.second?.recycle()
             if (screenObject is MediaOutputScreenObject) {
                 screenObject.surface = null

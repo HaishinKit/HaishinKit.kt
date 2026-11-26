@@ -72,10 +72,10 @@ internal class Screen(
     }
 
     override fun unbind(screenObject: ScreenObject) {
+        clearCameraOrientation(screenObject)
         when (screenObject) {
             is VideoScreenObject -> {
                 screenObject.textureId = 0
-                updateCameraOrientation(screenObject, null)
             }
 
             else -> {

@@ -52,34 +52,43 @@ class VideoScreenObjectTest {
 
     @Test
     fun removingCameraObjectClearsSourceMetadataBeforeReuse() {
-        val screen = com.haishinkit.gles.screen.Screen(RuntimeEnvironment.getApplication())
-        val video =
-            VideoScreenObject().apply {
-                frame = Rect(0, 0, 1280, 720)
-                videoSize = Size(1920, 1080)
-                imageOrientation = ImageOrientation.RIGHT
-                isRotatesWithContent = true
-                deviceOrientation = Surface.ROTATION_270
+        for (nested in listOf(false, true)) {
+            val screen = com.haishinkit.gles.screen.Screen(RuntimeEnvironment.getApplication())
+            val video =
+                VideoScreenObject().apply {
+                    frame = Rect(0, 0, 1280, 720)
+                    videoSize = Size(1920, 1080)
+                    imageOrientation = ImageOrientation.RIGHT
+                    isRotatesWithContent = true
+                    deviceOrientation = Surface.ROTATION_270
+                }
+            val outer = ScreenObjectContainer()
+            val inner = ScreenObjectContainer()
+            if (nested) {
+                inner.addChild(video)
+                outer.addChild(inner)
             }
-        screen.addChild(video)
-        // Simulate metadata supplied by a bound back-camera track.
-        video.isBackCamera = true
-        video.layout(MockRenderer())
-        assertTrue(video.isBackCamera)
-        screen.removeChild(video)
-        assertFalse(video.isBackCamera)
-        assertTrue(video.shouldInvalidateLayout)
-        val nonCamera =
-            VideoScreenObject().apply {
-                frame = video.frame
-                videoSize = video.videoSize
-                imageOrientation = video.imageOrientation
-                isRotatesWithContent = true
-                deviceOrientation = video.deviceOrientation
-            }
-        video.layout(MockRenderer())
-        nonCamera.layout(MockRenderer())
-        assertArrayEquals(nonCamera.matrix, video.matrix, 0.0001f)
+            screen.addChild(if (nested) outer else video)
+            // Simulate metadata supplied by a bound back-camera track.
+            video.isBackCamera = true
+            video.layout(MockRenderer())
+            assertTrue(video.isBackCamera)
+            screen.removeChild(if (nested) outer else video)
+            if (nested) inner.removeChild(video)
+            assertFalse(video.isBackCamera)
+            assertTrue(video.shouldInvalidateLayout)
+            val nonCamera =
+                VideoScreenObject().apply {
+                    frame = video.frame
+                    videoSize = video.videoSize
+                    imageOrientation = video.imageOrientation
+                    isRotatesWithContent = true
+                    deviceOrientation = video.deviceOrientation
+                }
+            video.layout(MockRenderer())
+            nonCamera.layout(MockRenderer())
+            assertArrayEquals(nonCamera.matrix, video.matrix, 0.0001f)
+        }
     }
 
     @Test
