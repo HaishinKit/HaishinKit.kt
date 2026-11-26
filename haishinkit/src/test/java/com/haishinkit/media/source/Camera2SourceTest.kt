@@ -1,7 +1,16 @@
 package com.haishinkit.media.source
 
+import android.graphics.Rect
 import android.hardware.camera2.CameraCharacteristics
 import android.util.Range
+import android.util.Size
+import android.view.Surface
+import com.haishinkit.graphics.ImageOrientation
+import com.haishinkit.graphics.VideoGravity
+import com.haishinkit.screen.MockRenderer
+import com.haishinkit.screen.MockScreen
+import com.haishinkit.screen.VideoScreenObject
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -65,5 +74,57 @@ class Camera2SourceTest {
         Camera2Output::class.java.getDeclaredField("characteristics").apply { isAccessible = true }.set(output, characteristics)
         assertEquals(Range(1f, 3f), output.zoomRatioRange)
         assertFalse(output.isTorchSupported)
+    }
+
+    @Test
+    fun sensor270BackAndFrontKeepTheirLandscapeOrientationWhenSwitching() {
+        val context = RuntimeEnvironment.getApplication()
+        val screen = MockScreen(context)
+        val sources =
+            listOf(CameraCharacteristics.LENS_FACING_BACK, CameraCharacteristics.LENS_FACING_FRONT).map { facing ->
+                val source = Camera2Source(context)
+                val output = Camera2Output(context, source, "0")
+                val characteristics = ShadowCameraCharacteristics.newCameraCharacteristics()
+                Shadow.extract<ShadowCameraCharacteristics>(characteristics).apply {
+                    set(CameraCharacteristics.SENSOR_ORIENTATION, 270)
+                    set(CameraCharacteristics.LENS_FACING, facing)
+                }
+                Camera2Output::class.java.getDeclaredField("characteristics").apply { isAccessible = true }.set(output, characteristics)
+                Camera2Source::class.java.getDeclaredField("output").apply { isAccessible = true }.set(source, output)
+                source
+            }
+        val custom = object : VideoSource by sources[1] {}
+        for (gravity in VideoGravity.entries) {
+            for (display in listOf(Surface.ROTATION_90, Surface.ROTATION_270)) {
+                val video =
+                    VideoScreenObject().apply {
+                        frame = Rect(0, 0, 1280, 720)
+                        videoSize = Size(1920, 1080)
+                        videoGravity = gravity
+                        isRotatesWithContent = true
+                        deviceOrientation = display
+                    }
+                // Back -> front -> back also exercises same-orientation source replacement.
+                for (source in listOf(sources[0], sources[1], sources[0], custom)) {
+                    val isBack = source === sources[0]
+                    video.imageOrientation = source.imageOrientation
+                    screen.updateCameraSource(video, source)
+                    val expected =
+                        VideoScreenObject().apply {
+                            frame = video.frame
+                            videoSize = video.videoSize
+                            videoGravity = gravity
+                            imageOrientation = if ((display == Surface.ROTATION_90) == isBack) ImageOrientation.DOWN else ImageOrientation.UP
+                        }
+                    video.layout(MockRenderer())
+                    expected.layout(MockRenderer())
+                    assertArrayEquals("back=$isBack / display=$display / $gravity", expected.matrix, video.matrix, 0.0001f)
+                }
+                screen.updateCameraSource(video, null)
+                assertFalse(video.isBackCamera)
+                screen.updateCameraSource(video, sources[1])
+                assertFalse(video.isBackCamera)
+            }
+        }
     }
 }

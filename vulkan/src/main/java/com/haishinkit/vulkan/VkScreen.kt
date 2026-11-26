@@ -95,6 +95,7 @@ class VkScreen private constructor(context: Context) : Screen(context), Choreogr
 
     override fun unbind(screenObject: ScreenObject) =
         VkWorker.run {
+            clearCameraOrientation(screenObject)
             convertedBitmaps.remove(screenObject)?.second?.recycle()
             if (screenObject is MediaOutputScreenObject) {
                 screenObject.surface = null
@@ -259,9 +260,14 @@ class VkScreen private constructor(context: Context) : Screen(context), Choreogr
     private fun prepare() {
         findByClass(VideoScreenObject::class.java).forEach { video ->
             val input = tracks[video.track]
-            if (video !is MediaOutputScreenObject && input?.source != null) {
-                video.videoSize = input.source.videoSize
-                video.imageOrientation = input.source.imageOrientation
+            if (video is MediaOutputScreenObject) {
+                updateCameraOrientation(video, null)
+            } else {
+                updateCameraOrientation(video, input?.source)
+                if (input?.source != null) {
+                    video.videoSize = input.source.videoSize
+                    video.imageOrientation = input.source.imageOrientation
+                }
             }
         }
         layout(renderer)

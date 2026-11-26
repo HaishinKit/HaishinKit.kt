@@ -55,7 +55,9 @@ internal class Screen(
         when (screenObject) {
             is VideoScreenObject -> {
                 val track = screenObject.track
-                videoTextureRegistry.get(track)?.let { texture ->
+                val texture = videoTextureRegistry.get(track)
+                updateCameraOrientation(screenObject, texture?.source)
+                texture?.let {
                     screenObject.textureId = texture.id
                     screenObject.videoSize = texture.source.videoSize
                     screenObject.imageOrientation = texture.source.imageOrientation
@@ -70,6 +72,7 @@ internal class Screen(
     }
 
     override fun unbind(screenObject: ScreenObject) {
+        clearCameraOrientation(screenObject)
         when (screenObject) {
             is VideoScreenObject -> {
                 screenObject.textureId = 0
@@ -91,6 +94,7 @@ internal class Screen(
             videoTextureRegistry.unregister(track)
             findByClass(VideoScreenObject::class.java).filter { it.track == track }.forEach {
                 it.textureId = 0
+                updateCameraOrientation(it, null)
             }
         } else {
             val texture = videoTextureRegistry.register(track, video)
@@ -98,6 +102,7 @@ internal class Screen(
                 it.textureId = texture.id
                 it.videoSize = video.videoSize
                 it.imageOrientation = video.imageOrientation
+                updateCameraOrientation(it, video)
                 it.invalidateLayout()
             }
         }
