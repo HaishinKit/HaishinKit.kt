@@ -35,6 +35,7 @@ import com.haishinkit.media.MediaMixer
 import com.haishinkit.media.MediaRecorder
 import com.haishinkit.media.source.AudioRecordSource
 import com.haishinkit.media.source.Camera2Source
+import com.haishinkit.rtmp.RtmpStream
 import com.haishinkit.screen.ImageScreenObject
 import com.haishinkit.screen.Screen
 import com.haishinkit.screen.ScreenObject
@@ -71,6 +72,9 @@ class CameraViewModel(
     var videoEffectItems: List<VideoEffectItem>
 
     internal var compositionSize by mutableStateOf(Size(Screen.DEFAULT_WIDTH, Screen.DEFAULT_HEIGHT))
+        private set
+
+    internal var rtmpEncoding by mutableStateOf(Preference.shared.rtmpEncoding)
         private set
 
     internal val ingestDiscovery = BonjourIngestDiscovery(application.applicationContext)
@@ -165,6 +169,7 @@ class CameraViewModel(
             }
             mixer.registerOutput(candidate.stream)
             session = candidate
+            rtmpEncoding = Preference.shared.rtmpEncoding
             sessionSettings = settings
             replacement = null
             sessionError = null
@@ -178,6 +183,24 @@ class CameraViewModel(
             replacement?.stream?.dispose()
         }
     }
+
+    internal fun updateRtmpEncoding(settings: RtmpEncodingSettings): Result<Unit> =
+        runCatching {
+            val current = checkNotNull(session) { "The stream is not ready." }
+            check(current.stream is RtmpStream) { "These settings are for RTMP publishing." }
+            val codecChanged = settings.videoCodec != rtmpEncoding.videoCodec || settings.audioCodec != rtmpEncoding.audioCodec
+            check(!codecChanged || current.readyState.value == StreamSession.ReadyState.CLOSED) { "Stop publishing before changing codecs." }
+            val previous = rtmpEncoding
+            try {
+                settings.applyTo(current.stream)
+            } catch (cause: Exception) {
+                runCatching { previous.applyTo(current.stream) }
+                throw cause
+            }
+            Preference.shared.rtmpEncoding = settings
+            rtmpEncoding = settings
+            sessionSettings = sessionSettings?.copy(rtmpEncoding = settings)
+        }
 
     internal fun addScreenObject(
         kind: ExampleScreenObjectKind,

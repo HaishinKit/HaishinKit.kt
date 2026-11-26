@@ -73,4 +73,15 @@
     <string name="studio_playback_help">設定で接続先を入力し、ストリームを再生してください。</string>
     <string name="studio_playback_error">ストリームを再生できませんでした</string>
     <string name="studio_retry">もう一度試す</string>
+    <string name="studio_encoding_title">RTMPエンコード</string>
+    <string name="studio_encoding_help">端末に搭載されたエンコーダーを使用します。H.265・AV1・VP8・VP9・Opusには、対応したEnhanced RTMPサーバーとプレーヤーも必要です。</string>
+    <string name="studio_encoding_locked">コーデックの変更は配信を停止してから行ってください。</string>
+    <string name="studio_encoding_loading">端末のエンコーダーを確認中…</string>
+    <string name="studio_encoding_error">エンコード設定の取得または反映に失敗しました。</string>
+    <string name="studio_encoding_video">映像コーデック</string>
+    <string name="studio_encoding_audio">音声コーデック</string>
+    <string name="studio_encoding_unavailable">%1$s · 非対応</string>
+    <string name="studio_encoding_bitrate">映像ビットレート</string>
+    <string name="studio_encoding_kbps">%1$d kbps</string>
+    <string name="studio_encoding_bitrate_help">100〜12,000 kbps。指を離すと反映します。配信中も変更できます。実際のビットレートはエンコーダーによって制限される場合があります。</string>
 </resources>

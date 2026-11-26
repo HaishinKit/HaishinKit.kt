@@ -54,6 +54,7 @@ import com.haishinkit.graphics.VideoGravity
 import com.haishinkit.graphics.effect.DefaultVideoEffect
 import com.haishinkit.rtc.RTCSession
 import com.haishinkit.rtc.RTCStream
+import com.haishinkit.rtmp.RtmpStream
 import com.haishinkit.screen.TextScreenObject
 import com.haishinkit.srt.SrtStream
 import com.haishinkit.stream.StreamSession
@@ -311,6 +312,17 @@ fun CameraScreen(
                     },
                 settings = {
                     selectedIngest?.let { Text(stringResource(R.string.ingest_selected, it)) }
+                    if (sessionState.stream is RtmpStream) {
+                        RtmpEncodingControls(
+                            settings = viewModel.rtmpEncoding,
+                            publishing = sessionActive,
+                            onUpdate = { settings ->
+                                viewModel.updateRtmpEncoding(settings).onFailure {
+                                    errorMessage = it.message ?: context.getString(R.string.studio_encoding_error)
+                                }.isSuccess
+                            },
+                        )
+                    }
                     CameraDeviceControllerView(
                         camera = selectedCamera,
                         cameras = cameraList,

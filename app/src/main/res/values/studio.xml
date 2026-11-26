@@ -73,4 +73,15 @@
     <string name="studio_playback_help">Set a connection in Settings, then tap Play stream.</string>
     <string name="studio_playback_error">Couldn’t play the stream</string>
     <string name="studio_retry">Try again</string>
+    <string name="studio_encoding_title">RTMP encoding</string>
+    <string name="studio_encoding_help">Uses encoders provided by this device. H.265, AV1, VP8, VP9 and Opus also require a compatible Enhanced RTMP server and player.</string>
+    <string name="studio_encoding_locked">Stop publishing before changing codecs.</string>
+    <string name="studio_encoding_loading">Checking device encoders…</string>
+    <string name="studio_encoding_error">Could not read or apply encoder settings.</string>
+    <string name="studio_encoding_video">Video codec</string>
+    <string name="studio_encoding_audio">Audio codec</string>
+    <string name="studio_encoding_unavailable">%1$s · unavailable</string>
+    <string name="studio_encoding_bitrate">Video bitrate</string>
+    <string name="studio_encoding_kbps">%1$d kbps</string>
+    <string name="studio_encoding_bitrate_help">100–12,000 kbps. Release the slider to apply, including while publishing. The encoder may limit the actual bitrate.</string>
 </resources>

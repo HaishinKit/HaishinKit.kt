@@ -3,6 +3,7 @@ package com.haishinkit.app
 import com.haishinkit.stream.StreamSession
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -59,5 +60,21 @@ class PreferenceTest {
         assertThrows(IllegalArgumentException::class.java) { preference.toStreamUri(StreamSession.Mode.PLAYBACK) }
         preference.whepURL = "https:///missing-host"
         assertThrows(IllegalArgumentException::class.java) { preference.toStreamUri(StreamSession.Mode.PLAYBACK) }
+    }
+
+    @Test
+    fun rtmpEncodingSnapshotRetainsSelectionWithoutAffectingOtherTransportsOrPlayback() {
+        val preference = Preference("rtmps://example.com/live", "test")
+        val original = preference.sessionSettings()
+        val selected = RtmpEncodingSettings(RtmpVideoCodec.VP9, RtmpAudioCodec.OPUS, 2_500_000)
+        preference.rtmpEncoding = selected
+        val next = preference.sessionSettings()
+        assertNotEquals(original, next)
+        assertEquals(RtmpEncodingSettings(), original.rtmpEncoding)
+        assertEquals(selected, next.rtmpEncoding)
+        assertEquals(selected, preference.copy(streamURL = "rtmp://example.net/live").sessionSettings().rtmpEncoding)
+        assertNull(preference.sessionSettings(StreamSession.Mode.PLAYBACK).rtmpEncoding)
+        assertNull(preference.copy(streamURL = "srt://example.com:9710").sessionSettings().rtmpEncoding)
+        assertNull(preference.copy(streamURL = "https://example.com/whip").sessionSettings().rtmpEncoding)
     }
 }
