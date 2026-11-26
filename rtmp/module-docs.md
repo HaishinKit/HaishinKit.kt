@@ -8,37 +8,46 @@ For a single-stream session, register
 [RtmpStreamSessionFactory][com.haishinkit.rtmp.RtmpStreamSessionFactory] with
 [StreamSession.Builder][com.haishinkit.stream.StreamSession.Builder].
 
-## Enhanced RTMP support
-
 An extended RTMP standard called Enhanced RTMP is being developed by the Veovera Software
 Organization.
 Please check [this repository](https://github.com/veovera/enhanced-rtmp/) for the specifications.
 
-- Enhanced RTMP also requires support on the server side. Please check the support status of the
-  server you are using.
+Publishing sends `onMetaData` as an AMF ECMA array. Enhanced video codecs use
+numeric FourCC values in `videocodecid` (HEVC, VP8 and VP9), and Opus uses its
+numeric FourCC in `audiocodecid`. H.264 and AAC retain their legacy numeric IDs.
 
-### [v1](https://github.com/veovera/enhanced-rtmp/blob/main/docs/enhanced/enhanced-rtmp-v1.md)
+## [Enhanced RTMP v1 support](https://github.com/veovera/enhanced-rtmp/blob/main/docs/enhanced/enhanced-rtmp-v1.md)
 
-- [ ] Enhancing onMetaData
-- [ ] Defining Additional Video Codecs
-    - [ ] Ingest
-        - [x] HEVC(0.13.4)
-        - [x] VP9
-        - [ ] AV1
-    - [ ] Playback
-        - [x] HEVC(0.13.4)
-        - [x] VP9
-        - [x] AV1
-- [ ] Extending NetConnection connect Command
-- [ ] Metadata Frame
+| Video codec | Publishing | Playback |
+| --- | --- | --- |
+| HEVC | ☑️ | ☑️ |
+| VP9 | ☑️ | ☑️ |
+| AV1 | ☑️ | ☑️ |
 
-### AV1 playback
+| Other features | Status |
+| --- | --- |
+| Enhancing onMetaData | ☑️ |
+| Extending NetConnection connect Command (`fourCcList`) | ☑️ |
+| Metadata Frame | — |
+
+☑️ Supported · — Not implemented. Codec availability also depends on the device.
+
+### AV1 publishing and playback
+
+AV1 publishing uses Enhanced RTMP (`av01`) and an installed Android `MediaCodec`
+encoder. It requires Android 10 or later, an available AV1 encoder, and server support
+for Enhanced RTMP AV1. Select a supported AV1 profile before publishing, for example:
+
+```kotlin
+stream.videoSetting.profileLevel = VideoCodecProfileLevel.AV1_MAIN8_3_1
+```
+
+The encoder must support the requested profile, level, resolution and rate.
 
 AV1 playback uses Enhanced RTMP (`av01`) and the device's built-in Android decoder.
 It requires Android 10 or later, an available AV1 decoder, and an Enhanced RTMP server
 such as MediaMTX. No additional software codec is bundled. Use the normal
 [RtmpStream.play][com.haishinkit.rtmp.RtmpStream.play] API; codec selection follows the received stream.
-AV1 publishing is not implemented by this change.
 
 AV1 playback waits up to five seconds for the renderer's initial output surface. Changing
 to or from AV1, or changing its decoder configuration during playback, is rejected and logged.
@@ -77,17 +86,69 @@ Codec changes involving VP8, VP9 or AV1, and changes to an active codec configur
 are rejected. Close playback before making those changes. Identical repeated headers
 are accepted. This does not add SRT/TS codec support or a new HDR publishing pipeline.
 
-### [v2](https://github.com/veovera/enhanced-rtmp/blob/main/docs/enhanced/enhanced-rtmp-v2.md)
+## [Enhanced RTMP v2 support](https://github.com/veovera/enhanced-rtmp/blob/main/docs/enhanced/enhanced-rtmp-v2.md)
 
-- [ ] Enhancements to RTMP and FLV
-- [ ] Enhancing onMetaData
-- [ ] Reconnect Request
-- [ ] Enhanced Video
-    - [ ] Ingest
-        - [x] VP8
-        - [ ] AV1(HDR)
-    - [ ] Playback
-        - [x] VP8
-        - [ ] AV1(HDR)
-- [ ] Multitrack Streaming via Enhanced RTMP
-- [ ] Enhancing NetConnection connect Command
+| Codec | Publishing | Playback |
+| --- | --- | --- |
+| VP8 (Enhanced Video) | ☑️ | ☑️ |
+| AV1 HDR (Enhanced Video) | — | — |
+| Opus, mono/stereo (Enhanced Audio) | ☑️ | ☑️ |
+
+| Other features | Status |
+| --- | --- |
+| Enhancements to RTMP and FLV | — |
+| Enhancing onMetaData | ☑️ |
+| Reconnect Request | — |
+| Multitrack Streaming via Enhanced RTMP | — |
+| Enhancing NetConnection connect Command (`fourCcList`, Opus `audioFourCcInfoMap`) | ☑️ |
+
+☑️ Supported · — Not implemented. Codec availability also depends on the device.
+
+### Connection capabilities
+
+The connect command advertises installed HEVC, VP8, VP9 and AV1 decoders through
+`fourCcList`. For Opus, it also sends `audioFourCcInfoMap` with the available
+decode/encode flags, and adds `Opus` to `fourCcList` when either capability is available.
+`videoFourCcInfoMap` and `capsEx` are not sent; this does not claim support for
+reconnection, multitrack streaming or the other optional v2 capabilities.
+
+### Opus publishing and playback
+
+Both directions use the shared [AudioCodec][com.haishinkit.codec.AudioCodec] and
+Android's installed `MediaCodec`. No separate RTMP decoder or bundled audio codec is used.
+Publishing requires an installed Opus encoder (provided by Android 10+); playback
+requires an installed Opus decoder. The connect command advertises the available
+Opus encoding/decoding capabilities. The server must support Enhanced RTMP audio.
+
+Select Opus before starting publication, with a matching PCM capture configuration:
+
+```kotlin
+stream.audioSetting.mimeType = MediaFormat.MIMETYPE_AUDIO_OPUS
+stream.audioSetting.sampleRate = 48_000
+stream.audioSetting.channelCount = 2
+```
+
+The audio source must provide matching 16-bit PCM. Supported encoder input rates are
+8, 12, 16, 24 and 48 kHz; AAC remains the default. Opus publishes `OpusHead` from the
+encoder's configuration, followed by compressed packets with the `Opus` FourCC.
+Android's encoder CSD wrapper is removed and its codec delay is converted to
+48-kHz pre-skip units before publication. Invalid Opus rates/channels or a missing
+encoder are rejected synchronously by `publish`, before a request is queued.
+`audiocodecid` metadata uses the numeric FourCC value.
+
+Playback uses the normal `RtmpStream.play` flow without receiver encoder settings.
+It accepts a single mono/stereo Opus stream with ID-header mapping family zero,
+uses a 48-kHz decode clock, and passes ID-header gain and pre-skip to the shared
+AudioCodec through Android CSD. Invalid/unsupported headers and coded packets
+without an accepted header are ignored. Multitrack,
+multichannel mapping, and headerless Enhanced RTMP Opus are not supported.
+
+Repeated identical headers are accepted, and AAC configuration updates are passed
+in order to the running decoder. Changing the active audio codec or its Opus
+configuration, or starting a new sequence after SequenceEnd, requires closing
+playback and starting a new stream; these operations do not replace a running decoder.
+
+## Notice
+
+Enhanced RTMP also requires support on the server side. Please check the support status of the
+server you are using.

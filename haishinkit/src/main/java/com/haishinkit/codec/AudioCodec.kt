@@ -19,6 +19,17 @@ class AudioCodec : Codec() {
     data class Setting(
         private var codec: AudioCodec? = null,
     ) : Codec.Setting(codec) {
+        /** Audio encoder MIME type. Set AAC or Opus before publishing; the transport must support it. */
+        var mimeType: String = MediaFormat.MIMETYPE_AUDIO_AAC
+            set(value) {
+                require(value == MediaFormat.MIMETYPE_AUDIO_AAC || value == MediaFormat.MIMETYPE_AUDIO_OPUS) {
+                    "Audio publishing supports AAC or Opus"
+                }
+                check(codec?.isRunning?.get() != true) { "Stop the audio codec before changing its MIME type" }
+                field = value
+                codec?.outputMimeType = value
+            }
+
         /**
          * The number of output audio channels; defaults to 1 (mono).
          */
@@ -100,12 +111,17 @@ class AudioCodec : Codec() {
     override fun createMediaFormat(mime: String): MediaFormat =
         MediaFormat.createAudioFormat(mime, sampleRate, channelCount).apply {
             if (mode == MODE_ENCODE) {
+                if (mime == MediaFormat.MIMETYPE_AUDIO_OPUS) {
+                    require(sampleRate in setOf(8000, 12000, 16000, 24000, 48000) && channelCount in 1..2) {
+                        "Opus requires mono/stereo PCM at 8/12/16/24/48 kHz"
+                    }
+                }
                 if (mime == MediaFormat.MIMETYPE_AUDIO_AAC) {
                     setInteger(MediaFormat.KEY_AAC_PROFILE, aacProfile)
                 }
                 setInteger(MediaFormat.KEY_BIT_RATE, bitRate)
             } else {
-                setInteger(MediaFormat.KEY_MAX_INPUT_SIZE, DEFAULT_KEY_MAX_INPUT_SIZE)
+                setInteger(MediaFormat.KEY_MAX_INPUT_SIZE, if (mime == MediaFormat.MIMETYPE_AUDIO_OPUS) 61_440 else DEFAULT_KEY_MAX_INPUT_SIZE)
             }
         }
 

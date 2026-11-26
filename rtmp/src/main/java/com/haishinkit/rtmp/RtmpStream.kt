@@ -8,14 +8,19 @@ import android.media.MediaFormat
 import android.util.Log
 import android.util.Size
 import com.haishinkit.codec.Codec
+import com.haishinkit.codec.CodecCapabilities
+import com.haishinkit.codec.CodecOption
 import com.haishinkit.media.MediaType
 import com.haishinkit.media.source.VideoCodecSource
+import com.haishinkit.rtmp.amf.AmfEcmaArray
 import com.haishinkit.rtmp.event.Event
 import com.haishinkit.rtmp.event.EventDispatcher
 import com.haishinkit.rtmp.event.EventUtils
 import com.haishinkit.rtmp.event.IEventDispatcher
 import com.haishinkit.rtmp.event.IEventListener
+import com.haishinkit.rtmp.iso.AudioSpecificConfig
 import com.haishinkit.rtmp.iso.DecoderConfigurationRecord
+import com.haishinkit.rtmp.iso.OpusConfiguration
 import com.haishinkit.rtmp.iso.VpDecoderConfigurationRecord
 import com.haishinkit.rtmp.message.RtmpCommandMessage
 import com.haishinkit.rtmp.message.RtmpDataMessage
@@ -247,7 +252,7 @@ class RtmpStream(
             when (field) {
                 ReadyState.PLAYING -> {
                     videoTimestamp = DEFAULT_TIMESTAMP
-                    audioTimestamp = DEFAULT_TIMESTAMP
+                    audioTimestamp = null
                     muxer.clear()
                 }
 
@@ -301,9 +306,12 @@ class RtmpStream(
     internal var frameCount = AtomicInteger(0)
     internal var messageFactory = RtmpMessageFactory(4)
     internal var videoTimestamp = DEFAULT_TIMESTAMP
-    internal var audioTimestamp = DEFAULT_TIMESTAMP
+    internal var audioTimestamp: Long? = null
     internal val inputVideoMimeType: String
         get() = videoCodec.inputMimeType
+
+    internal val isAacDecoderRunning: Boolean
+        get() = mode == Codec.MODE_DECODE && audioCodec.isRunning.get() && audioCodec.inputMimeType == MediaFormat.MIMETYPE_AUDIO_AAC
 
     internal val canReceiveAv1: Boolean
         get() = canReceiveCodedVideo && inputVideoMimeType == MediaFormat.MIMETYPE_VIDEO_AV1
@@ -316,6 +324,11 @@ class RtmpStream(
     }
     private var playbackVideoSource: VideoCodecSource? = null
     private var videoConfiguration: ByteBuffer? = null
+    private var audioConfiguration: ByteBuffer? = null
+    private var audioSequenceEnded = false
+
+    @Volatile
+    private var audioConfigurationAccepted = false
     private var pendingVpConfiguration: VpDecoderConfigurationRecord? = null
 
     @Volatile
@@ -340,6 +353,7 @@ class RtmpStream(
      *
      * @param name The stream name, or `null` to send a close-stream request while publishing.
      * @param howToPublish The publishing mode; defaults to [HowToPublish.LIVE].
+     * @throws IllegalArgumentException If selected Opus settings or the installed encoder are unsupported.
      */
     fun publish(
         name: String?,
@@ -360,6 +374,14 @@ class RtmpStream(
         }
 
         this.howToPublish = howToPublish
+        if (audioSetting.mimeType == MediaFormat.MIMETYPE_AUDIO_OPUS) {
+            require(audioSetting.sampleRate in setOf(8000, 12000, 16000, 24000, 48000) && audioSetting.channelCount in 1..2) {
+                "Opus publishing requires mono/stereo PCM at 8/12/16/24/48 kHz; set audioSetting before publish"
+            }
+            require(CodecCapabilities.isCodecSupportedByType(Codec.MODE_ENCODE, MediaFormat.MIMETYPE_AUDIO_OPUS)) {
+                "No Opus encoder is available on this device"
+            }
+        }
         info.resourceName = name
 
         val arguments = mutableListOf<Any?>()
@@ -509,6 +531,18 @@ class RtmpStream(
     override fun startRunning() {
         if (isRunning.get()) return
         muxer.clear()
+        audioTimestamp = null
+        audioConfiguration = null
+        audioConfigurationAccepted = false
+        audioSequenceEnded = false
+        audioCodec.options = audioSetting.options
+        if (mode == Codec.MODE_ENCODE) {
+            audioCodec.inputMimeType = MediaFormat.MIMETYPE_AUDIO_RAW
+            audioCodec.outputMimeType = audioSetting.mimeType
+            audioCodec.sampleRate = audioSetting.sampleRate
+            audioCodec.channelCount = audioSetting.channelCount
+            audioCodec.bitRate = audioSetting.bitRate
+        }
         videoConfiguration = null
         pendingVpConfiguration = null
         videoConfigurationAccepted = false
@@ -520,14 +554,94 @@ class RtmpStream(
     @Synchronized
     override fun stopRunning() {
         super.stopRunning()
+        audioConfigurationAccepted = false
+        audioCodec.options = audioSetting.options
         pendingVpConfiguration = null
         videoCodec.options = videoSetting.options
     }
 
-    internal fun configure(inputMimeType: String) {
-        audioCodec.inputMimeType = MediaFormat.MIMETYPE_AUDIO_AAC
-        audioCodec.startRunning()
-        hasAudio = true
+    internal fun canReceiveAudio(mime: String): Boolean =
+        audioConfigurationAccepted && mode == Codec.MODE_DECODE && audioCodec.isRunning.get() && audioCodec.inputMimeType == mime
+
+    internal fun invalidateAudioConfiguration() {
+        audioConfigurationAccepted = false
+    }
+
+    internal fun endAudioSequence() {
+        audioConfigurationAccepted = false
+        audioSequenceEnded = true
+    }
+
+    @Synchronized
+    internal fun configureAudio(
+        mime: String,
+        payload: ByteBuffer,
+    ): Boolean {
+        if (mode != Codec.MODE_DECODE || !isRunning.get()) return false
+        if (!CodecCapabilities.isCodecSupportedByType(Codec.MODE_DECODE, mime)) return false
+        val data =
+            ByteBuffer.allocate(payload.remaining()).apply {
+                put(payload.duplicate())
+                flip()
+            }
+        if (mime == MediaFormat.MIMETYPE_AUDIO_AAC && data.remaining() < 2) return false
+        if (audioCodec.isRunning.get()) {
+            // AAC supports in-band ASC updates; preserve that pre-existing receive path.
+            if (!audioSequenceEnded && isAacDecoderRunning && mime == MediaFormat.MIMETYPE_AUDIO_AAC) {
+                audioConfiguration = data
+                audioConfigurationAccepted = true
+                return true
+            }
+            audioConfigurationAccepted = !audioSequenceEnded && audioCodec.inputMimeType == mime && data == audioConfiguration
+            if (!audioConfigurationAccepted) Log.w(TAG, "Close playback before changing the audio codec or sequence")
+            return audioConfigurationAccepted
+        }
+        try {
+            audioCodec.options = audioSetting.options
+            when (mime) {
+                MediaFormat.MIMETYPE_AUDIO_OPUS -> {
+                    val config = OpusConfiguration.decode(data) ?: return false
+                    config.apply(audioCodec)
+                }
+                MediaFormat.MIMETYPE_AUDIO_AAC -> {
+                    if (data.remaining() < 2) return false
+                    // This helper only supplies hints; Android remains authoritative for
+                    // full ASC variants such as HE-AACv2 and program-config elements.
+                    val config =
+                        try {
+                            AudioSpecificConfig.decode(data.duplicate())
+                        } catch (_: NoSuchElementException) {
+                            null
+                        }
+                    if (config != null && config.channel.rawValue.toInt() in 1..7 && config.type != AudioSpecificConfig.AudioObjectType.UNKNOWN) {
+                        // Decode hints must not overwrite the encoder-only AAC profile.
+                        audioCodec.sampleRate = config.frequency.int
+                        audioCodec.channelCount = if (config.channel.rawValue.toInt() == 7) 8 else config.channel.rawValue.toInt()
+                    } else {
+                        audioCodec.sampleRate = audioSetting.sampleRate
+                        audioCodec.channelCount = audioSetting.channelCount
+                    }
+                    audioCodec.options = audioSetting.options.filterNot { it.key.startsWith("csd-") } + CodecOption("csd-0", data.duplicate())
+                }
+                else -> return false
+            }
+            audioCodec.inputMimeType = mime
+            audioCodec.outputMimeType = MediaFormat.MIMETYPE_AUDIO_RAW
+            audioCodec.startRunning()
+            if (!audioCodec.isRunning.get()) {
+                runCatching { audioCodec.dispose() }
+                return false
+            }
+            audioConfiguration = data
+            audioConfigurationAccepted = true
+            hasAudio = true
+            return true
+        } catch (cause: Exception) {
+            if (cause !is IllegalArgumentException && cause !is IllegalStateException && cause !is NoSuchElementException && cause !is IOException) throw cause
+            Log.w(TAG, "Audio decoder rejected the configuration", cause)
+            runCatching { audioCodec.dispose() }
+            return false
+        }
     }
 
     internal fun isVideoCodecSwitch(mime: String): Boolean =
@@ -673,8 +787,8 @@ class RtmpStream(
         }
     }
 
-    private fun toMetaData(): Map<String, Any> {
-        val metadata = mutableMapOf<String, Any>()
+    private fun toMetaData(): AmfEcmaArray {
+        val metadata = AmfEcmaArray()
         if (hasVideo) {
             metadata["width"] = videoCodec.width
             metadata["height"] = videoCodec.height
@@ -697,7 +811,7 @@ class RtmpStream(
             metadata["videodatarate"] = videoCodec.bitRate / 1000
         }
         if (hasAudio) {
-            metadata["audiocodecid"] = RtmpMuxer.FLV_AUDIO_CODEC_AAC.toInt()
+            metadata["audiocodecid"] = if (audioCodec.outputMimeType == MediaFormat.MIMETYPE_AUDIO_OPUS) RtmpMuxer.FLV_AUDIO_FOUR_CC_OPUS else RtmpMuxer.FLV_AUDIO_CODEC_AAC.toInt()
             metadata["audiodatarate"] = audioCodec.bitRate / 1000
         }
         return metadata
