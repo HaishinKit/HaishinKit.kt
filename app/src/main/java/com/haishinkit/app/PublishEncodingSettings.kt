@@ -55,21 +55,29 @@ data class PublishEncodingSettings(
         stream: Stream,
         protocol: PublishingProtocol,
         validateFormat: Boolean = true,
+        videoEnabled: Boolean = true,
+        audioEnabled: Boolean = true,
+    ) {
+        validateAndApply(stream.videoSetting, stream.audioSetting, protocol, validateFormat, videoEnabled, audioEnabled)
+    }
+
+    internal fun validateAndApply(
+        video: VideoCodec.Setting,
+        audio: AudioCodec.Setting,
+        protocol: PublishingProtocol,
+        validateFormat: Boolean = true,
+        videoEnabled: Boolean = true,
+        audioEnabled: Boolean = true,
     ) {
         require(this == forProtocol(protocol)) { "The selected codecs are not supported by ${protocol.label}." }
         val profile = if (protocol == PublishingProtocol.WEBRTC) VideoCodecProfileLevel.H264_BASELINE_3_1 else videoCodec.profile
-        require(videoBitRate in MIN_VIDEO_BIT_RATE..MAX_VIDEO_BIT_RATE)
-        require(CodecCapabilities.isCodecSupportedByType(Codec.MODE_ENCODE, profile.mime)) { "No ${videoCodec.label} encoder is available on this device." }
-        require(CodecCapabilities.isCodecSupportedByType(Codec.MODE_ENCODE, audioCodec.mime)) { "No ${audioCodec.label} encoder is available on this device." }
-        val format =
-            MediaFormat.createVideoFormat(profile.mime, stream.videoSetting.width, stream.videoSetting.height).apply {
-                setInteger(MediaFormat.KEY_BIT_RATE, videoBitRate)
-                setInteger(MediaFormat.KEY_FRAME_RATE, stream.videoSetting.frameRate)
-                setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface)
-                setInteger(MediaFormat.KEY_PROFILE, profile.profile)
-                setInteger(MediaFormat.KEY_LEVEL, profile.level)
-            }
-        if (validateFormat) {
+        if (videoEnabled) {
+            require(videoBitRate in MIN_VIDEO_BIT_RATE..MAX_VIDEO_BIT_RATE)
+            require(CodecCapabilities.isCodecSupportedByType(Codec.MODE_ENCODE, profile.mime)) { "No ${videoCodec.label} encoder is available on this device." }
+        }
+        if (audioEnabled) require(CodecCapabilities.isCodecSupportedByType(Codec.MODE_ENCODE, audioCodec.mime)) { "No ${audioCodec.label} encoder is available on this device." }
+        if (videoEnabled && validateFormat) {
+            val format = createVideoFormat(video, protocol)
             // Match createEncoderByType used by the library, rather than accepting a different implementation.
             val encoder = MediaCodec.createEncoderByType(profile.mime)
             try {
@@ -80,17 +88,35 @@ data class PublishEncodingSettings(
                 encoder.release()
             }
         }
-        applyCodecSettings(stream.videoSetting, stream.audioSetting, profile)
+        applyCodecSettings(video, audio, profile, videoEnabled, audioEnabled)
+    }
+
+    internal fun createVideoFormat(
+        video: VideoCodec.Setting,
+        protocol: PublishingProtocol,
+    ): MediaFormat {
+        val profile = if (protocol == PublishingProtocol.WEBRTC) VideoCodecProfileLevel.H264_BASELINE_3_1 else videoCodec.profile
+        return MediaFormat.createVideoFormat(profile.mime, video.width, video.height).apply {
+            setInteger(MediaFormat.KEY_BIT_RATE, videoBitRate)
+            setInteger(MediaFormat.KEY_FRAME_RATE, video.frameRate)
+            setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface)
+            setInteger(MediaFormat.KEY_PROFILE, if (protocol == PublishingProtocol.WEBRTC) MediaCodecInfo.CodecProfileLevel.AVCProfileConstrainedBaseline else profile.profile)
+            setInteger(MediaFormat.KEY_LEVEL, profile.level)
+        }
     }
 
     internal fun applyCodecSettings(
         video: VideoCodec.Setting,
         audio: AudioCodec.Setting,
         profile: VideoCodecProfileLevel,
+        videoEnabled: Boolean = true,
+        audioEnabled: Boolean = true,
     ) {
-        if (video.profileLevel != profile) video.profileLevel = profile
-        if (audio.mimeType != audioCodec.mime) audio.mimeType = audioCodec.mime
-        video.bitRate = videoBitRate
+        if (videoEnabled) {
+            if (video.profileLevel != profile) video.profileLevel = profile
+            video.bitRate = videoBitRate
+        }
+        if (audioEnabled && audio.mimeType != audioCodec.mime) audio.mimeType = audioCodec.mime
     }
 
     internal fun mergingChanges(

@@ -316,9 +316,9 @@ fun CameraScreen(
                         protocol = viewModel.publishingProtocol,
                         publishing = sessionActive,
                         onUpdate = { settings ->
-                            viewModel.updateEncoding(settings).onFailure {
-                                errorMessage = it.message ?: context.getString(R.string.studio_encoding_error)
-                            }.isSuccess
+                            viewModel.updateEncoding(settings).also { result ->
+                                if (result.isSuccess) errorMessage = null
+                            }
                         },
                     )
                     CameraDeviceControllerView(

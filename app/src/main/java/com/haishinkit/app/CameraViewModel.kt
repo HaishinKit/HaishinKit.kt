@@ -197,7 +197,7 @@ class CameraViewModel(
         runCatching {
             val current = checkNotNull(session) { "The stream is not ready." }
             check(current.readyState.value == StreamSession.ReadyState.CLOSED) { "The stream is already connecting or publishing." }
-            encoding.applyTo(current.stream, publishingProtocol)
+            encoding.applyTo(current.stream, publishingProtocol, videoEnabled = current.stream.hasVideo, audioEnabled = current.stream.hasAudio)
         }
 
     internal fun updateEncoding(settings: PublishEncodingSettings): Result<Unit> =
