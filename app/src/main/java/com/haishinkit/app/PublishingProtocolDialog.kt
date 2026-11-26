@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
@@ -20,6 +21,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 
@@ -62,6 +64,7 @@ internal fun PublishingProtocolDialog(
                     onValueChange = { url = it },
                     enabled = !applying,
                     singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
                     label = { Text(if (protocol == PublishingProtocol.WEBRTC) "WHIP URL" else stringResource(R.string.studio_url)) },
                     isError = url.isNotBlank() && !validProtocolUrl(url, protocol),
                     modifier = Modifier.fillMaxWidth(),
@@ -71,7 +74,7 @@ internal fun PublishingProtocolDialog(
                 }
                 if (protocol == PublishingProtocol.WEBRTC) {
                     Text(stringResource(R.string.studio_protocol_webrtc))
-                    OutlinedTextField(value = whep, onValueChange = { whep = it }, enabled = !applying, singleLine = true, label = { Text("WHEP URL") }, isError = whep.isNotBlank() && !validProtocolUrl(whep, PublishingProtocol.WEBRTC), modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = whep, onValueChange = { whep = it }, enabled = !applying, singleLine = true, label = { Text("WHEP URL") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri), isError = whep.isNotBlank() && !validProtocolUrl(whep, PublishingProtocol.WEBRTC), modifier = Modifier.fillMaxWidth())
                 }
                 error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
             }
