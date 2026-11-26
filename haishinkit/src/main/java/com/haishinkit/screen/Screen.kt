@@ -4,6 +4,8 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Color
 import android.graphics.Rect
+import androidx.annotation.RestrictTo
+import com.haishinkit.media.source.Camera2Source
 import com.haishinkit.media.source.VideoSource
 
 /**
@@ -73,6 +75,15 @@ abstract class Screen(
         if (callbacks.contains(callback)) {
             callbacks.remove(callback)
         }
+    }
+
+    /** Updates camera-specific rotation metadata when binding or replacing a track source. */
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    protected fun updateCameraOrientation(
+        video: VideoScreenObject,
+        source: VideoSource?,
+    ) {
+        video.isBackCamera = source is Camera2Source && source.isBackFacing
     }
 
     companion object {

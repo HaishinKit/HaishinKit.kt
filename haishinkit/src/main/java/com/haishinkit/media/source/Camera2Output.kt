@@ -44,6 +44,9 @@ internal class Camera2Output(
             } else {
                 Range(1f, characteristics?.get(CameraCharacteristics.SCALER_AVAILABLE_MAX_DIGITAL_ZOOM) ?: 1f)
             }
+    val isBackFacing: Boolean
+        get() = characteristics?.get(CameraCharacteristics.LENS_FACING) == CameraCharacteristics.LENS_FACING_BACK
+
     val imageOrientation: ImageOrientation
         get() {
             return when (characteristics?.get(CameraCharacteristics.SENSOR_ORIENTATION)) {

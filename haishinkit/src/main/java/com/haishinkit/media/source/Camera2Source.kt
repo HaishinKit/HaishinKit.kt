@@ -63,6 +63,9 @@ class Camera2Source(
     override val imageOrientation: ImageOrientation
         get() = output?.imageOrientation ?: ImageOrientation.UP
 
+    internal val isBackFacing: Boolean
+        get() = output?.isBackFacing == true
+
     private var output: Camera2Output? = null
         set(value) {
             if (field == value) return

@@ -114,6 +114,13 @@ open class VideoScreenObject(
                 }
         }
 
+    internal var isBackCamera: Boolean = false
+        set(value) {
+            if (field == value) return
+            field = value
+            invalidateLayout()
+        }
+
     override fun layout(renderer: Renderer) {
         super.layout(renderer)
 
@@ -138,6 +145,13 @@ open class VideoScreenObject(
                     3 -> 90
                     else -> 0
                 }
+        }
+
+        // Preserve legacy front-camera and custom-source orientation behavior.
+        if (!isBackCamera && degrees.rem(180) == 0 &&
+            (imageOrientation == ImageOrientation.RIGHT || imageOrientation == ImageOrientation.RIGHT_MIRRORED)
+        ) {
+            degrees += 180
         }
 
         degrees %= 360

@@ -29,6 +29,7 @@ class VideoScreenObjectTest {
                         videoSize = Size(1920, 1080)
                         videoGravity = gravity
                         imageOrientation = source
+                        isBackCamera = true
                         isRotatesWithContent = true
                         deviceOrientation = display
                     }
