@@ -29,6 +29,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -54,7 +55,6 @@ import com.haishinkit.graphics.VideoGravity
 import com.haishinkit.graphics.effect.DefaultVideoEffect
 import com.haishinkit.rtc.RTCSession
 import com.haishinkit.rtc.RTCStream
-import com.haishinkit.rtmp.RtmpStream
 import com.haishinkit.screen.TextScreenObject
 import com.haishinkit.srt.SrtStream
 import com.haishinkit.stream.StreamSession
@@ -73,6 +73,7 @@ fun CameraScreen(
     viewModel: CameraViewModel = viewModel(),
     onOpenSettings: () -> Unit = {},
 ) {
+    var protocolDialog by rememberSaveable { mutableStateOf<PublishingProtocol?>(null) }
     var showIngest by remember { mutableStateOf(false) }
     var applyingIngest by remember { mutableStateOf(false) }
     var selectedIngest by remember { mutableStateOf<String?>(null) }
@@ -155,6 +156,13 @@ fun CameraScreen(
     }
     val sessionState = rememberStreamSessionState(currentSession)
     val sessionReadyState by sessionState.readyState.collectAsState()
+    protocolDialog?.let { selected ->
+        PublishingProtocolDialog(
+            protocol = selected,
+            onDismiss = { protocolDialog = null },
+            onApply = { url, name, whep -> viewModel.selectPublishingProtocol(url, name, whep) },
+        )
+    }
     PictureInPictureEffect(enabled = sessionReadyState == StreamSession.ReadyState.OPEN)
     val recorderState = rememberMediaRecorderState(viewModel.recorder)
     val sessionActive = sessionReadyState != StreamSession.ReadyState.CLOSED
@@ -312,17 +320,22 @@ fun CameraScreen(
                     },
                 settings = {
                     selectedIngest?.let { Text(stringResource(R.string.ingest_selected, it)) }
-                    if (sessionState.stream is RtmpStream) {
-                        RtmpEncodingControls(
-                            settings = viewModel.rtmpEncoding,
-                            publishing = sessionActive,
-                            onUpdate = { settings ->
-                                viewModel.updateRtmpEncoding(settings).onFailure {
-                                    errorMessage = it.message ?: context.getString(R.string.studio_encoding_error)
-                                }.isSuccess
-                            },
-                        )
+                    Text(stringResource(R.string.studio_protocol_title))
+                    FlowRow(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)) {
+                        PublishingProtocol.entries.forEach { protocol ->
+                            FilterChip(selected = viewModel.publishingProtocol == protocol, enabled = !sessionActive, onClick = { protocolDialog = protocol }, label = { Text(protocol.label) })
+                        }
                     }
+                    PublishEncodingControls(
+                        settings = viewModel.encoding,
+                        protocol = viewModel.publishingProtocol,
+                        publishing = sessionActive,
+                        onUpdate = { settings ->
+                            viewModel.updateEncoding(settings).onFailure {
+                                errorMessage = it.message ?: context.getString(R.string.studio_encoding_error)
+                            }.isSuccess
+                        },
+                    )
                     CameraDeviceControllerView(
                         camera = selectedCamera,
                         cameras = cameraList,

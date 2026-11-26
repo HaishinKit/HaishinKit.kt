@@ -63,18 +63,32 @@ class PreferenceTest {
     }
 
     @Test
-    fun rtmpEncodingSnapshotRetainsSelectionWithoutAffectingOtherTransportsOrPlayback() {
+    fun encodingSnapshotRetainsSelectionAndConformsToTransportWithoutChangingPlayback() {
         val preference = Preference("rtmps://example.com/live", "test")
         val original = preference.sessionSettings()
-        val selected = RtmpEncodingSettings(RtmpVideoCodec.VP9, RtmpAudioCodec.OPUS, 2_500_000)
-        preference.rtmpEncoding = selected
+        val selected = PublishEncodingSettings(PublishVideoCodec.VP9, PublishAudioCodec.OPUS, 2_500_000)
+        preference.encoding = selected
         val next = preference.sessionSettings()
         assertNotEquals(original, next)
-        assertEquals(RtmpEncodingSettings(), original.rtmpEncoding)
-        assertEquals(selected, next.rtmpEncoding)
-        assertEquals(selected, preference.copy(streamURL = "rtmp://example.net/live").sessionSettings().rtmpEncoding)
-        assertNull(preference.sessionSettings(StreamSession.Mode.PLAYBACK).rtmpEncoding)
-        assertNull(preference.copy(streamURL = "srt://example.com:9710").sessionSettings().rtmpEncoding)
-        assertNull(preference.copy(streamURL = "https://example.com/whip").sessionSettings().rtmpEncoding)
+        assertEquals(PublishEncodingSettings(), original.encoding)
+        assertEquals(selected, next.encoding)
+        assertEquals(selected, preference.copy(streamURL = "rtmp://example.net/live").sessionSettings().encoding)
+        assertNull(preference.sessionSettings(StreamSession.Mode.PLAYBACK).encoding)
+        assertEquals(PublishVideoCodec.H265, selected.copy(videoCodec = PublishVideoCodec.H265).forProtocol(PublishingProtocol.SRT).videoCodec)
+        assertEquals(PublishVideoCodec.H264, preference.copy(streamURL = "srt://example.com:9710").sessionSettings().encoding!!.videoCodec)
+        assertEquals(PublishAudioCodec.AAC, preference.copy(streamURL = "srt://example.com:9710").sessionSettings().encoding!!.audioCodec)
+        assertEquals(PublishAudioCodec.OPUS, preference.copy(streamURL = "https://example.com/whip").sessionSettings().encoding!!.audioCodec)
+    }
+
+    @Test
+    fun publishingProtocolValidationKeepsEndpointsExplicit() {
+        org.junit.Assert.assertTrue(validProtocolUrl("rtmps://example.com/live", PublishingProtocol.RTMP))
+        org.junit.Assert.assertTrue(validProtocolUrl("srt://:9710?mode=listener", PublishingProtocol.SRT))
+        org.junit.Assert.assertTrue(validProtocolUrl("srt://example.com:8890?mode=caller", PublishingProtocol.SRT))
+        org.junit.Assert.assertTrue(validProtocolUrl("https://example.com/whip", PublishingProtocol.WEBRTC))
+        org.junit.Assert.assertFalse(validProtocolUrl("https://example.com/whip", PublishingProtocol.RTMP))
+        org.junit.Assert.assertFalse(validProtocolUrl("srt://example.com", PublishingProtocol.SRT))
+        org.junit.Assert.assertFalse(validProtocolUrl("srt://:9710?mode=caller", PublishingProtocol.SRT))
+        org.junit.Assert.assertFalse(validProtocolUrl("", PublishingProtocol.WEBRTC))
     }
 }

@@ -35,13 +35,14 @@ import com.haishinkit.media.MediaMixer
 import com.haishinkit.media.MediaRecorder
 import com.haishinkit.media.source.AudioRecordSource
 import com.haishinkit.media.source.Camera2Source
-import com.haishinkit.rtmp.RtmpStream
+import com.haishinkit.rtc.RTCStream
 import com.haishinkit.screen.ImageScreenObject
 import com.haishinkit.screen.Screen
 import com.haishinkit.screen.ScreenObject
 import com.haishinkit.screen.TextScreenObject
 import com.haishinkit.screen.VideoScreenObject
 import com.haishinkit.screen.scene.SceneManager
+import com.haishinkit.srt.SrtStream
 import com.haishinkit.stream.StreamSession
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -74,7 +75,15 @@ class CameraViewModel(
     internal var compositionSize by mutableStateOf(Size(Screen.DEFAULT_WIDTH, Screen.DEFAULT_HEIGHT))
         private set
 
-    internal var rtmpEncoding by mutableStateOf(Preference.shared.rtmpEncoding)
+    internal val publishingProtocol: PublishingProtocol
+        get() =
+            when (session?.stream) {
+                is SrtStream -> PublishingProtocol.SRT
+                is RTCStream -> PublishingProtocol.WEBRTC
+                else -> PublishingProtocol.RTMP
+            }
+
+    internal var encoding by mutableStateOf(Preference.shared.encoding)
         private set
 
     internal val ingestDiscovery = BonjourIngestDiscovery(application.applicationContext)
@@ -169,7 +178,7 @@ class CameraViewModel(
             }
             mixer.registerOutput(candidate.stream)
             session = candidate
-            rtmpEncoding = Preference.shared.rtmpEncoding
+            encoding = checkNotNull(settings.encoding)
             sessionSettings = settings
             replacement = null
             sessionError = null
@@ -184,22 +193,49 @@ class CameraViewModel(
         }
     }
 
-    internal fun updateRtmpEncoding(settings: RtmpEncodingSettings): Result<Unit> =
+    internal suspend fun selectPublishingProtocol(
+        url: String,
+        streamName: String,
+        whepURL: String,
+    ): Result<Unit> {
+        if (session?.readyState?.value != StreamSession.ReadyState.CLOSED) return Result.failure(IllegalStateException("Stop publishing before changing the protocol."))
+        val previous = Preference.shared
+        val previousError = sessionError
+        val oldProtocol = PublishingProtocol.fromUrl(previous.streamURL)
+        val nextProtocol = PublishingProtocol.fromUrl(url)
+        Preference.shared =
+            previous.copy(
+                streamURL = url.trim(), streamName = streamName.trim(), whepURL = whepURL.trim(),
+                protocolURLs = previous.protocolURLs + (oldProtocol to previous.streamURL) + (nextProtocol to url.trim()),
+            )
+        var committed = false
+        try {
+            val result = refreshSession()
+            committed = result.isSuccess
+            return result
+        } finally {
+            if (!committed) {
+                Preference.shared = previous
+                sessionError = previousError
+            }
+        }
+    }
+
+    internal fun updateEncoding(settings: PublishEncodingSettings): Result<Unit> =
         runCatching {
             val current = checkNotNull(session) { "The stream is not ready." }
-            check(current.stream is RtmpStream) { "These settings are for RTMP publishing." }
-            val codecChanged = settings.videoCodec != rtmpEncoding.videoCodec || settings.audioCodec != rtmpEncoding.audioCodec
+            val codecChanged = settings.videoCodec != encoding.videoCodec || settings.audioCodec != encoding.audioCodec
             check(!codecChanged || current.readyState.value == StreamSession.ReadyState.CLOSED) { "Stop publishing before changing codecs." }
-            val previous = rtmpEncoding
+            val previous = encoding
             try {
-                settings.applyTo(current.stream)
+                settings.applyTo(current.stream, publishingProtocol)
             } catch (cause: Exception) {
-                runCatching { previous.applyTo(current.stream) }
+                runCatching { previous.applyTo(current.stream, publishingProtocol) }
                 throw cause
             }
-            Preference.shared.rtmpEncoding = settings
-            rtmpEncoding = settings
-            sessionSettings = sessionSettings?.copy(rtmpEncoding = settings)
+            Preference.shared.encoding = settings
+            encoding = settings
+            sessionSettings = sessionSettings?.copy(encoding = settings)
         }
 
     internal fun addScreenObject(

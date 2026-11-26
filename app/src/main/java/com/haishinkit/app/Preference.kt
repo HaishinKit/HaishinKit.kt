@@ -13,19 +13,20 @@ data class Preference(
     var whepURL: String = "",
     var bearerToken: String = "",
     var iceServers: String = "",
-    var rtmpEncoding: RtmpEncodingSettings = RtmpEncodingSettings(),
+    var encoding: PublishEncodingSettings = PublishEncodingSettings(),
+    var protocolURLs: Map<PublishingProtocol, String> = emptyMap(),
 ) {
     /** An immutable snapshot, so changing authentication or ICE settings rebuilds a session. */
     data class SessionSettings(
         val uri: Uri,
         val mode: StreamSession.Mode,
         val rtc: RTCConfiguration?,
-        val rtmpEncoding: RtmpEncodingSettings? = null,
+        val encoding: PublishEncodingSettings? = null,
     ) {
         fun create(context: Context): StreamSession =
             (if (rtc != null) RTCSession(context, uri, mode, rtc) else StreamSession.Builder(context, uri).setMode(mode).build()).also { session ->
                 try {
-                    rtmpEncoding?.applyTo(session.stream)
+                    encoding?.applyTo(session.stream, PublishingProtocol.fromUrl(uri.toString()))
                 } catch (cause: Exception) {
                     session.stream.dispose()
                     throw cause
@@ -58,7 +59,7 @@ data class Preference(
             } else {
                 null
             },
-            rtmpEncoding.takeIf { mode == StreamSession.Mode.PUBLISH && streamURL.trim().substringBefore(':').lowercase() in setOf("rtmp", "rtmps") },
+            encoding.forProtocol(PublishingProtocol.fromUrl(streamURL)).takeIf { mode == StreamSession.Mode.PUBLISH },
         )
 
     companion object {
