@@ -193,34 +193,6 @@ class CameraViewModel(
         }
     }
 
-    internal suspend fun selectPublishingProtocol(
-        url: String,
-        streamName: String,
-        whepURL: String,
-    ): Result<Unit> {
-        if (session?.readyState?.value != StreamSession.ReadyState.CLOSED) return Result.failure(IllegalStateException("Stop publishing before changing the protocol."))
-        val previous = Preference.shared
-        val previousError = sessionError
-        val oldProtocol = PublishingProtocol.fromUrl(previous.streamURL)
-        val nextProtocol = PublishingProtocol.fromUrl(url)
-        Preference.shared =
-            previous.copy(
-                streamURL = url.trim(), streamName = streamName.trim(), whepURL = whepURL.trim(),
-                protocolURLs = previous.protocolURLs + (oldProtocol to previous.streamURL) + (nextProtocol to url.trim()),
-            )
-        var committed = false
-        try {
-            val result = refreshSession()
-            committed = result.isSuccess
-            return result
-        } finally {
-            if (!committed) {
-                Preference.shared = previous
-                sessionError = previousError
-            }
-        }
-    }
-
     internal fun updateEncoding(settings: PublishEncodingSettings): Result<Unit> =
         runCatching {
             val current = checkNotNull(session) { "The stream is not ready." }

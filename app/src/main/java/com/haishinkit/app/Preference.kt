@@ -14,7 +14,6 @@ data class Preference(
     var bearerToken: String = "",
     var iceServers: String = "",
     var encoding: PublishEncodingSettings = PublishEncodingSettings(),
-    var protocolURLs: Map<PublishingProtocol, String> = emptyMap(),
 ) {
     /** An immutable snapshot, so changing authentication or ICE settings rebuilds a session. */
     data class SessionSettings(

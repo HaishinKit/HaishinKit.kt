@@ -79,16 +79,4 @@ class PreferenceTest {
         assertEquals(PublishAudioCodec.AAC, preference.copy(streamURL = "srt://example.com:9710").sessionSettings().encoding!!.audioCodec)
         assertEquals(PublishAudioCodec.OPUS, preference.copy(streamURL = "https://example.com/whip").sessionSettings().encoding!!.audioCodec)
     }
-
-    @Test
-    fun publishingProtocolValidationKeepsEndpointsExplicit() {
-        org.junit.Assert.assertTrue(validProtocolUrl("rtmps://example.com/live", PublishingProtocol.RTMP))
-        org.junit.Assert.assertTrue(validProtocolUrl("srt://:9710?mode=listener", PublishingProtocol.SRT))
-        org.junit.Assert.assertTrue(validProtocolUrl("srt://example.com:8890?mode=caller", PublishingProtocol.SRT))
-        org.junit.Assert.assertTrue(validProtocolUrl("https://example.com/whip", PublishingProtocol.WEBRTC))
-        org.junit.Assert.assertFalse(validProtocolUrl("https://example.com/whip", PublishingProtocol.RTMP))
-        org.junit.Assert.assertFalse(validProtocolUrl("srt://example.com", PublishingProtocol.SRT))
-        org.junit.Assert.assertFalse(validProtocolUrl("srt://:9710?mode=caller", PublishingProtocol.SRT))
-        org.junit.Assert.assertFalse(validProtocolUrl("", PublishingProtocol.WEBRTC))
-    }
 }

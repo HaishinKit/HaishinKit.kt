@@ -84,9 +84,5 @@
     <string name="studio_encoding_bitrate">Video bitrate</string>
     <string name="studio_encoding_kbps">%1$d kbps</string>
     <string name="studio_encoding_bitrate_help">100–12,000 kbps. Release the slider to apply, including while publishing. The encoder may limit the actual bitrate.</string>
-    <string name="studio_protocol_title">Publishing protocol</string>
-    <string name="studio_protocol_help">Apply to prepare this protocol. Publishing starts only when you press Go live.</string>
-    <string name="studio_protocol_webrtc">WHIP publishes video. Set a WHEP URL to use the Playback tab. Authentication and ICE settings are available in Settings.</string>
-    <string name="studio_protocol_apply">Apply protocol</string>
-    <string name="studio_encoding_transport_help">Only codecs supported by this publishing protocol are shown. WebRTC currently uses H.264 Baseline and Opus.</string>
+    <string name="studio_encoding_transport_help">Shows codecs supported by the configured URL. SRT uses H.264 or H.265 with AAC; WebRTC uses H.264 Baseline with Opus.</string>
 </resources>

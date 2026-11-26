@@ -84,9 +84,5 @@
     <string name="studio_encoding_bitrate">映像ビットレート</string>
     <string name="studio_encoding_kbps">%1$d kbps</string>
     <string name="studio_encoding_bitrate_help">100〜12,000 kbps。指を離すと反映します。配信中も変更できます。実際のビットレートはエンコーダーによって制限される場合があります。</string>
-    <string name="studio_protocol_title">配信方式</string>
-    <string name="studio_protocol_help">反映すると配信方式を準備します。配信開始ボタンを押すまで接続しません。</string>
-    <string name="studio_protocol_webrtc">WHIPは配信、WHEPは再生用です。WHEP URLを設定すると再生タブから利用できます。認証とICEは設定画面で変更できます。</string>
-    <string name="studio_protocol_apply">配信方式を反映</string>
-    <string name="studio_encoding_transport_help">選んだ配信方式が対応するコーデックのみ表示します。WebRTCは現在H.264 BaselineとOpusを使用します。</string>
+    <string name="studio_encoding_transport_help">設定画面のURLに対応するコーデックを表示します。SRTはH.264／H.265とAAC、WebRTCはH.264 BaselineとOpusを使用します。</string>
 </resources>

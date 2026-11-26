@@ -29,7 +29,6 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -73,7 +72,6 @@ fun CameraScreen(
     viewModel: CameraViewModel = viewModel(),
     onOpenSettings: () -> Unit = {},
 ) {
-    var protocolDialog by rememberSaveable { mutableStateOf<PublishingProtocol?>(null) }
     var showIngest by remember { mutableStateOf(false) }
     var applyingIngest by remember { mutableStateOf(false) }
     var selectedIngest by remember { mutableStateOf<String?>(null) }
@@ -156,13 +154,6 @@ fun CameraScreen(
     }
     val sessionState = rememberStreamSessionState(currentSession)
     val sessionReadyState by sessionState.readyState.collectAsState()
-    protocolDialog?.let { selected ->
-        PublishingProtocolDialog(
-            protocol = selected,
-            onDismiss = { protocolDialog = null },
-            onApply = { url, name, whep -> viewModel.selectPublishingProtocol(url, name, whep) },
-        )
-    }
     PictureInPictureEffect(enabled = sessionReadyState == StreamSession.ReadyState.OPEN)
     val recorderState = rememberMediaRecorderState(viewModel.recorder)
     val sessionActive = sessionReadyState != StreamSession.ReadyState.CLOSED
@@ -320,12 +311,6 @@ fun CameraScreen(
                     },
                 settings = {
                     selectedIngest?.let { Text(stringResource(R.string.ingest_selected, it)) }
-                    Text(stringResource(R.string.studio_protocol_title))
-                    FlowRow(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)) {
-                        PublishingProtocol.entries.forEach { protocol ->
-                            FilterChip(selected = viewModel.publishingProtocol == protocol, enabled = !sessionActive, onClick = { protocolDialog = protocol }, label = { Text(protocol.label) })
-                        }
-                    }
                     PublishEncodingControls(
                         settings = viewModel.encoding,
                         protocol = viewModel.publishingProtocol,
