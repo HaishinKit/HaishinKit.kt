@@ -140,10 +140,6 @@ open class VideoScreenObject(
                 }
         }
 
-        if (degrees.rem(180) == 0 && (imageOrientation == ImageOrientation.RIGHT || imageOrientation == ImageOrientation.RIGHT_MIRRORED)) {
-            degrees += 180
-        }
-
         degrees %= 360
 
         Matrix.setIdentityM(matrix, 0)

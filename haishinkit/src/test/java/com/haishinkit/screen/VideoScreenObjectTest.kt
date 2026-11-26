@@ -13,6 +13,40 @@ import org.robolectric.RobolectricTestRunner
 @RunWith(RobolectricTestRunner::class)
 class VideoScreenObjectTest {
     @Test
+    fun sensor270RotationRemainsConsistentInBothLandscapeDirections() {
+        val cases =
+            listOf(
+                Triple(ImageOrientation.RIGHT, Surface.ROTATION_90, ImageOrientation.DOWN),
+                Triple(ImageOrientation.RIGHT, Surface.ROTATION_270, ImageOrientation.UP),
+                Triple(ImageOrientation.RIGHT_MIRRORED, Surface.ROTATION_90, ImageOrientation.UP_MIRRORED),
+                Triple(ImageOrientation.RIGHT_MIRRORED, Surface.ROTATION_270, ImageOrientation.DOWN_MIRRORED),
+            )
+        for (gravity in VideoGravity.entries) {
+            for ((source, display, expected) in cases) {
+                val camera =
+                    VideoScreenObject().apply {
+                        frame = Rect(0, 0, 1280, 720)
+                        videoSize = Size(1920, 1080)
+                        videoGravity = gravity
+                        imageOrientation = source
+                        isRotatesWithContent = true
+                        deviceOrientation = display
+                    }
+                val upright =
+                    VideoScreenObject().apply {
+                        frame = camera.frame
+                        videoSize = camera.videoSize
+                        videoGravity = gravity
+                        imageOrientation = expected
+                    }
+                camera.layout(MockRenderer())
+                upright.layout(MockRenderer())
+                assertArrayEquals("$source / display=$display / $gravity", upright.matrix, camera.matrix, 0.0001f)
+            }
+        }
+    }
+
+    @Test
     fun wrappedRotationPreservesAspectFitAndFillScaling() {
         for (gravity in listOf(VideoGravity.RESIZE_ASPECT, VideoGravity.RESIZE_ASPECT_FILL)) {
             val reference =
