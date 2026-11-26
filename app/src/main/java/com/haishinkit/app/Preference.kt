@@ -23,14 +23,7 @@ data class Preference(
         val encoding: PublishEncodingSettings? = null,
     ) {
         fun create(context: Context): StreamSession =
-            (if (rtc != null) RTCSession(context, uri, mode, rtc) else StreamSession.Builder(context, uri).setMode(mode).build()).also { session ->
-                try {
-                    encoding?.applyTo(session.stream, PublishingProtocol.fromUrl(uri.toString()))
-                } catch (cause: Exception) {
-                    session.stream.dispose()
-                    throw cause
-                }
-            }
+            if (rtc != null) RTCSession(context, uri, mode, rtc) else StreamSession.Builder(context, uri).setMode(mode).build()
     }
 
     val isRTC: Boolean

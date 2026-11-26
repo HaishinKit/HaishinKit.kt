@@ -395,6 +395,9 @@ fun CameraScreen(
                                         errorMessage = it
                                         return@launch
                                     }
+                                    viewModel.preparePublishing().onFailure {
+                                        errorMessage = it.message ?: context.getString(R.string.studio_encoding_error)
+                                    }.getOrElse { return@launch }
                                     sessionState.connect().onFailure {
                                         errorMessage = it.message ?: context.getString(R.string.studio_connection_error)
                                     }

@@ -79,4 +79,18 @@ class PreferenceTest {
         assertEquals(PublishAudioCodec.AAC, preference.copy(streamURL = "srt://example.com:9710").sessionSettings().encoding!!.audioCodec)
         assertEquals(PublishAudioCodec.OPUS, preference.copy(streamURL = "https://example.com/whip").sessionSettings().encoding!!.audioCodec)
     }
+
+    @Test
+    fun unsupportedEncodingDoesNotPreventSessionCreationForPreviewOrSharing() =
+        kotlinx.coroutines.runBlocking {
+            org.robolectric.shadows.ShadowMediaCodecList.reset()
+            StreamSession.Builder.registerFactory(com.haishinkit.rtmp.RtmpStreamSessionFactory)
+            val settings = Preference("rtmp://example.com/live", "test", encoding = PublishEncodingSettings(videoCodec = PublishVideoCodec.AV1, videoBitRate = -1)).sessionSettings()
+            val session = settings.create(org.robolectric.RuntimeEnvironment.getApplication())
+            try {
+                assertEquals(StreamSession.ReadyState.CLOSED, session.readyState.value)
+            } finally {
+                session.close()
+            }
+        }
 }

@@ -1,8 +1,9 @@
 package com.haishinkit.app
 
+import android.media.MediaCodec
 import android.media.MediaCodecInfo
-import android.media.MediaCodecList
 import android.media.MediaFormat
+import com.haishinkit.codec.AudioCodec
 import com.haishinkit.codec.Codec
 import com.haishinkit.codec.CodecCapabilities
 import com.haishinkit.codec.VideoCodec
@@ -53,6 +54,7 @@ data class PublishEncodingSettings(
     fun applyTo(
         stream: Stream,
         protocol: PublishingProtocol,
+        validateFormat: Boolean = true,
     ) {
         require(this == forProtocol(protocol)) { "The selected codecs are not supported by ${protocol.label}." }
         val profile = if (protocol == PublishingProtocol.WEBRTC) VideoCodecProfileLevel.H264_BASELINE_3_1 else videoCodec.profile
@@ -67,13 +69,39 @@ data class PublishEncodingSettings(
                 setInteger(MediaFormat.KEY_PROFILE, profile.profile)
                 setInteger(MediaFormat.KEY_LEVEL, profile.level)
             }
-        require(MediaCodecList(MediaCodecList.REGULAR_CODECS).findEncoderForFormat(format) != null) {
-            "No ${videoCodec.label} encoder supports this resolution, frame rate and bitrate. Try a lower bitrate or another codec."
+        if (validateFormat) {
+            // Match createEncoderByType used by the library, rather than accepting a different implementation.
+            val encoder = MediaCodec.createEncoderByType(profile.mime)
+            try {
+                require(encoder.codecInfo.getCapabilitiesForType(profile.mime).isFormatSupported(format)) {
+                    "The preferred ${videoCodec.label} encoder does not support this resolution, frame rate and bitrate. Try another codec or a lower bitrate."
+                }
+            } finally {
+                encoder.release()
+            }
         }
-        stream.videoSetting.profileLevel = profile
-        stream.audioSetting.mimeType = audioCodec.mime
-        stream.videoSetting.bitRate = videoBitRate
+        applyCodecSettings(stream.videoSetting, stream.audioSetting, profile)
     }
+
+    internal fun applyCodecSettings(
+        video: VideoCodec.Setting,
+        audio: AudioCodec.Setting,
+        profile: VideoCodecProfileLevel,
+    ) {
+        if (video.profileLevel != profile) video.profileLevel = profile
+        if (audio.mimeType != audioCodec.mime) audio.mimeType = audioCodec.mime
+        video.bitRate = videoBitRate
+    }
+
+    internal fun mergingChanges(
+        previous: PublishEncodingSettings,
+        next: PublishEncodingSettings,
+    ): PublishEncodingSettings =
+        copy(
+            videoCodec = if (previous.videoCodec != next.videoCodec) next.videoCodec else videoCodec,
+            audioCodec = if (previous.audioCodec != next.audioCodec) next.audioCodec else audioCodec,
+            videoBitRate = if (previous.videoBitRate != next.videoBitRate) next.videoBitRate else videoBitRate,
+        )
 
     companion object {
         const val MIN_VIDEO_BIT_RATE = 100_000

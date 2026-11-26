@@ -193,6 +193,13 @@ class CameraViewModel(
         }
     }
 
+    internal fun preparePublishing(): Result<Unit> =
+        runCatching {
+            val current = checkNotNull(session) { "The stream is not ready." }
+            check(current.readyState.value == StreamSession.ReadyState.CLOSED) { "The stream is already connecting or publishing." }
+            encoding.applyTo(current.stream, publishingProtocol)
+        }
+
     internal fun updateEncoding(settings: PublishEncodingSettings): Result<Unit> =
         runCatching {
             val current = checkNotNull(session) { "The stream is not ready." }
@@ -200,12 +207,12 @@ class CameraViewModel(
             check(!codecChanged || current.readyState.value == StreamSession.ReadyState.CLOSED) { "Stop publishing before changing codecs." }
             val previous = encoding
             try {
-                settings.applyTo(current.stream, publishingProtocol)
+                settings.applyTo(current.stream, publishingProtocol, validateFormat = current.readyState.value == StreamSession.ReadyState.CLOSED)
             } catch (cause: Exception) {
-                runCatching { previous.applyTo(current.stream, publishingProtocol) }
+                runCatching { previous.applyTo(current.stream, publishingProtocol, validateFormat = current.readyState.value == StreamSession.ReadyState.CLOSED) }
                 throw cause
             }
-            Preference.shared.encoding = settings
+            Preference.shared.encoding = Preference.shared.encoding.mergingChanges(previous, settings)
             encoding = settings
             sessionSettings = sessionSettings?.copy(encoding = settings)
         }
