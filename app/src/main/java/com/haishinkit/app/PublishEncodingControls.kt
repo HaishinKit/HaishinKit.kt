@@ -15,7 +15,6 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -84,7 +83,7 @@ internal fun PublishEncodingControls(
             }
         }
         if (errorField == "audio") editError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-        var bitRate by rememberSaveable(settings.videoBitRate) { mutableFloatStateOf(settings.videoBitRate / 1000f) }
+        var bitRate by remember(settings.videoBitRate) { mutableFloatStateOf(settings.videoBitRate / 1000f) }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Text(stringResource(R.string.studio_encoding_bitrate), style = MaterialTheme.typography.labelLarge)
             Text(stringResource(R.string.studio_encoding_kbps, bitRate.roundToInt()), color = MaterialTheme.colorScheme.primary)
