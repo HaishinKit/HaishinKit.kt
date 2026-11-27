@@ -115,9 +115,11 @@ class CameraViewModel(
     init {
         val _videoEffectItems = mutableListOf<VideoEffectItem>()
         _videoEffectItems.add(VideoEffectItem("Normal", null))
-        _videoEffectItems.add(VideoEffectItem("Monochrome", MonochromeVideoEffect()))
-        _videoEffectItems.add(VideoEffectItem("Mosaic", MosaicVideoEffect()))
-        _videoEffectItems.add(VideoEffectItem("Sepia", SepiaVideoEffect()))
+        if (dynamicRangeMode == com.haishinkit.graphics.DynamicRangeMode.SDR) {
+            _videoEffectItems.add(VideoEffectItem("Monochrome", MonochromeVideoEffect()))
+            _videoEffectItems.add(VideoEffectItem("Mosaic", MosaicVideoEffect()))
+            _videoEffectItems.add(VideoEffectItem("Sepia", SepiaVideoEffect()))
+        }
         this.videoEffectItems = _videoEffectItems
         val cameras = cameraDeviceManager.getDeviceList()
         _selectedCamera.value = cameras.firstOrNull { it.position == CameraDevice.Position.BACK } ?: cameras.firstOrNull()

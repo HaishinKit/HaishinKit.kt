@@ -388,7 +388,7 @@ fun CameraScreen(
                         }
                     }
                     if (BuildConfig.VQMETRIX_AVAILABLE) {
-                        Button(onClick = { viewModel.captureQuality(context) }) {
+                        Button(enabled = viewModel.dynamicRangeMode == com.haishinkit.graphics.DynamicRangeMode.SDR, onClick = { viewModel.captureQuality(context) }) {
                             Text(stringResource(R.string.vq_capture_action))
                         }
                     }
