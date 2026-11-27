@@ -15,7 +15,7 @@ internal class Av1DecoderConfigurationRecord private constructor(
     override val videoSize: Size?
         get() = sequenceHeader()?.let(::readVideoSize)
 
-    val isHlg: Boolean get() = sequenceHeader()?.let(Av1SequenceHeader::parse)?.let { it.bitDepth == 10 && it.colorPrimaries == 9 && it.transfer == 18 && it.matrix == 9 } == true
+    val isHlg: Boolean get() = sequenceHeader()?.let(Av1SequenceHeader::parse)?.let { it.bitDepth == 10 && it.colorPrimaries == 9 && it.transfer == 18 && it.matrix == 9 && !it.fullRange } == true
 
     val hasSequenceHeader: Boolean get() = sequenceHeader() != null
 
@@ -76,6 +76,9 @@ internal class Av1DecoderConfigurationRecord private constructor(
 
     companion object {
         private const val CSD0 = "csd-0"
+
+        fun fromKeyFrame(frame: ByteBuffer): Av1DecoderConfigurationRecord? =
+            Av1DecoderConfigurationRecord(byteArrayOf(0x81.toByte(), 0, 0, 0)).withSequenceHeader(frame)
 
         fun create(format: MediaFormat): Av1DecoderConfigurationRecord? {
             val csd = format.getByteBuffer(CSD0)?.duplicate() ?: return null

@@ -40,6 +40,13 @@ class HlgConfigurationTest {
         org.junit.Assert.assertNull(record.withSequenceHeader(ByteBuffer.wrap(byteArrayOf(0x32, 1, 0))))
     }
 
+    @Test fun fullRangeHlgIsNotAcceptedByTheLimitedRangePath() {
+        // Reduced still-picture sequence, Main10, 320x180, BT.2020/HLG; only color_range differs.
+        fun record(hex: String) = Av1DecoderConfigurationRecord.decode(ByteBuffer.wrap(hex.chunked(2).map { it.toInt(16).toByte() }.toByteArray()))
+        assertEquals(true, record("81004c000a0a1821e7f6605091209040").isHlg)
+        assertEquals(false, record("81004c000a0a1821e7f6605091209840").isHlg)
+    }
+
     @Test fun keepsHeaderOnlyAv1cFromPixelEncoder() {
         val bytes = byteArrayOf(0x81.toByte(), 0, 0x4c, 0)
         val format = MediaFormat.createVideoFormat("video/av01", 320, 180).apply { setByteBuffer("csd-0", ByteBuffer.wrap(bytes)) }

@@ -17,6 +17,7 @@ internal class Renderer(
     private val dynamicRangeMode: DynamicRangeMode = DynamicRangeMode.SDR,
     private val sourceRange: (Int) -> DynamicRangeMode? = { null },
 ) : Renderer {
+    private val warnedVideoEffects = mutableSetOf<String>()
     private val shaderLoader by lazy {
         ShaderLoader(context)
     }
@@ -81,15 +82,23 @@ internal class Renderer(
 
     override fun draw(screenObject: ScreenObject) {
         if (screenObject is VideoScreenObject && screenObject.textureId <= 0) return
+        val effect =
+            if (dynamicRangeMode == DynamicRangeMode.HLG && screenObject is VideoScreenObject) {
+                if (screenObject.videoEffect !is com.haishinkit.graphics.effect.DefaultVideoEffect && warnedVideoEffects.add(screenObject.videoEffect.javaClass.name)) {
+                    android.util.Log.w(TAG, "Using the default source-video effect for HLG composition")
+                }
+                com.haishinkit.graphics.effect.DefaultVideoEffect.shared
+            } else {
+                screenObject.videoEffect
+            }
         val program =
             shaderLoader.getProgram(
-                screenObject.target, screenObject.videoEffect,
+                screenObject.target, effect,
                 if (dynamicRangeMode == DynamicRangeMode.HLG) {
                     if (screenObject is VideoScreenObject) {
-                        require(screenObject.videoEffect is com.haishinkit.graphics.effect.DefaultVideoEffect) { "HLG source composition currently requires the default effect" }
                         if (sourceRange(screenObject.track) == DynamicRangeMode.HLG) 2 else 4
                     } else {
-                        1
+                        if (screenObject is ImageScreenObject && screenObject.bitmap?.isPremultiplied == true) 5 else 1
                     }
                 } else {
                     0
@@ -102,12 +111,13 @@ internal class Renderer(
             screenObject.bounds.height(),
         )
         program.use()
-        program.bind(screenObject.videoEffect)
+        program.bind(effect)
         program.draw(screenObject, screenObject.getCornerClip())
     }
 
     fun release() {
         shaderLoader.release()
+        warnedVideoEffects.clear()
     }
 
     companion object {

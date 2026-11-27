@@ -78,7 +78,7 @@ internal class PixelTransform(
         set(value) {
             if (field == value) return
             field = value
-            program = shaderLoader.getProgram(GLES20.GL_TEXTURE_2D, value)
+            program = shaderLoader.getProgram(GLES20.GL_TEXTURE_2D, value, if (screen?.dynamicRangeMode == DynamicRangeMode.HLG) 3 else 0)
         }
 
     override var frameRate: Int
@@ -180,7 +180,7 @@ internal class PixelTransform(
     fun clearColor(color: Int) {
         val rgb = floatArrayOf(((color shr 16) and 255) / 255f, ((color shr 8) and 255) / 255f, (color and 255) / 255f)
         val output = if (screen?.dynamicRangeMode == DynamicRangeMode.HLG) HlgColor.encode(HlgColor.fromSrgb(rgb[0], rgb[1], rgb[2])) else rgb
-        GLES20.glClearColor(output[0], output[1], output[2], ((color shr 24) and 255) / 255f)
+        GLES20.glClearColor(output[0], output[1], output[2], if (screen?.dynamicRangeMode == DynamicRangeMode.HLG) 1f else ((color shr 24) and 255) / 255f)
     }
 
     companion object {

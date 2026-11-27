@@ -332,6 +332,7 @@ class RtmpStream(
 
     @Volatile
     private var audioConfigurationAccepted = false
+    private var acceptedAv1WireConfiguration: ByteBuffer? = null
     private var pendingAv1Configuration: Av1DecoderConfigurationRecord? = null
     private var pendingVpConfiguration: VpDecoderConfigurationRecord? = null
 
@@ -539,6 +540,7 @@ class RtmpStream(
     override fun startRunning() {
         if (isRunning.get()) return
         muxer.clear()
+        acceptedAv1WireConfiguration = null
         audioTimestamp = null
         audioConfiguration = null
         audioConfigurationAccepted = false
@@ -566,6 +568,7 @@ class RtmpStream(
         audioConfigurationAccepted = false
         audioCodec.options = audioSetting.options
         pendingVpConfiguration = null
+        acceptedAv1WireConfiguration = null
         pendingAv1Configuration = null
         videoCodec.options = videoSetting.options
     }
@@ -654,9 +657,13 @@ class RtmpStream(
         }
     }
 
+    internal fun requiresSurfaceDecoder(mime: String): Boolean =
+        RtmpMuxer.isNonNalVideo(mime) ||
+            (videoCodec.dynamicRangeMode == DynamicRangeMode.HLG && mime == MediaFormat.MIMETYPE_VIDEO_HEVC)
+
     internal fun isVideoCodecSwitch(mime: String): Boolean =
         videoCodec.isRunning.get() && inputVideoMimeType != mime &&
-            (RtmpMuxer.isNonNalVideo(mime) || RtmpMuxer.isNonNalVideo(inputVideoMimeType))
+            (requiresSurfaceDecoder(mime) || requiresSurfaceDecoder(inputVideoMimeType))
 
     internal fun invalidateVideoConfiguration() {
         videoConfigurationAccepted = false
@@ -692,13 +699,18 @@ class RtmpStream(
             val actual = pending.withSequenceHeader(frame) ?: pending.takeIf { it.isHlg } ?: return false
             if (!actual.isHlg) return false
             pendingAv1Configuration = null
-            configureVideoDecoder(actual)
+            configureVideoDecoder(actual).also { if (it) acceptedAv1WireConfiguration = pending.toByteBuffer() }
         } catch (cause: IllegalArgumentException) {
             false
         }
     }
 
     internal fun configure(decoderConfigurationRecord: DecoderConfigurationRecord): Boolean {
+        if (decoderConfigurationRecord is Av1DecoderConfigurationRecord && videoCodec.dynamicRangeMode == DynamicRangeMode.HLG && videoCodec.isRunning.get() && decoderConfigurationRecord.toByteBuffer() == acceptedAv1WireConfiguration) {
+            videoConfigurationAccepted = true
+            return true
+        }
+
         if (decoderConfigurationRecord is Av1DecoderConfigurationRecord && videoCodec.dynamicRangeMode == DynamicRangeMode.HLG && !videoCodec.isRunning.get()) {
             if (mode != Codec.MODE_DECODE || !isRunning.get()) return false
             pendingAv1Configuration = decoderConfigurationRecord
@@ -709,18 +721,18 @@ class RtmpStream(
     }
 
     private fun configureVideoDecoder(decoderConfigurationRecord: DecoderConfigurationRecord): Boolean {
-        val nonNal = RtmpMuxer.isNonNalVideo(decoderConfigurationRecord.mime)
+        val surfaceDecoder = requiresSurfaceDecoder(decoderConfigurationRecord.mime)
         if (isVideoCodecSwitch(decoderConfigurationRecord.mime)) {
             Log.w(TAG, "Close playback before changing to a different video codec")
             return false
         }
-        val configuration = if (nonNal) decoderConfigurationRecord.toByteBuffer() else null
-        if (nonNal && videoCodec.isRunning.get()) {
+        val configuration = if (surfaceDecoder) decoderConfigurationRecord.toByteBuffer() else null
+        if (surfaceDecoder && videoCodec.isRunning.get()) {
             videoConfigurationAccepted = configuration == videoConfiguration
             if (!videoConfigurationAccepted) Log.w(TAG, "Close playback before changing the video configuration")
             return videoConfigurationAccepted
         }
-        if (nonNal) {
+        if (surfaceDecoder) {
             videoConfigurationAccepted = false
             if (mode != Codec.MODE_DECODE || !isRunning.get()) return false
         }
@@ -746,15 +758,15 @@ class RtmpStream(
             }
         if (decoderConfigurationRecord.configure(videoCodec)) {
             val size = decoderConfigurationRecord.videoSize
-            if (nonNal && size != null) {
+            if (surfaceDecoder && size != null) {
                 videoCodec.width = size.width
                 videoCodec.height = size.height
             }
-            if (size != null || nonNal) {
+            if (size != null || surfaceDecoder) {
                 val initialSize = size ?: Size(videoCodec.width, videoCodec.height)
                 playbackVideoSource = VideoCodecSource(videoCodec).apply { videoSize = initialSize }
                 updateVideoSize(initialSize)
-                if (nonNal) {
+                if (surfaceDecoder) {
                     val source = RtmpPlaybackVideoSource(playbackVideoSource!!)
                     screen.attachVideo(0, source)
                     if (!source.awaitSurface() || !isRunning.get() || mode != Codec.MODE_DECODE) {
@@ -765,7 +777,7 @@ class RtmpStream(
                     screen.attachVideo(0, playbackVideoSource)
                 }
             }
-            if (nonNal) {
+            if (surfaceDecoder) {
                 // Serialize startup/publication with Stream.stopRunning, after waiting without its monitor.
                 return synchronized(this) {
                     if (!isRunning.get() || mode != Codec.MODE_DECODE) return@synchronized false

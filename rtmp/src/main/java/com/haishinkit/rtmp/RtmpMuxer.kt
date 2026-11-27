@@ -337,7 +337,7 @@ internal class RtmpMuxer(
                     if (!keyframe) return true
                     val config =
                         try {
-                            pendingAv1Configuration?.withSequenceHeader(codedBuffer)
+                            pendingAv1Configuration?.withSequenceHeader(codedBuffer) ?: Av1DecoderConfigurationRecord.fromKeyFrame(codedBuffer)
                         } catch (cause: IllegalArgumentException) {
                             null
                         } ?: return true

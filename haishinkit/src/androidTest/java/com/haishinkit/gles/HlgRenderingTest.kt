@@ -68,6 +68,129 @@ class HlgRenderingTest {
         }
     }
 
+    @Test fun halfTransparentBitmapUsesStraightLinearColorBeforeBlending() {
+        val graphics = GraphicsContext()
+        graphics.open(null, DynamicRangeMode.HLG)
+        graphics.makeCurrent(null)
+        val framebuffer = Framebuffer(DynamicRangeMode.HLG).apply { bounds = Rect(0, 0, 16, 16) }
+        val renderer = com.haishinkit.gles.screen.Renderer(InstrumentationRegistry.getInstrumentation().targetContext, DynamicRangeMode.HLG)
+        val ids = IntArray(1)
+        GLES20.glGenTextures(1, ids, 0)
+        val image =
+            com.haishinkit.screen.ImageScreenObject().apply {
+                textureId = ids[0]
+                frame = Rect(0, 0, 16, 16)
+                bitmap = android.graphics.Bitmap.createBitmap(16, 16, android.graphics.Bitmap.Config.ARGB_8888).apply { eraseColor(0x80ffffff.toInt()) }
+            }
+        try {
+            image.layout(renderer)
+            framebuffer.render {
+                GLES20.glClearColor(0f, 0f, 0f, 0f)
+                GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT)
+                GLES20.glEnable(GLES20.GL_BLEND)
+                GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA, GLES20.GL_ONE_MINUS_SRC_ALPHA)
+                renderer.draw(image)
+                GLES20.glDisable(GLES20.GL_BLEND)
+                val values = readFloatPixel()
+                for (i in 0..2) org.junit.Assert.assertEquals(0.203f * 128f / 255f, values[i], 0.002f)
+            }
+        } finally {
+            image.bitmap?.recycle()
+            GLES20.glDeleteTextures(1, ids, 0)
+            renderer.release()
+            framebuffer.release()
+            graphics.close()
+        }
+    }
+
+    @Test fun effectSwitchRetainsHlgOutputAndMakesItOpaque() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val graphics = GraphicsContext()
+        graphics.open(null, DynamicRangeMode.HLG)
+        graphics.makeCurrent(null)
+        val source = Framebuffer(DynamicRangeMode.HLG).apply { bounds = Rect(0, 0, 16, 16) }
+        val destination = Framebuffer(DynamicRangeMode.HLG).apply { bounds = Rect(0, 0, 16, 16) }
+        val fake =
+            object : com.haishinkit.screen.Screen(context, DynamicRangeMode.HLG) {
+                override fun readPixels(lambda: (android.graphics.Bitmap?) -> Unit) {}
+
+                override fun bind(screenObject: com.haishinkit.screen.ScreenObject) {}
+
+                override fun unbind(screenObject: com.haishinkit.screen.ScreenObject) {}
+
+                override fun attachVideo(
+                    track: Int,
+                    video: com.haishinkit.media.source.VideoSource?,
+                ) {}
+            }
+        val transform = PixelTransform(context)
+        val quad =
+            com.haishinkit.screen.VideoScreenObject(target = GLES20.GL_TEXTURE_2D).apply {
+                frame = Rect(0, 0, 16, 16)
+                videoSize = android.util.Size(16, 16)
+                textureId = source.textureId
+            }
+        val renderer = com.haishinkit.gles.screen.Renderer(context)
+        try {
+            source.render {
+                GLES20.glClearColor(0.203f, 0.203f, 0.203f, 0f)
+                GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT)
+            }
+            transform.screen = fake
+            transform.videoEffect = DefaultVideoEffect.shared
+            val program = PixelTransform::class.java.getDeclaredField("program").apply { isAccessible = true }.get(transform) as Program
+            quad.layout(renderer)
+            destination.render {
+                GLES20.glViewport(0, 0, 16, 16)
+                program.use()
+                program.bind(DefaultVideoEffect.shared)
+                program.draw(quad)
+                val values = readFloatPixel()
+                for (i in 0..2) org.junit.Assert.assertEquals(0.75f, values[i], 0.003f)
+                org.junit.Assert.assertEquals(1f, values[3], 0f)
+            }
+        } finally {
+            transform.screen = null
+            renderer.release()
+            source.release()
+            destination.release()
+            graphics.close()
+        }
+    }
+
+    @Test fun unsupportedHlgSourceVideoEffectFallsBackWithoutKillingTheRenderer() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val graphics = GraphicsContext()
+        graphics.open(null, DynamicRangeMode.HLG)
+        graphics.makeCurrent(null)
+        val source = Framebuffer().apply { bounds = Rect(0, 0, 16, 16) }
+        val destination = Framebuffer(DynamicRangeMode.HLG).apply { bounds = Rect(0, 0, 16, 16) }
+        val quad =
+            com.haishinkit.screen.VideoScreenObject(target = GLES20.GL_TEXTURE_2D).apply {
+                frame = Rect(0, 0, 16, 16)
+                videoSize = android.util.Size(16, 16)
+                textureId = source.textureId
+                videoEffect = com.haishinkit.graphics.effect.SepiaVideoEffect()
+            }
+        val renderer = com.haishinkit.gles.screen.Renderer(context, DynamicRangeMode.HLG)
+        try {
+            source.render {
+                GLES20.glClearColor(1f, 1f, 1f, 1f)
+                GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT)
+            }
+            quad.layout(renderer)
+            destination.render {
+                renderer.draw(quad)
+                for (value in readFloatPixel().take(3)) org.junit.Assert.assertEquals(0.203f, value, 0.002f)
+            }
+        } finally {
+            renderer.release()
+            source.release()
+            destination.release()
+            graphics.close()
+        }
+    }
+
     @Test fun encodeTenBitHlgOnBothInstalledHardwareEncoders() {
         for ((mime, profile) in listOf("video/hevc" to 2, "video/av01" to 2)) {
             val format =
@@ -190,5 +313,12 @@ class HlgRenderingTest {
         } finally {
             graphics.close()
         }
+    }
+
+    private fun readFloatPixel(): FloatArray {
+        val buffer = java.nio.ByteBuffer.allocateDirect(16).order(java.nio.ByteOrder.nativeOrder()).asFloatBuffer()
+        GLES20.glReadPixels(8, 8, 1, 1, GLES20.GL_RGBA, GLES20.GL_FLOAT, buffer)
+        org.junit.Assert.assertEquals(GLES20.GL_NO_ERROR, GLES20.glGetError())
+        return FloatArray(4) { buffer[it] }
     }
 }

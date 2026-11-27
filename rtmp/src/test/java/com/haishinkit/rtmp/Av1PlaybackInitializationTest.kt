@@ -64,6 +64,11 @@ class Av1PlaybackInitializationTest {
         ShadowMediaCodecList.addCodec(
             MediaCodecInfoBuilder.newBuilder().setName("test.av1.decoder").setIsEncoder(false).setCapabilities(capabilities).build(),
         )
+        val hevc =
+            MediaCodecInfoBuilder.CodecCapabilitiesBuilder.newBuilder()
+                .setMediaFormat(MediaFormat.createVideoFormat(MediaFormat.MIMETYPE_VIDEO_HEVC, 320, 180))
+                .setIsEncoder(false).setProfileLevels(emptyArray()).setColorFormats(intArrayOf(19)).build()
+        ShadowMediaCodecList.addCodec(MediaCodecInfoBuilder.newBuilder().setName("test.hevc.decoder").setIsEncoder(false).setCapabilities(hevc).build())
     }
 
     @After
@@ -297,8 +302,75 @@ class Av1PlaybackInitializationTest {
             val expected = byteArrayOf(0x81.toByte(), 0, 0x4c, 0) + header
             assertEquals(ByteBuffer.wrap(expected), configuredCsd.get())
             assertTrue(stream.canReceiveAv1)
+            stream.invalidateVideoConfiguration()
+            assertFalse(stream.canReceiveAv1)
+            assertTrue(stream.configure(record())) // The same wire placeholder remains valid after in-band correction.
+            assertTrue(stream.canReceiveAv1)
         } finally {
             executor.shutdownNow()
+            surface.release()
+            texture.release()
+        }
+    }
+
+    @Test fun hlgHevcWaitsForTheFirstSurface() = verifyHlgHevcSurface(false)
+
+    @Test fun closingWhileHlgHevcWaitsForSurfaceCancelsStartup() = verifyHlgHevcSurface(true)
+
+    private fun verifyHlgHevcSurface(closeBeforeSurface: Boolean) {
+        stream.readyState = RtmpStream.ReadyState.PLAY
+        codec.dynamicRangeMode = com.haishinkit.graphics.DynamicRangeMode.HLG
+        codec.listener = null
+        val configured = AtomicReference<Surface>()
+        ShadowMediaCodec.addDecoder(
+            MediaFormat.MIMETYPE_VIDEO_HEVC,
+            ShadowMediaCodec.CodecConfig(
+                4096,
+                4096,
+                object : ShadowMediaCodec.CodecConfig.Codec {
+                    override fun onConfigured(
+                        format: MediaFormat,
+                        surface: Surface?,
+                        crypto: MediaCrypto?,
+                        flags: Int,
+                    ) {
+                        assertTrue(Thread.holdsLock(stream))
+                        configured.set(surface)
+                        format.setString(MediaFormat.KEY_MIME, MediaFormat.MIMETYPE_VIDEO_RAW)
+                    }
+
+                    override fun process(
+                        input: ByteBuffer,
+                        output: ByteBuffer,
+                    ) {}
+                },
+            ),
+        )
+        codec.codec = android.media.MediaCodec.createDecoderByType(MediaFormat.MIMETYPE_VIDEO_HEVC)
+        val bytes = "0000000140010c01ffff0220000003000003000003000003003c2c09000000014201010220000003000003000003000003003ca00a080c1f3b68b4aec12ee6a1224120571429000000014401c06670c8640cc640".chunked(2).map { it.toInt(16).toByte() }.toByteArray()
+        val record = com.haishinkit.rtmp.iso.HevcDecoderConfigurationRecord.create(ByteBuffer.wrap(bytes))
+        val executor = Executors.newSingleThreadExecutor()
+        val texture = SurfaceTexture(false)
+        val surface = Surface(texture)
+        try {
+            val configuring = executor.submit<Boolean> { stream.configure(record) }
+            val source = screen.sources.poll(2, TimeUnit.SECONDS)!!
+            assertFalse(configuring.isDone)
+            assertNull(configured.get())
+            if (closeBeforeSurface) stream.close()
+            source.surface = surface
+            assertEquals(!closeBeforeSurface, configuring.get(2, TimeUnit.SECONDS))
+            if (closeBeforeSurface) {
+                assertNull(configured.get())
+                assertFalse(codec.isRunning.get())
+            } else {
+                assertSame(surface, configured.get())
+                assertTrue(stream.canReceiveCodedVideo)
+            }
+        } finally {
+            executor.shutdownNow()
+            executor.awaitTermination(2, TimeUnit.SECONDS)
+            stream.dispose()
             surface.release()
             texture.release()
         }

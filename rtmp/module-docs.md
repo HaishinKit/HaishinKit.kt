@@ -36,8 +36,7 @@ numeric FourCC in `audiocodecid`. H.264 and AAC retain their legacy numeric IDs.
 ### HLG composition, publishing and playback
 
 Select `DynamicRangeMode.HLG` when creating the mixer. HLG uses 10-bit BT.2020
-surfaces and a floating-point, linear-light OpenGL composition buffer. SDR images,
-text and video are converted to the working space; SDR reference white is 203 cd/m²
+surfaces and a floating-point, linear-light OpenGL composition buffer. SDR sRGB images/text and BT.709 video are converted to the working space; SDR reference white is 203 cd/m²
 in a nominal 1000 cd/m² HLG output. Existing mixers remain SDR by default.
 
 ```kotlin
@@ -62,8 +61,9 @@ surfaces. An SDR camera can also be composited into an HLG mixer; it does not be
 an HDR capture source. Unsupported camera or encoder settings are rejected.
 
 Use the OpenGL pixel-transform backend and `HkSurfaceView` for HLG display;
-`HkTextureView` and the Vulkan backend are not supported by this path. HLG input is currently limited-range BT.2020. HDR source
-video currently uses the default video effect. Custom effects must not assume the
+`HkTextureView` and the Vulkan backend are not supported by this path. HLG input is currently limited-range BT.2020.
+Video sources in an HLG composition use the default effect; other source-video
+effects fall back to the default with a warning. Custom effects must not assume the
 SDR gamma-encoded working space. `Screen.readPixels` returns `null` for HLG screens;
 8-bit bitmap export and HDR-to-SDR tone mapping are not implemented.
 

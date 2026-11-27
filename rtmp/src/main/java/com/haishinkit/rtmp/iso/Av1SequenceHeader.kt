@@ -15,6 +15,7 @@ internal data class Av1SequenceHeader(
     val colorPrimaries: Int,
     val transfer: Int,
     val matrix: Int,
+    val fullRange: Boolean,
 ) {
     companion object {
         fun parse(payload: ByteBuffer): Av1SequenceHeader {
@@ -107,14 +108,16 @@ internal data class Av1SequenceHeader(
             var x = 1
             var y = 1
             var position = 0
+            var fullRange = false
             if (monochrome != 0) {
-                bits.read(1)
+                fullRange = bits.read(1) != 0
             } else {
                 if (primaries == 1 && transfer == 13 && matrix == 0) {
+                    fullRange = true
                     x = 0
                     y = 0
                 } else {
-                    bits.read(1)
+                    fullRange = bits.read(1) != 0
                     when (profile) {
                         0 -> {
                             x = 1
@@ -137,7 +140,7 @@ internal data class Av1SequenceHeader(
                 }
                 bits.read(1)
             }
-            return Av1SequenceHeader(profile, level, tier, depth, monochrome, x, y, position, primaries, transfer, matrix)
+            return Av1SequenceHeader(profile, level, tier, depth, monochrome, x, y, position, primaries, transfer, matrix, fullRange)
         }
     }
 

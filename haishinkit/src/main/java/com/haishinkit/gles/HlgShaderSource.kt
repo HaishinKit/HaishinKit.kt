@@ -13,7 +13,7 @@ vec3 hkHlg(vec3 v) {
 """
 
     // 1: sRGB -> working, 2: limited-range HLG YUV -> working, 3: working -> HLG,
-    // 4: BT.709 SDR video -> working. Zero preserves the existing SDR pipeline.
+    // 4: BT.709 SDR video -> working, 5: premultiplied sRGB bitmap -> working. Zero preserves the existing SDR pipeline.
     fun convert(
         source: String,
         vertex: Boolean,
@@ -60,8 +60,9 @@ vec3 hkHlg(vec3 v) {
                 4 -> "vec3 linear = mix(c.rgb/4.5,pow((c.rgb+0.099)/1.099,vec3(1.0/0.45)),step(vec3(0.081),c.rgb)); c.rgb = hk709to2020 * linear * 0.203;"
                 else -> "vec3 linear = mix(c.rgb/12.92,pow((c.rgb+0.055)/1.055,vec3(2.4)),step(vec3(0.04045),c.rgb)); c.rgb = hk709to2020 * linear * 0.203;"
             }
-        val sample = if (conversion == 3) "" else "vec4 hkSample(highp $sampler tex, vec2 uv) { vec4 c = texture(tex, uv); $sampled return c; }\n"
-        val finish = if (conversion == 3) "vec3 d=max($output.rgb,vec3(0.0)); float y=dot(d,vec3(0.2627,0.6780,0.0593)); vec3 scene=d*pow(max(y,0.000001),-0.2/1.2); $output.rgb=hkHlg(clamp(scene,0.0,1.0));" else ""
+        val unpremultiply = if (conversion == 5) "c.rgb = c.a > 0.0 ? clamp(c.rgb / c.a, 0.0, 1.0) : vec3(0.0);" else ""
+        val sample = if (conversion == 3) "" else "vec4 hkSample(highp $sampler tex, vec2 uv) { vec4 c = texture(tex, uv); $unpremultiply $sampled return c; }\n"
+        val finish = if (conversion == 3) "vec3 d=max($output.rgb,vec3(0.0)); float y=dot(d,vec3(0.2627,0.6780,0.0593)); vec3 scene=d*pow(max(y,0.000001),-0.2/1.2); $output.rgb=hkHlg(clamp(scene,0.0,1.0)); $output.a=1.0;" else ""
         return "#version 300 es\n" + extension + "precision highp float;\n" + declaration + FUNCTIONS + sample + body + "\nvoid main() { hkMain(); $finish }\n"
     }
 }
