@@ -171,7 +171,13 @@ class CameraViewModel(
                     val container = sceneFiles.create(loaded)
                     val hadFront = frontCameraObject != null
                     val restoredFront = container.findByClass(VideoScreenObject::class.java).firstOrNull { it.track == FRONT_CAMERA_TRACK }
-                    if (hadFront && restoredFront == null) mixer.attachVideos(mapOf(FRONT_CAMERA_TRACK to null)).getOrThrow()
+                    if (hadFront && restoredFront == null) {
+                        val camera = checkNotNull(_selectedCamera.value)
+                        val source = mainCameraSource.replacement(application.applicationContext, camera.id)
+                        mixer.attachVideos(mapOf(0 to source, FRONT_CAMERA_TRACK to null)).getOrThrow()
+                        source.copyRequestedControlsFrom(mainCameraSource)
+                        mainCameraSource = source
+                    }
                     mixer.screen.findByClass(LottieScreen::class.java).forEach { it.cancelAnimation() }
                     val liveVideos = mixer.screen.findByClass(VideoScreenObject::class.java).associateBy { it.track }
                     container.findByClass(VideoScreenObject::class.java).forEach { video ->
@@ -370,7 +376,7 @@ class CameraViewModel(
             }
         mixer.screen.frame = Rect(0, 0, composition.width, composition.height)
         compositionSize = composition
-        screenObjectDragController.fitObjectsToScreen(composition)
+        if (loadedSceneSize == null) screenObjectDragController.fitObjectsToScreen(composition)
     }
 
     fun takeSnapShot(context: Context) {

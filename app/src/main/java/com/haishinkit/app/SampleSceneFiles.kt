@@ -31,15 +31,19 @@ import java.util.zip.ZipInputStream
 /** Sample integration of the library's portable .scene format. No capture or connection credentials. */
 internal class SampleSceneFiles(private val context: Context) {
     private var resources: Map<String, ByteArray> = emptyMap()
+    private var capturedLottieIds: Set<String> = emptySet()
     private var animations: Map<String, ByteArray> = emptyMap()
     private var directory: File? = null
 
     /** Store frame origins as margins because the portable format records frame size only. */
     fun capture(root: ScreenObject): ScreenObjectSnapshot {
+        val liveLottie = mutableSetOf<String>()
+
         fun positions(
             objectValue: ScreenObject,
             node: ScreenObjectSnapshot,
         ): ScreenObjectSnapshot {
+            if (objectValue is LottieScreen) liveLottie.add(objectValue.id)
             val margin = node.layoutMargin.copy()
             if (objectValue.horizontalAlignment == ScreenObject.HORIZONTAL_ALIGNMENT_LEFT) margin.left += objectValue.frame.left
             if (objectValue.verticalAlignment == ScreenObject.VERTICAL_ALIGNMENT_TOP) margin.top += objectValue.frame.top
@@ -51,7 +55,9 @@ internal class SampleSceneFiles(private val context: Context) {
                 }
             return node.copy(layoutMargin = margin, children = children)
         }
-        return positions(root, ScreenObjectSnapshotFactory().create(root))
+        val snapshot = positions(root, ScreenObjectSnapshotFactory().create(root))
+        capturedLottieIds = liveLottie
+        return snapshot
     }
 
     suspend fun captureNextFrame(
@@ -79,9 +85,10 @@ internal class SampleSceneFiles(private val context: Context) {
         val media = resources.toMutableMap()
 
         fun portable(node: ScreenObjectSnapshot): ScreenObjectSnapshot {
-            if (node.type != LottieScreen.TYPE && !supported(node)) return node
+            val liveAnimation = node.type == LottieScreen.TYPE && (node.id in capturedLottieIds || node.id in animations)
+            if (!liveAnimation && !supported(node)) return node
             val children = node.children.map(::portable)
-            if (node.type != LottieScreen.TYPE) return node.copy(children = children)
+            if (!liveAnimation) return node.copy(children = children)
             val animation =
                 animations[node.id] ?: context.resources.openRawResource(
                     requireNotNull(node.elements["animationResId"]?.toIntOrNull()?.takeIf { it != 0 }),
@@ -235,7 +242,7 @@ internal class SampleSceneFiles(private val context: Context) {
 
         fun cameraBackground(value: ScreenObject): Boolean =
             when (value) {
-                is VideoScreenObject -> value.track == 0
+                is VideoScreenObject -> value.track == 0 && fullCanvas(value)
                 is ScreenObjectContainer -> fullCanvas(value) && value.getChildren().singleOrNull()?.let { fullCanvas(it) && cameraBackground(it) } == true
                 else -> false
             }
@@ -243,6 +250,7 @@ internal class SampleSceneFiles(private val context: Context) {
     }
 
     fun install(loaded: Loaded) {
+        capturedLottieIds = emptySet()
         val previous = directory
         directory = loaded.directory
         resources = loaded.file.resources

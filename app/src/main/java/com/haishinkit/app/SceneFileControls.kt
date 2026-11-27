@@ -21,6 +21,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.launch
 
 internal data class SceneFileActions(val pickerOpen: Boolean, val save: () -> Unit, val open: () -> Unit)
@@ -31,6 +32,7 @@ internal fun rememberSceneFileActions(
     onSave: suspend (Uri) -> Result<Unit>,
     onOpen: suspend (Uri) -> Result<Unit>,
     onError: (String) -> Unit,
+    onBusyChange: (Boolean) -> Unit = {},
 ): SceneFileActions {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -39,9 +41,14 @@ internal fun rememberSceneFileActions(
         rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) { uri ->
             pickerOpen = false
             if (uri != null) {
-                scope.launch {
-                    onSave(uri).onSuccess { Toast.makeText(context, R.string.scene_saved, Toast.LENGTH_SHORT).show() }
-                        .onFailure { onError(context.getString(R.string.scene_file_error)) }
+                scope.launch(start = CoroutineStart.UNDISPATCHED) {
+                    onBusyChange(true)
+                    try {
+                        onSave(uri).onSuccess { Toast.makeText(context, R.string.scene_saved, Toast.LENGTH_SHORT).show() }
+                            .onFailure { onError(context.getString(R.string.scene_file_error)) }
+                    } finally {
+                        onBusyChange(false)
+                    }
                 }
             }
         }
@@ -49,9 +56,14 @@ internal fun rememberSceneFileActions(
         rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
             pickerOpen = false
             if (uri != null) {
-                scope.launch {
-                    onOpen(uri).onSuccess { Toast.makeText(context, R.string.scene_restored, Toast.LENGTH_SHORT).show() }
-                        .onFailure { onError(context.getString(R.string.scene_file_error)) }
+                scope.launch(start = CoroutineStart.UNDISPATCHED) {
+                    onBusyChange(true)
+                    try {
+                        onOpen(uri).onSuccess { Toast.makeText(context, R.string.scene_restored, Toast.LENGTH_SHORT).show() }
+                            .onFailure { onError(context.getString(R.string.scene_file_error)) }
+                    } finally {
+                        onBusyChange(false)
+                    }
                 }
             }
         }

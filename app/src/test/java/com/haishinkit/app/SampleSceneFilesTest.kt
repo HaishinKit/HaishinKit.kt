@@ -245,6 +245,34 @@ class SampleSceneFilesTest {
         assertThrows(IllegalArgumentException::class.java) { SampleSceneFiles(RuntimeEnvironment.getApplication()).encode(snapshot) }
     }
 
+    @Test fun unknownRawLottieNodeIsNotTreatedAsAnAndroidAnimationResource() {
+        val opaque = node("lottie", "foreign-animation", mapOf("custom" to "foreign-data"))
+        val store = SampleSceneFiles(RuntimeEnvironment.getApplication())
+        val loaded = store.prepare(SceneFile(root(listOf(opaque))))
+        try {
+            val objects = store.create(loaded)
+            store.install(loaded)
+            val saved = SceneFile.read(store.encode(store.capture(objects)))
+            assertEquals(opaque, saved.snapshot.children.single())
+        } finally {
+            store.close()
+        }
+    }
+
+    @Test fun positionedPrimaryCameraTileRemainsEditable() {
+        val tile =
+            VideoScreenObject().apply {
+                track = 0
+                frame = Rect(100, 100, 340, 280)
+            }
+        val root =
+            ScreenObjectContainer().apply {
+                frame = Rect(0, 0, 1280, 720)
+                addChild(tile)
+            }
+        assertEquals(listOf(tile), SampleSceneFiles(RuntimeEnvironment.getApplication()).editableObjects(root))
+    }
+
     private fun root(children: List<ScreenObjectSnapshot>) = node("screen", "root").copy(size = ScreenObjectSnapshot.Size(1280, 720), children = children)
 
     private fun node(

@@ -19,6 +19,32 @@ import kotlin.math.ln
 @Config(manifest = Config.NONE, sdk = [28])
 class ScreenObjectDragControllerTest {
     @Test
+    fun populatedGroupPinchMovesWithoutResizingItsChildrenAndWheelDoesNotShrinkIt() {
+        val screen = ScreenObjectContainer().apply { frame = Rect(0, 0, 1000, 1000) }
+        val child =
+            TextScreenObject().apply {
+                value = "Nested"
+                layoutMargin.set(0, 40, 0, 40)
+            }
+        val group =
+            ScreenObjectContainer().apply {
+                frame = Rect(200, 200, 400, 400)
+                bounds.set(frame)
+                addChild(child)
+            }
+        val controller = ScreenObjectDragController(screen, listOf(group))
+        val preview = IntSize(1000, 1000)
+        assertTrue(controller.begin(Offset(250f, 250f), preview))
+        controller.transform(Offset(250f, 250f), Offset(300f, 310f), 0.1f, preview)
+        assertEquals(Rect(250, 260, 450, 460), group.frame)
+        controller.end()
+        assertFalse(controller.scroll(Offset(300f, 310f), 10f, preview))
+        assertEquals(200, group.frame.width())
+        assertEquals(40, child.layoutMargin.left)
+        assertEquals(40, child.layoutMargin.right)
+    }
+
+    @Test
     fun sceneReplacementClearsSelectionAndEditsOnlyRestoredObjects() {
         val screen = ScreenObjectContainer().apply { frame = Rect(0, 0, 1000, 1000) }
         val old = ScreenObjectContainer().apply { bounds.set(100, 100, 300, 300) }

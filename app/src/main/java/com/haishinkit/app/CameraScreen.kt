@@ -71,6 +71,7 @@ fun CameraScreen(
     modifier: Modifier = Modifier,
     viewModel: CameraViewModel = viewModel(),
     onOpenSettings: () -> Unit = {},
+    onSceneFileBusy: (Boolean) -> Unit = {},
 ) {
     var showIngest by remember { mutableStateOf(false) }
     var applyingIngest by remember { mutableStateOf(false) }
@@ -146,6 +147,7 @@ fun CameraScreen(
                 viewModel.restoreSceneFile(uri)
             },
             onError = { errorMessage = it },
+            onBusyChange = onSceneFileBusy,
         )
 
     val currentSession = viewModel.session

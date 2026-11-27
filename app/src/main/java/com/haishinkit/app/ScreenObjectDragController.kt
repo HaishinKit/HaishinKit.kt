@@ -11,6 +11,7 @@ import androidx.compose.ui.unit.IntSize
 import com.haishinkit.graphics.VideoGravity
 import com.haishinkit.screen.ScreenCoordinateTransform
 import com.haishinkit.screen.ScreenObject
+import com.haishinkit.screen.ScreenObjectContainer
 import com.haishinkit.screen.ScreenObjectEditor
 import com.haishinkit.screen.TextScreenObject
 import kotlin.math.exp
@@ -60,7 +61,7 @@ internal class ScreenObjectDragController(
         val target = selected ?: return
         val anchor = screenPosition(previous, previewSize) ?: return
         val destination = screenPosition(current, previewSize) ?: return
-        editor.transform(target, PointF(anchor.x, anchor.y), PointF(destination.x, destination.y), zoom)
+        editor.transform(target, PointF(anchor.x, anchor.y), PointF(destination.x, destination.y), if (target is ScreenObjectContainer && target.getChildren().isNotEmpty()) 1f else zoom)
     }
 
     fun scroll(
@@ -71,6 +72,7 @@ internal class ScreenObjectDragController(
         if (selected != null || !delta.isFinite() || delta == 0f) return false
         val point = coordinates(previewSize).toScreen(PointF(position.x, position.y)) ?: return false
         val target = editor.hitTest(point) ?: return false
+        if (target is ScreenObjectContainer && target.getChildren().isNotEmpty()) return false
         focusedObject = target
         return editor.transform(target, point, scale = exp((-delta * 0.12f).coerceIn(-4f, 4f)))
     }

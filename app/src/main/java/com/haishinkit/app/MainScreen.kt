@@ -73,23 +73,25 @@ private fun TabIcon(tab: MainScreenTab) {
 fun MainScreen(onApplyRenderer: suspend (Renderer) -> Unit) {
     val pictureInPicture = LocalContext.current.mainActivity()?.pictureInPicture == true
     var changingRenderer by remember { mutableStateOf(false) }
-    BackHandler(enabled = changingRenderer) {}
+    var sceneFileBusy by remember { mutableStateOf(false) }
+    val navigationBlocked = changingRenderer || sceneFileBusy
+    BackHandler(enabled = navigationBlocked) {}
     val navController = rememberNavController()
     val entry by navController.currentBackStackEntryAsState()
     val selectedRoute = entry?.destination?.route?.let { if (it == "main/codecs") MainScreenTab.Preference.id else it } ?: MainScreenTab.Camera.id
     val navigate: (MainScreenTab) -> Unit = { tab ->
-        if (!changingRenderer) {
+        if (!changingRenderer && !sceneFileBusy) {
             navController.navigateToMainTab(tab)
         }
     }
-    MainScreenLayout(pictureInPicture, changingRenderer, selectedRoute, navigate) {
+    MainScreenLayout(pictureInPicture, navigationBlocked, selectedRoute, navigate) {
         NavHost(
             navController = navController,
             startDestination = MainScreenTab.Camera.id,
             enterTransition = { EnterTransition.None },
             exitTransition = { ExitTransition.None },
         ) {
-            composable(MainScreenTab.Camera.id) { CameraScreen(onOpenSettings = { navigate(MainScreenTab.Preference) }) }
+            composable(MainScreenTab.Camera.id) { CameraScreen(onOpenSettings = { navigate(MainScreenTab.Preference) }, onSceneFileBusy = { sceneFileBusy = it }) }
             composable(MainScreenTab.MediaProjection.id) { MediaProjectionScreen(onOpenSettings = { navigate(MainScreenTab.Preference) }) }
             composable(MainScreenTab.Playback.id) { PlaybackScreen(onOpenSettings = { navigate(MainScreenTab.Preference) }) }
             composable("main/codecs") { DeviceCodecScreen(onBack = { navController.popBackStack() }) }
