@@ -60,12 +60,24 @@ public class McpServer(
     private val frameCapture = FrameCapture()
     private var stopEngine: (() -> Unit)? = null
 
-    /** Makes [screen] available to capture_frame. Does not start capture or own the Screen. */
+    /**
+     * Makes [screen] available to capture_frame. Does not start capture or own the Screen.
+     *
+     * Schedule attachment changes on an independent lifecycle/controller thread, never
+     * inline in rendering/readback callbacks or on a thread synchronous readback waits for.
+     * Otherwise a rendering worker and attachment change can wait on each other.
+     * A custom Screen must return a fresh, caller-owned Bitmap from readPixels: ownership
+     * transfers to MCP, which recycles it even after cancellation. Do not reuse that Bitmap.
+     */
     public fun attachScreen(screen: Screen) {
         frameCapture.attach(screen, screen)
     }
 
-    /** Invalidates captures from [screen]. Call before stopping or disposing its mixer. */
+    /**
+     * Invalidates captures from [screen]. Call before stopping or disposing its mixer.
+     * Schedule detachment/disposal on an independent lifecycle/controller thread, never
+     * inline in rendering/readback callbacks or on a thread synchronous readback waits for.
+     */
     public fun detachScreen(screen: Screen) {
         frameCapture.detach(screen)
     }

@@ -39,6 +39,13 @@ attached Screen for a later restart; always detach when that Screen is no longer
 approved for capture. Do not dispose a Screen while it is still attached. Separate
 server instances have independent capture state and credentials.
 
+Schedule `attachScreen` / `detachScreen` and disposal coordination on an independent
+lifecycle/controller thread, such as the main thread in the sample. Never call them
+inline from a Screen rendering/readback callback or on a worker that synchronous
+`readPixels` is waiting for. In particular, post a requested change out of Vulkan's
+`onEnterFrame` callback and return before the controller performs it; otherwise
+capture and the render worker can deadlock. The timeout cannot break that lock cycle.
+
 The built-in `capture_frame` tool accepts optional integer `maxWidth` (32–1920,
 default 1280) and `quality` (1–100, default 85). It returns an MCP `image/jpeg`
 image block and structured metadata: `width`, `height`, `renderer`, and
@@ -54,6 +61,10 @@ Synchronous GPU readback and compression cannot be forcibly interrupted. Detache
 or cancelled captures discard results and release owned Bitmaps, including late
 callbacks. Capture failures are tool results with `isError: true`. A Screen's own
 readPixels implementation must deliver exactly one callback or throw on initiation.
+Each callback transfers ownership of a distinct caller-owned Bitmap to MCP, which
+recycles it after use or cancellation. Custom Screens must not pass a Bitmap still
+used for display or retain/reuse it after the callback. The built-in renderers
+already allocate a separate Bitmap for each readback.
 
 `hello_android` remains available for connectivity checks and returns
 `Hello from HaishinKit on Android!`.
