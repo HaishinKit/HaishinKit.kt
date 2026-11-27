@@ -194,6 +194,34 @@ class HlgRenderingTest {
         }
     }
 
+    @Test fun failedHlgFramebufferResizeDisablesDrawingAndRecovers() {
+        val graphics = GraphicsContext()
+        graphics.open(null, DynamicRangeMode.HLG)
+        graphics.makeCurrent(null)
+        val framebuffer = Framebuffer(DynamicRangeMode.HLG)
+        try {
+            framebuffer.bounds = Rect(0, 0, 16, 16)
+            org.junit.Assert.assertTrue(framebuffer.isEnabled)
+            framebuffer.bounds = Rect()
+            org.junit.Assert.assertFalse(framebuffer.isEnabled)
+            val maximum = IntArray(1)
+            GLES20.glGetIntegerv(GLES20.GL_MAX_TEXTURE_SIZE, maximum, 0)
+            framebuffer.bounds = Rect(0, 0, maximum[0] + 1, 16)
+            org.junit.Assert.assertFalse(framebuffer.isEnabled)
+            framebuffer.render { org.junit.Assert.fail("Invalid framebuffer must not draw") }
+            framebuffer.bounds = Rect(0, 0, 16, 16)
+            org.junit.Assert.assertTrue(framebuffer.isEnabled)
+            framebuffer.render {
+                GLES20.glClearColor(0.203f, 0.203f, 0.203f, 1f)
+                GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT)
+                org.junit.Assert.assertEquals(0.203f, readFloatPixel()[0], 0.002f)
+            }
+        } finally {
+            framebuffer.release()
+            graphics.close()
+        }
+    }
+
     @Test fun encodeTenBitHlgOnBothInstalledHardwareEncoders() {
         for ((mime, profile) in listOf("video/hevc" to 2, "video/av01" to 2)) {
             val format =

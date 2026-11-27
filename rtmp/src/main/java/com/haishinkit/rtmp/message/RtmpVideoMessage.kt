@@ -145,6 +145,9 @@ internal class RtmpVideoMessage(
 
     override fun execute(connection: RtmpConnection): RtmpMessage {
         val stream = connection.streams[streamID] ?: return this
+        // HLG playback supports only the explicitly selected 10-bit codecs. Ignore all
+        // packets from other codecs before changing decoder state or queueing data.
+        if (stream.isHlgPlayback && (!isExHeader || (fourCC != RtmpMuxer.FLV_VIDEO_FOUR_CC_HVC1 && fourCC != RtmpMuxer.FLV_VIDEO_FOUR_CC_AV01))) return this
         if (isExHeader && packetType == RtmpMuxer.FLV_VIDEO_PACKET_TYPE_SEQUENCE_START) {
             val mime = RtmpMuxer.getTypeByVideoFourCC(fourCC)
             if (mime != null && stream.requiresSurfaceDecoder(mime) && !stream.isVideoCodecSwitch(mime)) {

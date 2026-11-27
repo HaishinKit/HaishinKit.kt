@@ -30,7 +30,10 @@ class HkSurfaceView
             set(value) {
                 val hlg = value?.get()?.screen?.dynamicRangeMode == DynamicRangeMode.HLG
                 require(!hlg || pixelTransform is com.haishinkit.gles.ThreadPixelTransform) { "HLG display requires the OpenGL pixel transform" }
-                holder.setFormat(if (hlg) android.graphics.PixelFormat.RGBA_1010102 else android.graphics.PixelFormat.OPAQUE)
+                if (hlg != isHlgSurface) {
+                    holder.setFormat(if (hlg) android.graphics.PixelFormat.RGBA_1010102 else android.graphics.PixelFormat.OPAQUE)
+                    isHlgSurface = hlg
+                }
                 field = value
                 pixelTransform.screen = value?.get()?.screen
             }
@@ -53,6 +56,7 @@ class HkSurfaceView
                 pixelTransform.videoEffect = value
             }
 
+        private var isHlgSurface = false
         private val pixelTransform: PixelTransform by lazy { PixelTransform.create(context) }
 
         init {

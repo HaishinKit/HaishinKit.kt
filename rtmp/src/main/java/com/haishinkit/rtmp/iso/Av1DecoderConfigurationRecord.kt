@@ -19,6 +19,8 @@ internal class Av1DecoderConfigurationRecord private constructor(
 
     val hasSequenceHeader: Boolean get() = sequenceHeader() != null
 
+    fun hasSameSequenceHeader(other: Av1DecoderConfigurationRecord): Boolean = sequenceHeader() == other.sequenceHeader()
+
     fun withSequenceHeader(frame: ByteBuffer): Av1DecoderConfigurationRecord? {
         val obu = sequenceHeader(frame.duplicate(), true) ?: return null
         val encoded = ByteArray(obu.remaining()).also { obu.get(it) }

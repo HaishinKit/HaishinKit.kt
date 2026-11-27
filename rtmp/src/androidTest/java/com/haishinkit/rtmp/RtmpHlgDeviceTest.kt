@@ -99,7 +99,12 @@ class RtmpHlgDeviceTest {
                 waitUntil { decoder.isRunning.get() }
                 decoder.listener = receivingListener
                 waitUntil { frames.get() >= 10 }
-                val referenceWhite = readLinearCenter(player)
+                // Decoder output precedes MediaLink presentation and composition.
+                var referenceWhite = FloatArray(4)
+                waitUntil {
+                    referenceWhite = readLinearCenter(player)
+                    referenceWhite.take(3).any { it > 0.01f }
+                }
                 for (value in referenceWhite.take(3)) org.junit.Assert.assertEquals(0.203f, value, 0.035f)
                 val actual = decoder.codec!!.outputFormat
                 org.junit.Assert.assertEquals(MediaFormat.COLOR_TRANSFER_HLG, actual.getInteger("color-transfer"))

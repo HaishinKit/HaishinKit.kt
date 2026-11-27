@@ -185,6 +185,34 @@ class Av1PlaybackTest {
         }
     }
 
+    @Test fun hlgIgnoresAllUnsupportedVideoPacketsBeforeChangingStateOrQueueing() {
+        withStream { stream, codec, screen ->
+            codec.dynamicRangeMode = com.haishinkit.graphics.DynamicRangeMode.HLG
+            stream.connection.streams[1] = stream
+            val inputMime = codec.inputMimeType
+            val avc = byteArrayOf(1, 100, 0, 31, -1, -31, 0, 27, 103, 100, 0, 31, -84, -39, 64, 72, 5, -70, 106, 2, 2, 2, -128, 0, 0, 3, 0, -128, 0, 0, 30, 71, -116, 24, -53, 1, 0, 4, 104, -17, -68, -80)
+            for (packet in listOf(0, 1)) {
+                RtmpVideoMessage().apply {
+                    streamID = 1
+                    isExHeader = false
+                    this.codec = RtmpMuxer.FLV_VIDEO_CODEC_AVC
+                    packetType = packet.toByte()
+                    data = ByteBuffer.wrap(if (packet == 0) avc else byteArrayOf(0, 0, 0, 1, 0x65, 0))
+                }.execute(stream.connection)
+            }
+            for (fourcc in listOf(RtmpMuxer.FLV_VIDEO_FOUR_CC_VP08, RtmpMuxer.FLV_VIDEO_FOUR_CC_VP09)) {
+                message(0, byteArrayOf(1)).apply { fourCC = fourcc }.execute(stream.connection)
+            }
+            val controller = RtmpMuxer::class.java.getDeclaredMethod("getVideoBufferController").apply { isAccessible = true }.invoke(stream.muxer)
+            val queue = BufferController::class.java.getDeclaredField("messages").apply { isAccessible = true }.get(controller) as LinkedBlockingDeque<*>
+            assertEquals(0, queue.size)
+            assertEquals(inputMime, codec.inputMimeType)
+            assertEquals(0, screen.attachments)
+            assertFalse(codec.isRunning.get())
+            assertEquals(stream, stream.connection.streams[1])
+        }
+    }
+
     private fun message(
         packet: Int,
         bytes: ByteArray,

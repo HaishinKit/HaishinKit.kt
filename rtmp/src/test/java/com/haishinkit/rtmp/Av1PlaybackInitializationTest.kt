@@ -302,6 +302,10 @@ class Av1PlaybackInitializationTest {
             val expected = byteArrayOf(0x81.toByte(), 0, 0x4c, 0) + header
             assertEquals(ByteBuffer.wrap(expected), configuredCsd.get())
             assertTrue(stream.canReceiveAv1)
+            // Presentation-delay/container OBUs do not change the active sequence.
+            val delayed = expected.clone().apply { this[3] = 0x10 }
+            RtmpStream::class.java.getDeclaredField("videoConfiguration").apply { isAccessible = true }.set(stream, ByteBuffer.wrap(delayed + byteArrayOf(0x2a, 0)))
+            assertTrue(stream.prepareAv1Frame(ByteBuffer.wrap(header), true))
             stream.invalidateVideoConfiguration()
             assertFalse(stream.canReceiveAv1)
             assertTrue(stream.configure(record())) // The same wire placeholder remains valid after in-band correction.

@@ -154,6 +154,7 @@ internal class Screen(
             val probe = Framebuffer(DynamicRangeMode.HLG)
             try {
                 probe.bounds = Rect(0, 0, 4, 4)
+                check(probe.isEnabled) { "HLG composition requires a floating-point framebuffer" }
             } finally {
                 probe.release()
             }

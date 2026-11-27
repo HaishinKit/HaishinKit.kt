@@ -729,7 +729,8 @@ class RtmpStream(
                         rejectHlgVideo("Invalid AV1 sync sequence")
                         return false
                     }
-                if (actual != null && actual.toByteBuffer() != videoConfiguration) {
+                val active = videoConfiguration?.duplicate()?.let(Av1DecoderConfigurationRecord::decode)
+                if (actual != null && (active == null || !actual.hasSameSequenceHeader(active))) {
                     rejectHlgVideo("AV1 configuration changed; close playback before restarting")
                     return false
                 }

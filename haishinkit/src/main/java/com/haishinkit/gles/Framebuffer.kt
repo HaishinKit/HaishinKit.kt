@@ -9,16 +9,17 @@ import com.haishinkit.graphics.DynamicRangeMode
 internal class Framebuffer(private val dynamicRangeMode: DynamicRangeMode = DynamicRangeMode.SDR) {
     val isEnabled: Boolean
         get() {
-            return bounds.width() != 0 && bounds.height() != 0
+            return bounds.width() > 0 && bounds.height() > 0 && framebufferIds[0] != INVALID_VALUE
         }
     val textureId: Int
         get() = textureIds[0]
 
     var bounds = Rect()
         set(value) {
-            if (field == value) return
+            if (field == value && isEnabled) return
             field = value
             release()
+            if (value.width() <= 0 || value.height() <= 0) return
             try {
                 // framebuffers.
                 GLES20.glGenFramebuffers(1, framebufferIds, 0)
@@ -82,12 +83,10 @@ internal class Framebuffer(private val dynamicRangeMode: DynamicRangeMode = Dyna
                     throw RuntimeException("" + status)
                 }
             } catch (e: RuntimeException) {
-                if (dynamicRangeMode == DynamicRangeMode.HLG) {
-                    release()
-                    throw e
-                }
                 Log.w(TAG, "", e)
                 release()
+                // Allocation errors must not leak into the next valid resize.
+                while (GLES20.glGetError() != GLES20.GL_NO_ERROR) { }
             }
         }
 
@@ -96,6 +95,7 @@ internal class Framebuffer(private val dynamicRangeMode: DynamicRangeMode = Dyna
     private var renderBufferIds = intArrayOf(0)
 
     fun render(lambda: () -> Unit) {
+        if (!isEnabled) return
         GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, framebufferIds[0])
         Utils.checkGlError("glBindFramebuffer")
         lambda()

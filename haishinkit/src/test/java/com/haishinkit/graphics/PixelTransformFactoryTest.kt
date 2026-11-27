@@ -13,6 +13,15 @@ import org.robolectric.RuntimeEnvironment
 @RunWith(RobolectricTestRunner::class)
 class PixelTransformFactoryTest {
     @Test
+    fun detachingAnSdrViewPreservesTheApplicationsSurfaceFormat() {
+        val view = HkSurfaceView(RuntimeEnvironment.getApplication())
+        val holder = view.holder as org.robolectric.shadows.ShadowSurfaceView.FakeSurfaceHolder
+        holder.setFormat(android.graphics.PixelFormat.TRANSLUCENT)
+        view.dataSource = null
+        assertEquals(android.graphics.PixelFormat.TRANSLUCENT, holder.requestedFormat)
+    }
+
+    @Test
     fun codecAndDirectCreationUseSelectedBackendWithoutRecursingIntoBridge() {
         val context = RuntimeEnvironment.getApplication()
         val original = PixelTransform.factory
