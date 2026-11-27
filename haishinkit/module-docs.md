@@ -121,3 +121,38 @@ HLG requires Android 13 or later and compatible graphics, display and codec hard
 capture and rejects unsupported cameras. Encoding requires an HDR/HLG-editing capable
 Main10 HEVC or AV1 encoder. Configure a new mixer or playback stream to change range.
 See the RTMP module's Enhanced RTMP guide for publishing/playback configuration.
+
+## Local video assets
+
+`AssetScreenObject` renders a local video's first video track using Android's
+`MediaExtractor` and a device-provided `MediaCodec` decoder. No additional codec
+library is bundled. File, content and `android.resource` URIs are supported;
+audio, network playback, DRM and HDR assets are not supported by this object.
+SDR assets can be included in an HLG composition through the existing SDR conversion.
+
+```kotlin
+val clip = AssetScreenObject(context).apply {
+    frame = android.graphics.Rect(40, 40, 400, 280)
+    isLooping = true
+    onError = { error -> /* Marshal to the UI thread if needed. */ }
+    startReading(videoUri)
+}
+mixer.screen.addChild(clip)
+// Removing an object stops its decoder; reattaching restarts it from the beginning.
+mixer.screen.removeChild(clip)
+clip.close()
+```
+
+`videoGravity` controls fit/fill, and file rotation metadata is applied without
+following device rotation. `currentTimeUs` reports the current pass's last frame;
+looping starts a new pass at zero. `cancelReading()` stops playback but retains the
+source URI for serialization. `close()` permanently closes this instance. Loading
+and decoding are asynchronous; `onError` may run on the playback or renderer thread.
+Rendering supports both OpenGL and the optional Vulkan backend. Each attached
+asset uses its own decoder and renderer-owned surface, independent of capture tracks.
+
+Use `ScreenObjectFactory(context)` to recreate video assets from scene snapshots.
+Without a context, asset nodes remain opaque and are retained for future use.
+Custom `asset` creators may override video reconstruction, for example for Lottie.
+Scene archives must package the movie bytes under `media/` and reference that path;
+content permissions and playback positions are not part of a portable scene.

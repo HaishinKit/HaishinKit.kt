@@ -6,6 +6,7 @@ import android.net.Uri
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.unit.IntSize
 import com.haishinkit.lottie.LottieScreen
+import com.haishinkit.screen.AssetScreenObject
 import com.haishinkit.screen.EdgeInsets
 import com.haishinkit.screen.ImageScreenObject
 import com.haishinkit.screen.ScreenObjectContainer
@@ -271,6 +272,51 @@ class SampleSceneFilesTest {
                 addChild(tile)
             }
         assertEquals(listOf(tile), SampleSceneFiles(RuntimeEnvironment.getApplication()).editableObjects(root))
+    }
+
+    @Test fun fileVideoIsPackagedRestoredAndRemovedWithoutDependingOnItsOriginalUri() {
+        val context = RuntimeEnvironment.getApplication()
+        val source = java.io.File(context.cacheDir, "movie.mp4").apply { writeBytes(byteArrayOf(1, 2, 3, 4)) }
+        val asset =
+            AssetScreenObject(context).apply {
+                isLooping = true
+                frame = Rect(50, 60, 410, 300)
+                startReading(Uri.fromFile(source))
+            }
+        val objects =
+            ScreenObjectContainer().apply {
+                frame = Rect(0, 0, 1280, 720)
+                addChild(asset)
+            }
+        val store = SampleSceneFiles(context)
+        val archived = SceneFile.read(store.encode(store.capture(objects)))
+        source.delete()
+        val loaded = store.prepare(archived)
+        val restored = store.create(loaded)
+        try {
+            store.install(loaded)
+            val clip = restored.getChildren().single() as AssetScreenObject
+            assertEquals(true, clip.isLooping)
+            assertEquals(50, clip.layoutMargin.left)
+            assertEquals(60, clip.layoutMargin.top)
+            assertArrayEquals(byteArrayOf(1, 2, 3, 4), java.io.File(checkNotNull(clip.sourceUri).path!!).readBytes())
+            assertEquals(listOf(clip), store.editableObjects(restored))
+            val savedAgain = SceneFile.read(store.encode(store.capture(restored)))
+            assertEquals(1, savedAgain.resources.size)
+            clip.close()
+            restored.removeChild(clip)
+            assertEquals(emptyMap<String, ByteArray>(), SceneFile.read(store.encode(store.capture(restored))).resources)
+        } finally {
+            restored.findByClass(AssetScreenObject::class.java).forEach { it.close() }
+            asset.close()
+            store.close()
+        }
+    }
+
+    @Test fun tooManyVideoAssetsAreRejectedBeforeInstallation() {
+        val video = node("asset", "movie", mapOf("source" to "media/movie.mp4"))
+        val file = SceneFile(root((0..4).map { video.copy(id = "movie-$it") }), mapOf("movie.mp4" to byteArrayOf(1)))
+        assertThrows(IllegalArgumentException::class.java) { SampleSceneFiles(RuntimeEnvironment.getApplication()).prepare(file) }
     }
 
     private fun root(children: List<ScreenObjectSnapshot>) = node("screen", "root").copy(size = ScreenObjectSnapshot.Size(1280, 720), children = children)

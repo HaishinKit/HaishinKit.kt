@@ -9,6 +9,7 @@ import android.os.Message
 import com.haishinkit.gles.GraphicsContext
 import com.haishinkit.graphics.DynamicRangeMode
 import com.haishinkit.media.source.VideoSource
+import com.haishinkit.screen.AssetScreenObject
 import com.haishinkit.screen.Screen
 import com.haishinkit.screen.ScreenObject
 import com.haishinkit.screen.ScreenObjectContainer
@@ -88,6 +89,10 @@ internal class ThreadScreen(
 
     override fun addChild(child: ScreenObject?) {
         val child = child ?: return
+        if (Looper.myLooper() == handler.looper) {
+            screen.addChild(child)
+            return
+        }
         handler.apply {
             sendMessage(obtainMessage(MSG_ADD_CHILD, child))
         }
@@ -119,6 +124,10 @@ internal class ThreadScreen(
 
     override fun removeChild(child: ScreenObject?) {
         val child = child ?: return
+        if (Looper.myLooper() == handler.looper) {
+            screen.removeChild(child)
+            return
+        }
         handler.apply {
             sendMessage(obtainMessage(MSG_REMOVE_CHILD, child))
         }
@@ -131,6 +140,10 @@ internal class ThreadScreen(
     }
 
     override fun transition(screenObjectContainer: ScreenObjectContainer) {
+        if (Looper.myLooper() == handler.looper) {
+            screen.transition(screenObjectContainer)
+            return
+        }
         handler.apply {
             sendMessage(obtainMessage(MSG_TRANSITION, screenObjectContainer))
         }
@@ -161,6 +174,13 @@ internal class ThreadScreen(
         return handler.run {
             screen.findById(targetId)
         }
+    }
+
+    internal fun assetObjects(): List<AssetScreenObject> {
+        if (Looper.myLooper() == handler.looper) return AssetScreenObject.findAssets(screen)
+        val task = java.util.concurrent.FutureTask { AssetScreenObject.findAssets(screen) }
+        check(handler.post(task))
+        return task.get()
     }
 
     override fun dispose() {

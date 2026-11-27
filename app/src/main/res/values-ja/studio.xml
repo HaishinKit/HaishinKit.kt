@@ -94,4 +94,7 @@
     <string name="scene_saved">シーンを保存しました</string>
     <string name="scene_restored">シーンを復元しました</string>
     <string name="scene_file_error">シーンファイルを読み書きできませんでした。</string>
+    <string name="asset_sample_video">サンプル動画</string>
+    <string name="asset_playback_error">動画を再生できませんでした。端末がコーデックに対応しているか確認してください。</string>
+    <string name="asset_limit">サンプルでは動画を4つまで追加できます。</string>
 </resources>

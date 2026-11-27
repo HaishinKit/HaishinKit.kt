@@ -94,4 +94,7 @@
     <string name="scene_saved">Scene saved</string>
     <string name="scene_restored">Scene restored</string>
     <string name="scene_file_error">Could not read or write this scene file.</string>
+    <string name="asset_sample_video">Sample video</string>
+    <string name="asset_playback_error">Could not play this video. Check that the device supports its codec.</string>
+    <string name="asset_limit">The sample supports up to four video assets.</string>
 </resources>

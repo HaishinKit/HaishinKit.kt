@@ -1,18 +1,20 @@
 package com.haishinkit.screen
 
+import android.content.Context
 import com.haishinkit.screen.scene.ScreenObjectSnapshot
 
 /**
  * Recreates screen objects from snapshots using built-in types and registered custom creators.
  */
-class ScreenObjectFactory {
+class ScreenObjectFactory(private val context: Context? = null) {
     private val creators =
         mutableMapOf<String, (ScreenObjectSnapshot) -> ScreenObject>()
 
     /**
      * Registers a creator for a custom type, replacing any previous creator for that type.
      *
-     * Built-in types are handled directly and cannot be overridden by this registration.
+     * Built-in types are handled directly, except asset creators may override file playback for custom asset formats.
+     * Pass a Context to the factory to enable built-in local video assets; without one they remain opaque.
      */
     fun register(
         type: String,
@@ -39,6 +41,9 @@ class ScreenObjectFactory {
                 }
             }
 
+            AssetScreenObject.TYPE ->
+                creators[AssetScreenObject.TYPE]?.invoke(snapshot)
+                    ?: if (context != null && snapshot.elements["format"] in listOf(null, "video")) AssetScreenObject(context, snapshot.id) else NullScreenObject(snapshot)
             ImageScreenObject.TYPE -> ImageScreenObject(snapshot.id)
             VideoScreenObject.TYPE -> VideoScreenObject(snapshot.id)
             TextScreenObject.TYPE -> TextScreenObject(snapshot.id)

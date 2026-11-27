@@ -40,6 +40,7 @@ import kotlin.math.roundToInt
 internal enum class ExampleScreenObjectKind(val label: String) {
     TEXT("Text"),
     IMAGE("Sample image"),
+    VIDEO("Sample video"),
     ANIMATION("Animation"),
     FRONT_CAMERA("Front camera"),
 }
@@ -56,7 +57,7 @@ internal fun ScreenObjectAddDialog(
         text = {
             Column {
                 ExampleScreenObjectKind.entries.forEach { kind ->
-                    TextButton(onClick = { onAdd(kind) }) { Text(kind.label) }
+                    TextButton(onClick = { onAdd(kind) }) { Text(if (kind == ExampleScreenObjectKind.VIDEO) androidx.compose.ui.res.stringResource(R.string.asset_sample_video) else kind.label) }
                 }
             }
         },

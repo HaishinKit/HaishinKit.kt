@@ -6,6 +6,7 @@ import android.opengl.GLUtils
 import com.haishinkit.gles.ShaderLoader
 import com.haishinkit.gles.Utils
 import com.haishinkit.graphics.DynamicRangeMode
+import com.haishinkit.screen.AssetScreenObject
 import com.haishinkit.screen.ImageScreenObject
 import com.haishinkit.screen.Renderer
 import com.haishinkit.screen.ScreenObject
@@ -17,6 +18,7 @@ internal class Renderer(
     private val dynamicRangeMode: DynamicRangeMode = DynamicRangeMode.SDR,
     private val sourceRange: (Int) -> DynamicRangeMode? = { null },
     private val sourceTextureTransform: (Int) -> FloatArray? = { null },
+    private val assetTextureTransform: (AssetScreenObject) -> FloatArray? = { null },
 ) : Renderer {
     private val warnedVideoEffects = mutableSetOf<String>()
     private val shaderLoader by lazy {
@@ -97,7 +99,7 @@ internal class Renderer(
                 screenObject.target, effect,
                 if (dynamicRangeMode == DynamicRangeMode.HLG) {
                     if (screenObject is VideoScreenObject) {
-                        if (sourceRange(screenObject.track) == DynamicRangeMode.HLG) 2 else 4
+                        if ((if (screenObject is AssetScreenObject) DynamicRangeMode.SDR else sourceRange(screenObject.track)) == DynamicRangeMode.HLG) 2 else 4
                     } else {
                         if (screenObject is ImageScreenObject && screenObject.bitmap?.isPremultiplied == true) 5 else 1
                     }
@@ -114,7 +116,9 @@ internal class Renderer(
         program.use()
         program.bind(effect)
         val transform =
-            if (dynamicRangeMode == DynamicRangeMode.HLG && screenObject is VideoScreenObject &&
+            if (screenObject is AssetScreenObject) {
+                assetTextureTransform(screenObject)
+            } else if (dynamicRangeMode == DynamicRangeMode.HLG && screenObject is VideoScreenObject &&
                 screenObject.target == android.opengl.GLES11Ext.GL_TEXTURE_EXTERNAL_OES && sourceRange(screenObject.track) == DynamicRangeMode.HLG
             ) {
                 sourceTextureTransform(screenObject.track)

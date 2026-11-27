@@ -10,6 +10,7 @@ import android.view.Choreographer
 import android.view.Surface
 import com.haishinkit.graphics.ImageOrientation
 import com.haishinkit.media.source.VideoSource
+import com.haishinkit.screen.AssetScreenObject
 import com.haishinkit.screen.ImageScreenObject
 import com.haishinkit.screen.MediaOutputScreenObject
 import com.haishinkit.screen.Renderer
@@ -42,6 +43,7 @@ class VkScreen private constructor(context: Context) : Screen(context), Choreogr
         linkedSetOf<VkPixelTransform>()
     private val tracks = mutableMapOf<Int, Input>()
     private val convertedBitmaps = mutableMapOf<ScreenObject, Pair<Int, Bitmap>>()
+    private val assetInputs = mutableMapOf<AssetScreenObject, Input?>()
     private val nestedInputs = mutableMapOf<MediaOutputScreenObject, Input>()
     private var disposed = false
     private var choreographer: Choreographer? = null
@@ -97,6 +99,10 @@ class VkScreen private constructor(context: Context) : Screen(context), Choreogr
         VkWorker.run {
             clearCameraOrientation(screenObject)
             convertedBitmaps.remove(screenObject)?.second?.recycle()
+            if (screenObject is AssetScreenObject) {
+                assetInputs.remove(screenObject)?.close()
+                screenObject.detachFromRenderer()
+            }
             if (screenObject is MediaOutputScreenObject) {
                 screenObject.surface = null
                 nestedInputs.remove(screenObject)?.close()
@@ -141,6 +147,7 @@ class VkScreen private constructor(context: Context) : Screen(context), Choreogr
             // Clear ownership first so callbacks cannot find a partially disposed registry.
             val oldOutputs = outputs.toList().also { outputs.clear() }
             val oldTracks = tracks.values.toList().also { tracks.clear() }
+            val oldAssets = assetInputs.toList().also { assetInputs.clear() }
             val oldNested = nestedInputs.toList().also { nestedInputs.clear() }
             val oldBitmaps = convertedBitmaps.values.toList().also { convertedBitmaps.clear() }
             val oldRenderer = snapshotRenderer.also { snapshotRenderer = null }
@@ -148,6 +155,10 @@ class VkScreen private constructor(context: Context) : Screen(context), Choreogr
             val actions = mutableListOf<() -> Unit>({ choreographer?.removeFrameCallback(this) })
             oldOutputs.forEach { output -> actions.add { output.screen = null } }
             oldTracks.forEach { input -> actions.add { input.close() } }
+            oldAssets.forEach { (asset, input) ->
+                actions.add { input?.close() }
+                actions.add { asset.detachFromRenderer() }
+            }
             oldNested.forEach { (video, input) ->
                 actions.add { video.surface = null }
                 actions.add { input.close() }
@@ -222,6 +233,7 @@ class VkScreen private constructor(context: Context) : Screen(context), Choreogr
                     }
                 val input =
                     when (screenObject) {
+                        is AssetScreenObject -> assetInputs[screenObject]
                         is MediaOutputScreenObject -> nestedInputs[screenObject]
                         is VideoScreenObject -> tracks[screenObject.track]
                         else -> null
@@ -260,7 +272,7 @@ class VkScreen private constructor(context: Context) : Screen(context), Choreogr
     private fun prepare() {
         findByClass(VideoScreenObject::class.java).forEach { video ->
             val input = tracks[video.track]
-            if (video is MediaOutputScreenObject) {
+            if (video is AssetScreenObject || video is MediaOutputScreenObject) {
                 updateCameraOrientation(video, null)
             } else {
                 updateCameraOrientation(video, input?.source)
@@ -268,6 +280,32 @@ class VkScreen private constructor(context: Context) : Screen(context), Choreogr
                     video.videoSize = input.source.videoSize
                     video.imageOrientation = input.source.imageOrientation
                 }
+            }
+        }
+        val assets = AssetScreenObject.findAssets(this).toSet()
+        assetInputs.keys.filter { it !in assets }.forEach { asset ->
+            assetInputs.remove(asset)?.close()
+            asset.detachFromRenderer()
+        }
+        assets.forEach { asset ->
+            val source = asset.sourceForRendering()
+            val previous = assetInputs[asset]
+            if (previous?.source !== source) {
+                previous?.close()
+                assetInputs[asset] =
+                    try {
+                        source?.let { video -> createInput(video.videoSize, video) { video.surface = it } }
+                    } catch (cause: Exception) {
+                        asset.failFromRenderer(cause)
+                        null
+                    }
+                asset.invalidateLayout()
+            } else if (asset !in assetInputs) {
+                assetInputs[asset] = null
+            }
+            if (source != null) {
+                asset.videoSize = source.videoSize
+                asset.imageOrientation = source.imageOrientation
             }
         }
         layout(renderer)
@@ -286,6 +324,7 @@ class VkScreen private constructor(context: Context) : Screen(context), Choreogr
         }
         tracks.values.forEach { it.acquire() }
         nestedInputs.values.forEach { it.acquire() }
+        assetInputs.values.forEach { it?.acquire() }
     }
 
     private fun createInput(

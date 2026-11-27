@@ -82,6 +82,7 @@ fun CameraScreen(
     val scope = rememberCoroutineScope()
     var editingText by remember { mutableStateOf<TextScreenObject?>(null) }
     var insertionPosition by remember { mutableStateOf<Offset?>(null) }
+    LaunchedEffect(viewModel) { viewModel.assetErrors.collect { errorMessage = it } }
     LaunchedEffect(Unit) {
         viewModel.refreshSession().onFailure { errorMessage = it.message ?: context.getString(R.string.studio_connection_error) }
     }
