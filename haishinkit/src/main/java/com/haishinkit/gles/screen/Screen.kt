@@ -245,7 +245,6 @@ internal class Screen(
                 assetTextures[asset] = null
             }
             if (source != null) {
-                asset.videoSize = source.videoSize
                 asset.imageOrientation = source.imageOrientation
             }
         }

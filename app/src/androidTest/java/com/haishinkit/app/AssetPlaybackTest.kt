@@ -34,6 +34,18 @@ class AssetPlaybackTest {
 
     @Test fun openGlReadsRotatedVideo() = exercise(false, true, "asset-rotated.mp4")
 
+    @Test fun openGlReadsUnrotatedQuadrants() = exercise(false, true, "asset-colors.mp4")
+
+    @Test fun vulkanReadsUnrotatedQuadrants() = exercise(true, true, "asset-colors.mp4")
+
+    @Test fun openGlReadsHalfTurnVideo() = exercise(false, true, "asset-180.mp4")
+
+    @Test fun vulkanReadsHalfTurnVideo() = exercise(true, true, "asset-180.mp4")
+
+    @Test fun openGlReadsThreeQuarterTurnVideo() = exercise(false, true, "asset-270.mp4")
+
+    @Test fun vulkanReadsThreeQuarterTurnVideo() = exercise(true, true, "asset-270.mp4")
+
     @Test fun vulkanReadsRotatedVideo() = exercise(true, true, "asset-rotated.mp4")
 
     @Test fun openGlCanCancelAndRestartPlayback() = exercise(false, true, "asset-short.mp4", true)
@@ -131,14 +143,20 @@ class AssetPlaybackTest {
                 }
             }
             assertTrue("No decoded video pixels ($vulkan)", decoded)
-            if (name == "asset-rotated.mp4") {
+            val expectedCorners =
+                when (name) {
+                    "asset-colors.mp4" -> listOf(Color.RED, Color.GREEN, Color.BLUE, Color.YELLOW)
+                    "asset-rotated.mp4" -> listOf(Color.GREEN, Color.YELLOW, Color.RED, Color.BLUE)
+                    "asset-180.mp4" -> listOf(Color.YELLOW, Color.BLUE, Color.GREEN, Color.RED)
+                    "asset-270.mp4" -> listOf(Color.BLUE, Color.RED, Color.YELLOW, Color.GREEN)
+                    else -> null
+                }
+            if (expectedCorners != null) {
                 val image = pixels(screen)
                 try {
-                    // Rotation metadata is clockwise: original RG/BY becomes BR/YG.
-                    assertColor(image.getPixel(22, 12), Color.BLUE)
-                    assertColor(image.getPixel(42, 12), Color.RED)
-                    assertColor(image.getPixel(22, 36), Color.YELLOW)
-                    assertColor(image.getPixel(42, 36), Color.GREEN)
+                    listOf(22 to 12, 42 to 12, 22 to 36, 42 to 36).forEachIndexed { index, (x, y) ->
+                        assertColor(image.getPixel(x, y), expectedCorners[index])
+                    }
                 } finally {
                     image.recycle()
                 }

@@ -138,15 +138,17 @@ val clip = AssetScreenObject(context).apply {
     startReading(videoUri)
 }
 mixer.screen.addChild(clip)
-// Removing an object stops its decoder; reattaching restarts it from the beginning.
+// Removing an actively playing object stops its decoder; reattaching restarts it.
 mixer.screen.removeChild(clip)
 clip.close()
 ```
 
 `videoGravity` controls fit/fill, and file rotation metadata is applied without
-following device rotation. `currentTimeUs` reports the current pass's last frame;
+following device rotation. Cropping and non-square pixel aspect ratios are used
+when fitting the video. `currentTimeUs` reports the current pass's last frame;
 looping starts a new pass at zero. `cancelReading()` stops playback but retains the
-source URI for serialization. `close()` permanently closes this instance. Loading
+source URI for serialization. After cancellation or non-looping EOF, call
+`startReading()` explicitly to play again. `close()` permanently closes this instance. Loading
 and decoding are asynchronous; `onError` may run on the playback or renderer thread.
 Rendering supports both OpenGL and the optional Vulkan backend. Each attached
 asset uses its own decoder and renderer-owned surface, independent of capture tracks.
@@ -155,4 +157,5 @@ Use `ScreenObjectFactory(context)` to recreate video assets from scene snapshots
 Without a context, asset nodes remain opaque and are retained for future use.
 Custom `asset` creators may override video reconstruction, for example for Lottie.
 Scene archives must package the movie bytes under `media/` and reference that path;
-content permissions and playback positions are not part of a portable scene.
+resolve packaged paths to local URIs before calling the factory. Content permissions
+and playback positions are not part of a portable scene.

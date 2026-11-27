@@ -32,6 +32,7 @@ internal class AssetVideoSource(
             if (previous != null && value == null) cancel()
         }
     override val videoSize: Size get() = metadata?.size ?: Size(0, 0)
+    val displaySize: Size get() = metadata?.displaySize(outputCrop) ?: Size(0, 0)
     override val imageOrientation: ImageOrientation get() = metadata?.orientation ?: ImageOrientation.UP
     override val videoCropRect: Rect? get() = outputCrop?.let(::Rect)
     val isPrepared: Boolean get() = metadata != null
@@ -80,7 +81,13 @@ internal class AssetVideoSource(
             predecessor = null
             if (!running.get()) return
             val extractor = MediaExtractor().also { ownedExtractor = it }
-            extractor.setDataSource(context, uri, null)
+            requireNotNull(context.contentResolver.openAssetFileDescriptor(uri, "r")) { "The asset cannot be opened." }.use { descriptor ->
+                if (descriptor.declaredLength < 0) {
+                    extractor.setDataSource(descriptor.fileDescriptor)
+                } else {
+                    extractor.setDataSource(descriptor.fileDescriptor, descriptor.startOffset, descriptor.declaredLength)
+                }
+            }
             val track = (0 until extractor.trackCount).firstOrNull { extractor.getTrackFormat(it).getString(MediaFormat.KEY_MIME)?.startsWith("video/") == true }
             requireNotNull(track) { "The asset has no video track." }
             extractor.selectTrack(track)
@@ -207,7 +214,23 @@ internal class AssetVideoSource(
         return value + offset
     }
 
-    internal data class Metadata(val size: Size, val orientation: ImageOrientation, val durationUs: Long, val frameDurationUs: Long) {
+    internal data class Metadata(
+        val size: Size,
+        val orientation: ImageOrientation,
+        val durationUs: Long,
+        val frameDurationUs: Long,
+        val sampleAspectWidth: Int = 1,
+        val sampleAspectHeight: Int = 1,
+        val initialCrop: Rect? = null,
+    ) {
+        fun displaySize(outputCrop: Rect? = null): Size {
+            val crop = (outputCrop ?: initialCrop)?.takeIf { it.left >= 0 && it.top >= 0 && it.right <= size.width && it.bottom <= size.height && !it.isEmpty }
+            val width = crop?.width() ?: size.width
+            val height = crop?.height() ?: size.height
+            val displayWidth = (width.toLong() * sampleAspectWidth + sampleAspectHeight / 2) / sampleAspectHeight
+            return Size(displayWidth.coerceIn(1, Int.MAX_VALUE.toLong()).toInt(), height)
+        }
+
         companion object {
             fun from(format: MediaFormat): Metadata {
                 val rotation = if (format.containsKey("rotation-degrees")) format.getInteger("rotation-degrees") else 0
@@ -220,7 +243,17 @@ internal class AssetVideoSource(
                     }
                 val rate = if (format.containsKey(MediaFormat.KEY_FRAME_RATE)) runCatching { format.getInteger(MediaFormat.KEY_FRAME_RATE).toDouble() }.getOrElse { format.getFloat(MediaFormat.KEY_FRAME_RATE).toDouble() } else 30.0
                 val duration = if (format.containsKey(MediaFormat.KEY_DURATION)) format.getLong(MediaFormat.KEY_DURATION).coerceAtLeast(0) else 0L
-                return Metadata(Size(format.getInteger(MediaFormat.KEY_WIDTH), format.getInteger(MediaFormat.KEY_HEIGHT)), orientation, duration, (1_000_000 / rate.takeIf { it.isFinite() && it > 0 }.let { it ?: 30.0 }).toLong().coerceAtLeast(1))
+                val sarWidth = if (format.containsKey("sar-width")) format.getInteger("sar-width") else 1
+                val sarHeight = if (format.containsKey("sar-height")) format.getInteger("sar-height") else 1
+                return Metadata(
+                    Size(format.getInteger(MediaFormat.KEY_WIDTH), format.getInteger(MediaFormat.KEY_HEIGHT)),
+                    orientation,
+                    duration,
+                    (1_000_000 / rate.takeIf { it.isFinite() && it > 0 }.let { it ?: 30.0 }).toLong().coerceAtLeast(1),
+                    if (sarWidth > 0 && sarHeight > 0) sarWidth else 1,
+                    if (sarWidth > 0 && sarHeight > 0) sarHeight else 1,
+                    MediaFormatUtil.getCropRect(format),
+                )
             }
         }
     }

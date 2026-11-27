@@ -313,6 +313,25 @@ class SampleSceneFilesTest {
         }
     }
 
+    @Test fun importedMovieKeepsItsOriginalResourceNameWhenOpaqueObjectsPreserveMedia() {
+        val bytes = byteArrayOf(1, 2, 3, 4)
+        val video = node("asset", "movie", mapOf("source" to "media/original.mp4"))
+        val opaque = node("future", "opaque", mapOf("custom" to "media/original.mp4"))
+        val store = SampleSceneFiles(RuntimeEnvironment.getApplication())
+        val loaded = store.prepare(SceneFile(root(listOf(video, opaque)), mapOf("original.mp4" to bytes)))
+        val restored = store.create(loaded)
+        try {
+            store.install(loaded)
+            val exported = SceneFile.read(store.encode(store.capture(restored)))
+            assertEquals(setOf("original.mp4"), exported.resources.keys)
+            assertArrayEquals(bytes, exported.resources.getValue("original.mp4"))
+            assertEquals("media/original.mp4", exported.snapshot.children.first().elements["source"])
+        } finally {
+            AssetScreenObject.findAssets(restored).forEach { it.close() }
+            store.close()
+        }
+    }
+
     @Test fun tooManyVideoAssetsAreRejectedBeforeInstallation() {
         val video = node("asset", "movie", mapOf("source" to "media/movie.mp4"))
         val file = SceneFile(root((0..4).map { video.copy(id = "movie-$it") }), mapOf("movie.mp4" to byteArrayOf(1)))

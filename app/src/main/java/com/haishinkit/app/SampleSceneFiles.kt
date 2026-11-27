@@ -92,6 +92,8 @@ internal class SampleSceneFiles(private val context: Context) {
                 val source = node.elements["source"].orEmpty()
                 if (source.startsWith("media/")) return node.copy(children = children)
                 val uri = Uri.parse(source)
+                val installedName = directory?.let { folder -> resources.keys.firstOrNull { uri == Uri.fromFile(File(folder, it)) } }
+                if (installedName != null) return node.copy(elements = node.elements + ("source" to "media/$installedName"), children = children)
                 require(uri.scheme in setOf("file", "content", "android.resource")) { "Use a local video source." }
                 val bytes =
                     requireNotNull(context.contentResolver.openInputStream(uri)).use { input ->

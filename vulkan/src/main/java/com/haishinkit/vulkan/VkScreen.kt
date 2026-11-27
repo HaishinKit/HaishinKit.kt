@@ -304,7 +304,6 @@ class VkScreen private constructor(context: Context) : Screen(context), Choreogr
                 assetInputs[asset] = null
             }
             if (source != null) {
-                asset.videoSize = source.videoSize
                 asset.imageOrientation = source.imageOrientation
             }
         }

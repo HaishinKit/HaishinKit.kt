@@ -13,7 +13,8 @@ import com.haishinkit.media.source.VideoSource
  *
  * File, content and android.resource URIs are supported. Audio is not played or mixed. The
  * source starts when attached to a rendering screen, and detaching stops its decoder. Adding
- * the object again restarts it. Call [cancelReading] to stop explicitly, or [close] when finished.
+ * the object again restarts it if playback was still requested. After EOF, call [startReading]
+ * explicitly. Call [cancelReading] to stop explicitly, or [close] when finished.
  * Loading/decoding errors are delivered to [onError] on the playback or rendering thread.
  *
  * ```kotlin
@@ -149,7 +150,7 @@ class AssetScreenObject(context: Context, id: String? = null) : VideoScreenObjec
                 reader = next
                 next.start()
             }
-            reader?.takeIf { it.isPrepared && it.isRunning }
+            reader?.takeIf { it.isPrepared && it.isRunning }?.also { videoSize = it.displaySize }
         }
 
     /** @suppress Detaches a renderer-owned surface while retaining the playback request. */
