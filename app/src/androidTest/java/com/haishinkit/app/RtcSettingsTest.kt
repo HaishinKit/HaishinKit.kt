@@ -18,7 +18,7 @@ import org.junit.Rule
 import org.junit.Test
 
 /** Verify the actual sample screens select RTC and retain endpoint/authentication settings. */
-class RTCSettingsTest {
+class RtcSettingsTest {
     @get:Rule val compose = createEmptyComposeRule()
 
     @Test fun settingsOpenWhipPublishingAndWhepPlayback() {

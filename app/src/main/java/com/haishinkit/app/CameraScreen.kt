@@ -52,8 +52,8 @@ import com.haishinkit.compose.rememberMediaRecorderState
 import com.haishinkit.compose.rememberStreamSessionState
 import com.haishinkit.graphics.VideoGravity
 import com.haishinkit.graphics.effect.DefaultVideoEffect
-import com.haishinkit.rtc.RTCSession
-import com.haishinkit.rtc.RTCStream
+import com.haishinkit.rtc.RtcSession
+import com.haishinkit.rtc.RtcStream
 import com.haishinkit.screen.TextScreenObject
 import com.haishinkit.srt.SrtStream
 import com.haishinkit.stream.StreamSession
@@ -148,7 +148,7 @@ fun CameraScreen(
         return
     }
     LaunchedEffect(currentSession) {
-        (currentSession as? RTCSession)?.failure?.filterNotNull()?.collect { cause ->
+        (currentSession as? RtcSession)?.failure?.filterNotNull()?.collect { cause ->
             errorMessage = cause.message ?: context.getString(R.string.studio_connection_error)
         }
     }
@@ -380,7 +380,7 @@ fun CameraScreen(
                         isRecording = recorderState.isRecording,
                         isConnected = sessionActive,
                         readyState = sessionReadyState,
-                        canCancelConnection = sessionState.stream is SrtStream || sessionState.stream is RTCStream,
+                        canCancelConnection = sessionState.stream is SrtStream || sessionState.stream is RtcStream,
                         onClickScreenShot = {
                             viewModel.takeSnapShot(context)
                         },

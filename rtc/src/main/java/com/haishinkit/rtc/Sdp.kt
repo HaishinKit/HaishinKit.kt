@@ -3,7 +3,7 @@ package com.haishinkit.rtc
 import kotlin.io.encoding.Base64
 
 /** The answer must preserve our offered mids and payload mappings. */
-internal object SDP {
+internal object Sdp {
     data class Media(val kind: String, val port: Int, val payloads: Set<Int>, val lines: List<String>)
 
     private val directions = setOf("a=sendonly", "a=recvonly", "a=sendrecv", "a=inactive")

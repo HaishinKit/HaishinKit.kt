@@ -11,11 +11,11 @@ import org.junit.Assert.assertThrows
 import org.junit.Test
 import java.io.IOException
 
-class RTCDeadlineTest {
+class RtcDeadlineTest {
     @Test fun connectionDeadlineBecomesAnIoFailure() {
         val failure =
             assertThrows(IOException::class.java) {
-                runBlocking { withRTCDeadline(10, "connection timed out") { awaitCancellation() } }
+                runBlocking { withRtcDeadline(10, "connection timed out") { awaitCancellation() } }
             }
         assertEquals("connection timed out", failure.message)
     }
@@ -24,7 +24,7 @@ class RTCDeadlineTest {
         assertThrows(IOException::class.java) {
             runBlocking {
                 coroutineScope {
-                    launch { withRTCDeadline(10, "surface missing") { awaitCancellation() } }
+                    launch { withRtcDeadline(10, "surface missing") { awaitCancellation() } }
                     awaitCancellation()
                 }
             }
@@ -34,7 +34,7 @@ class RTCDeadlineTest {
     @Test fun callerTimeoutRemainsCancellation() {
         assertThrows(TimeoutCancellationException::class.java) {
             runBlocking {
-                withTimeout(10) { withRTCDeadline(10_000, "not this deadline") { awaitCancellation() } }
+                withTimeout(10) { withRtcDeadline(10_000, "not this deadline") { awaitCancellation() } }
             }
         }
     }

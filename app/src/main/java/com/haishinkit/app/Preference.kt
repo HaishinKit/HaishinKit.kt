@@ -3,8 +3,8 @@ package com.haishinkit.app
 import android.content.Context
 import android.net.Uri
 import androidx.core.net.toUri
-import com.haishinkit.rtc.RTCConfiguration
-import com.haishinkit.rtc.RTCSession
+import com.haishinkit.rtc.RtcConfiguration
+import com.haishinkit.rtc.RtcSession
 import com.haishinkit.stream.StreamSession
 
 data class Preference(
@@ -19,11 +19,11 @@ data class Preference(
     data class SessionSettings(
         val uri: Uri,
         val mode: StreamSession.Mode,
-        val rtc: RTCConfiguration?,
+        val rtc: RtcConfiguration?,
         val encoding: PublishEncodingSettings? = null,
     ) {
         fun create(context: Context): StreamSession =
-            if (rtc != null) RTCSession(context, uri, mode, rtc) else StreamSession.Builder(context, uri).setMode(mode).build()
+            if (rtc != null) RtcSession(context, uri, mode, rtc) else StreamSession.Builder(context, uri).setMode(mode).build()
     }
 
     val isRTC: Boolean
@@ -44,7 +44,7 @@ data class Preference(
             toStreamUri(mode),
             mode,
             if (isRTC) {
-                RTCConfiguration(
+                RtcConfiguration(
                     iceServers = iceServers.lineSequence().map { it.trim() }.filter { it.isNotEmpty() }.toList(),
                     bearerToken = bearerToken.trim().takeIf { it.isNotEmpty() },
                 )

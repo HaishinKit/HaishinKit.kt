@@ -1,7 +1,7 @@
 package com.haishinkit.rtc
 
 /** Extend a 32-bit RTP clock, preserving reordering across wraparound. */
-internal class RTPClock(private val rate: Long) {
+internal class RtpClock(private val rate: Long) {
     private var previous: Long? = null
     private var ticks = 0L
     private var anchor = 0L

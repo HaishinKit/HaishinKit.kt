@@ -10,11 +10,11 @@ existing minimum Android versions.
 - H.264 Baseline level 3.1, RTP packetization-mode 1; outgoing frames include SPS/PPS on keyframes.
 - Opus audio, with RTP padding and padding-only probes removed before decoding. Capture PCM must match `stream.audioSetting` (48 kHz mono by default).
 - HTTP(S) SDP POST, 201 response validation, relative/absolute Location, and DELETE on close/setup failure.
-- Non-trickle ICE: candidates are gathered before POST. Configure STUN/TURN URLs through `RTCConfiguration`.
+- Non-trickle ICE: candidates are gathered before POST. Configure STUN/TURN URLs through `RtcConfiguration`.
 - Bearer authentication and 307/308 POST redirects. Authorization is removed across origins; HTTPS downgrade is rejected.
 - RTCP sender/receiver reports, outgoing NACK responses, incoming PLI/FIR keyframe requests, and REMB bitrate limits.
 - Audio-only and video-only publishing through `expectedMedias`; rejected tracks do not start encoders.
-- Bounded native H.264 packet/byte retention before frame assembly, bounded media queues and reconnectable sessions. Observe `RTCSession.failure` for asynchronous failures.
+- Bounded native H.264 packet/byte retention before frame assembly, bounded media queues and reconnectable sessions. Observe `RtcSession.failure` for asynchronous failures.
 
 This is an initial transport implementation. It does not implement trickle ICE/PATCH,
 ICE restart, automatic ICE-server discovery from HTTP Link headers, simulcast, RTX,
@@ -36,11 +36,11 @@ error if no Opus encoder is installed. Video-only publishing and playback do
 not require an Opus encoder.
 
 ```kotlin
-val configuration = RTCConfiguration(
+val configuration = RtcConfiguration(
     iceServers = listOf("stun:stun.example.com:3478"),
     bearerToken = token, // Omit when the endpoint does not require it.
 )
-val session = RTCSession(context, Uri.parse(whipUrl), configuration = configuration)
+val session = RtcSession(context, Uri.parse(whipUrl), configuration = configuration)
 val mixer = MediaMixer(context)
 val microphone = AudioRecordSource(context).apply { sampleRate = 48_000 }
 // Obtain RECORD_AUDIO / CAMERA permissions before attaching capture sources.
@@ -70,7 +70,7 @@ this module does not resample captured audio.
 ## ▶️ Playback
 
 ```kotlin
-val session = RTCSession(
+val session = RtcSession(
     context,
     Uri.parse(whepUrl),
     mode = StreamSession.Mode.PLAYBACK,
@@ -89,7 +89,7 @@ session.stream.dispose()
 For the common builder API:
 
 ```kotlin
-StreamSession.Builder.registerFactory(HTTPStreamSessionFactory(configuration))
+StreamSession.Builder.registerFactory(HttpStreamSessionFactory(configuration))
 val session = StreamSession.Builder(context, Uri.parse(endpoint))
     .setMode(StreamSession.Mode.PLAYBACK) // PUBLISH selects WHIP.
     .build()
@@ -160,7 +160,7 @@ ctest --test-dir /path/to/native-build --output-on-failure
 
 ## 🔄 Bidirectional audio and text data channels
 
-`RTCDuplexSession` is an audio-only `sendrecv` connection independent of WHIP/WHEP.
+`RtcDuplexSession` is an audio-only `sendrecv` connection independent of WHIP/WHEP.
 Its suspending `run` function accepts an SDP-exchange callback, a data-channel label,
 text-event and connected callbacks. It stays active until cancellation or failure.
 Register `outgoing` with a 48 kHz capture mixer; `incoming` plays decoded Opus with
@@ -181,7 +181,7 @@ both audio directions plus Japanese, emoji and embedded-NUL text over ICE/DTLS.
 
 ## 🔌 WebSocket
 
-`RTCWebSocket` exposes libdatachannel's WebSocket engine without an HTTP client
+`RtcWebSocket` exposes libdatachannel's WebSocket engine without an HTTP client
 runtime dependency. Create an instance per connection, call suspending `connect`
 with a `ws://` or `wss://` URL, then `send(String)` and suspending `receive()`.
 Messages expose UTF-8 `text`, raw `data` and `isBinary`. Call `close()` in a

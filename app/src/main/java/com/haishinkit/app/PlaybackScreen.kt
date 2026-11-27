@@ -38,8 +38,8 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.haishinkit.compose.HaishinKitView
 import com.haishinkit.compose.rememberStreamSessionState
-import com.haishinkit.rtc.RTCSession
-import com.haishinkit.rtc.RTCStream
+import com.haishinkit.rtc.RtcSession
+import com.haishinkit.rtc.RtcStream
 import com.haishinkit.srt.SrtStream
 import com.haishinkit.stream.StreamSession
 import kotlinx.coroutines.flow.filterNotNull
@@ -82,7 +82,7 @@ fun PlaybackScreen(
         return
     }
     LaunchedEffect(currentSession) {
-        (currentSession as? RTCSession)?.failure?.filterNotNull()?.collect { cause ->
+        (currentSession as? RtcSession)?.failure?.filterNotNull()?.collect { cause ->
             errorMessage = cause.message ?: "WHEP connection failed."
         }
     }
@@ -124,7 +124,7 @@ fun PlaybackScreen(
                 errorMessage = errorMessage,
                 onOpenSettings = onOpenSettings,
                 onToggleConnection = toggleConnection,
-                canCancelConnection = session.stream is SrtStream || session.stream is RTCStream,
+                canCancelConnection = session.stream is SrtStream || session.stream is RtcStream,
             )
         },
     )

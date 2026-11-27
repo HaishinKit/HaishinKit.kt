@@ -19,7 +19,7 @@ import kotlin.io.encoding.Base64
  * WSS uses platform trust anchors by default, or an explicitly supplied PEM CA bundle.
  * Receive and send queues are bounded. Cancel/close to release native resources.
  */
-class RTCWebSocket(private val caCertificatesPem: String? = null) : Closeable {
+class RtcWebSocket(private val caCertificatesPem: String? = null) : Closeable {
     data class Message(val data: ByteArray, val isBinary: Boolean) {
         val text: String get() = data.toString(Charsets.UTF_8)
     }
