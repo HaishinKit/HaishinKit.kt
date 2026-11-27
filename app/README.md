@@ -99,7 +99,7 @@ certificate validation. Use reachable server addresses when testing on a physica
 device: `127.0.0.1` refers to that device, not the development computer. On Android
 versions requiring local network permission, use **Allow local network** in Settings.
 
-Outgoing WebRTC media is H.264 Baseline level 3.1 and Opus. The sample captures
+Outgoing WebRTC media uses H.264 Baseline level 3.1, VP8 or VP9 profile 0 with Opus. The sample captures
 48 kHz PCM and applies the same rate to its recording and publishing encoders.
 Read the [RTC module guide](../rtc/README.md) for supported signaling, transport
 limitations and library-level usage.

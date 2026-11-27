@@ -84,5 +84,5 @@
     <string name="studio_encoding_bitrate">Video bitrate</string>
     <string name="studio_encoding_kbps">%1$d kbps</string>
     <string name="studio_encoding_bitrate_help">100–12,000 kbps. Release the slider to apply, including while publishing. The encoder may limit the actual bitrate.</string>
-    <string name="studio_encoding_transport_help">Shows codecs supported by the configured URL. SRT uses H.264 or H.265 with AAC; WebRTC uses H.264 Baseline with Opus.</string>
+    <string name="studio_encoding_transport_help">Shows codecs supported by the configured URL. SRT uses H.264 or H.265 with AAC; WebRTC uses H.264 Baseline, VP8 or VP9 with Opus.</string>
 </resources>

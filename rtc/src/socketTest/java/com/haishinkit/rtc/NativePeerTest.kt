@@ -61,6 +61,71 @@ class NativePeerTest {
         assertThrows(IllegalStateException::class.java) { left.sendText("closed") }
     }
 
+    @Test fun vp8RoundTripOverIceDtlsSrtp() = vpRoundTrip(RtcVideoCodec.VP8)
+
+    @Test fun vp9RoundTripOverIceDtlsSrtp() = vpRoundTrip(RtcVideoCodec.VP9)
+
+    private fun vpRoundTrip(codec: RtcVideoCodec) {
+        assumeTrue("Set -PrtcNativeLibraryDir to run native integration tests", System.getProperty("haishinkit.rtc.nativeTests") == "true" || System.getProperty("java.vm.name") == "Dalvik")
+        val offers = LinkedBlockingQueue<String>()
+        val answers = LinkedBlockingQueue<String>()
+        val opened = CountDownLatch(4)
+        val pli = CountDownLatch(1)
+        val failures = LinkedBlockingQueue<String>()
+        val audioFrames = LinkedBlockingQueue<ByteArray>()
+        val videoFrames = LinkedBlockingQueue<ByteArray>()
+        val sender =
+            NativePeer(true, true, true, emptyArray(), { kind, _, text ->
+                when (kind) {
+                    NativePeer.SDP -> offers.offer(text)
+                    NativePeer.TRACK_OPEN -> opened.countDown()
+                    NativePeer.KEYFRAME -> pli.countDown()
+                    NativePeer.ERROR -> failures.offer(text)
+                }
+            }, { _, _, _ -> }, videoCodec = codec)
+        val receiver =
+            NativePeer(false, true, true, emptyArray(), { kind, _, text ->
+                when (kind) {
+                    NativePeer.SDP -> answers.offer(text)
+                    NativePeer.TRACK_OPEN -> opened.countDown()
+                    NativePeer.ERROR -> failures.offer(text)
+                }
+            }, { audio, data, _ -> (if (audio) audioFrames else videoFrames).offer(data) }, videoCodec = codec)
+        try {
+            sender.offer()
+            val offer = requireNotNull(offers.poll(10, TimeUnit.SECONDS)) { "ICE offer gathering timed out" }
+            receiver.acceptOffer(offer)
+            val answer = requireNotNull(answers.poll(10, TimeUnit.SECONDS)) { "ICE answer gathering timed out" }
+            assertEquals(setOf("audio", "video"), Sdp.validateAnswer(answer, true, true, true, videoCodec = codec))
+            assertTrue("VP receiver limits are missing: $answer", answer.contains("max-fs=3600") && answer.contains("max-fr=30"))
+            sender.answer(answer)
+            assertTrue("Tracks did not open: $failures", opened.await(15, TimeUnit.SECONDS))
+            val opus = byteArrayOf(0xf8.toByte(), 0xff.toByte(), 0xfe.toByte())
+            val frame = byteArrayOf(if (codec == RtcVideoCodec.VP9) 0x82.toByte() else 0x10) + ByteArray(5000) { 0x55 }
+            sender.send(true, opus, 1_000_000)
+            sender.send(false, frame, 1_000_000)
+            assertArrayEquals(opus, audioFrames.poll(5, TimeUnit.SECONDS))
+            assertArrayEquals(frame, videoFrames.poll(5, TimeUnit.SECONDS))
+            if (codec == RtcVideoCodec.VP9) {
+                val hidden = frame.copyOf().apply { this[0] = 0x84.toByte() }
+                val visible = frame.copyOf().apply { this[0] = 0x86.toByte() }
+                sender.send(false, hidden, 2_000_000)
+                sender.send(false, visible, 2_000_000)
+                assertArrayEquals(hidden, videoFrames.poll(5, TimeUnit.SECONDS))
+                assertArrayEquals(visible, videoFrames.poll(5, TimeUnit.SECONDS))
+            }
+            receiver.requestKeyframe()
+            assertTrue("RTCP PLI was not delivered", pli.await(5, TimeUnit.SECONDS))
+            assertTrue(failures.toString(), failures.isEmpty())
+        } finally {
+            sender.close()
+            receiver.close()
+            sender.close()
+            receiver.close()
+        }
+        assertThrows(IllegalStateException::class.java) { sender.offer() }
+    }
+
     @Test fun h264AndOpusRoundTripOverIceDtlsSrtp() {
         assumeTrue("Set -PrtcNativeLibraryDir to run native integration tests", System.getProperty("haishinkit.rtc.nativeTests") == "true" || System.getProperty("java.vm.name") == "Dalvik")
         val offers = LinkedBlockingQueue<String>()

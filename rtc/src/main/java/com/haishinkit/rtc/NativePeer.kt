@@ -12,8 +12,10 @@ internal class NativePeer(
     private val frame: (Boolean, ByteArray, Long) -> Unit,
     duplex: Boolean = false,
     dataChannelLabel: String = "",
+    videoCodec: RtcVideoCodec = RtcVideoCodec.H264,
+    videoLimits: VpLimits? = null,
 ) : Closeable {
-    private var handle = create(publishing, audio, video, iceServers, duplex, dataChannelLabel)
+    private var handle = create(publishing, audio, video, iceServers, duplex, dataChannelLabel, videoCodec.ordinal, videoLimits?.maxFs ?: 3600, videoLimits?.maxFr ?: 30)
 
     @Synchronized fun offer() = localDescription(handle, "offer")
 
@@ -63,6 +65,9 @@ internal class NativePeer(
         servers: Array<String>,
         duplex: Boolean,
         dataChannelLabel: String,
+        videoCodec: Int,
+        maxFs: Int,
+        maxFr: Int,
     ): Long
 
     private external fun localDescription(

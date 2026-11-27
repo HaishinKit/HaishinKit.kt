@@ -7,6 +7,8 @@ data class RtcConfiguration(
     val connectionTimeoutMillis: Long = 30_000,
     /** Connect/read timeout and absolute deadline shared by one HTTP operation's redirects/body. */
     val httpTimeoutMillis: Int = 10_000,
+    /** Codec offered for WHEP playback. WHIP uses the stream's videoSetting.profileLevel. */
+    val playbackVideoCodec: RtcVideoCodec = RtcVideoCodec.H264,
 ) {
     init {
         require(connectionTimeoutMillis > 0 && httpTimeoutMillis > 0)

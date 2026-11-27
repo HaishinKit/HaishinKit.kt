@@ -71,4 +71,16 @@ class PublishEncodingSettingsTest {
         assertEquals(MediaCodecInfo.CodecProfileLevel.AVCProfileConstrainedBaseline, format.getInteger(MediaFormat.KEY_PROFILE))
         assertEquals(MediaCodecInfo.CodecProfileLevel.AVCLevel31, format.getInteger(MediaFormat.KEY_LEVEL))
     }
+
+    @Test fun whipKeepsVpCodecsAndDoesNotApplyAnAvcProfile() {
+        for (codec in listOf(PublishVideoCodec.VP8, PublishVideoCodec.VP9)) {
+            val settings = PublishEncodingSettings(videoCodec = codec).forProtocol(PublishingProtocol.WEBRTC)
+            assertEquals(codec, settings.videoCodec)
+            assertEquals(PublishAudioCodec.OPUS, settings.audioCodec)
+            val format = settings.createVideoFormat(VideoCodec.Setting(), PublishingProtocol.WEBRTC)
+            assertEquals(codec.profile.mime, format.getString(MediaFormat.KEY_MIME))
+            assertEquals(codec.profile.profile, format.getInteger(MediaFormat.KEY_PROFILE))
+        }
+        assertEquals(PublishVideoCodec.H264, PublishEncodingSettings(videoCodec = PublishVideoCodec.AV1).forProtocol(PublishingProtocol.WEBRTC).videoCodec)
+    }
 }

@@ -2,6 +2,8 @@ package com.haishinkit.rtc
 
 import android.content.Context
 import android.net.Uri
+import com.haishinkit.codec.Codec
+import com.haishinkit.codec.CodecCapabilities
 import com.haishinkit.media.MediaType
 import com.haishinkit.stream.StreamSession
 import kotlinx.coroutines.CancellationException
@@ -103,6 +105,13 @@ class RtcSession(
                 val medias = if (publishing) stream.offeredMedias() else setOf(MediaType.AUDIO, MediaType.VIDEO)
                 val audio = MediaType.AUDIO in medias
                 val video = MediaType.VIDEO in medias
+                val videoCodec = if (publishing && video) RtcVideoCodec.fromMime(stream.videoSetting.profileLevel.mime) else configuration.playbackVideoCodec
+                if (video) {
+                    require(CodecCapabilities.isCodecSupportedByType(if (publishing) Codec.MODE_ENCODE else Codec.MODE_DECODE, videoCodec.mime)) {
+                        "No ${videoCodec.rtpName} ${if (publishing) "encoder" else "decoder"} is available on this device"
+                    }
+                }
+                val videoLimits = if (video && !publishing && videoCodec != RtcVideoCodec.H264) VpLimits.forDecoder(videoCodec) else null
                 val gathered = CompletableDeferred<String>()
                 val opened = MutableStateFlow(emptySet<String>())
                 val events = Channel<Event>(64)
@@ -129,7 +138,7 @@ class RtcSession(
                                 stream.receive(audio, data, timestamp)
                             }
                         }
-                    })
+                    }, videoCodec = videoCodec, videoLimits = videoLimits)
                 peer = native
                 var videoConfiguration = emptyList<ByteArray>()
                 val tracks =
@@ -137,13 +146,16 @@ class RtcSession(
                         native.offer()
                         val offer = gathered.await()
                         val response = http.createCancellable(URI(uri.toString()), offer) { resource = it }
-                        val selected = Sdp.validateAnswer(response.answer, publishing, audio, video)
-                        videoConfiguration = Sdp.videoConfiguration(response.answer)
+                        val selected = Sdp.validateAnswer(response.answer, publishing, audio, video, videoCodec = videoCodec)
+                        if (publishing && "video" in selected && videoCodec != RtcVideoCodec.H264) {
+                            Sdp.validateVpSender(response.answer, stream.videoSetting.width and -2, stream.videoSetting.height and -2, stream.videoSetting.frameRate)
+                        }
+                        videoConfiguration = if (videoCodec == RtcVideoCodec.H264) Sdp.videoConfiguration(response.answer) else emptyList()
                         native.answer(response.answer)
                         opened.first { it.containsAll(selected) }
                         selected
                     }
-                stream.execute(publishing, tracks, native, videoConfiguration) {
+                stream.execute(publishing, tracks, native, videoConfiguration, videoCodec, videoLimits) {
                     synchronized(guard) {
                         if (current !== run || state.value != StreamSession.ReadyState.CONNECTING || !run.job.isActive) throw CancellationException("Session was closed")
                         state.value = StreamSession.ReadyState.OPEN

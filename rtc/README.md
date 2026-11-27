@@ -8,18 +8,19 @@ existing minimum Android versions.
 ## 🎬 Supported media and signaling
 
 - H.264 Baseline level 3.1, RTP packetization-mode 1; outgoing frames include SPS/PPS on keyframes.
+- VP8 and VP9 profile 0 (8-bit, single spatial layer), using OS encoders/decoders. [Codec selection](module-docs.md#video-codec-selection) must match the endpoint; reconnect to change codecs.
 - Opus audio, with RTP padding and padding-only probes removed before decoding. Capture PCM must match `stream.audioSetting` (48 kHz mono by default).
 - HTTP(S) SDP POST, 201 response validation, relative/absolute Location, and DELETE on close/setup failure.
 - Non-trickle ICE: candidates are gathered before POST. Configure STUN/TURN URLs through `RtcConfiguration`.
 - Bearer authentication and 307/308 POST redirects. Authorization is removed across origins; HTTPS downgrade is rejected.
 - RTCP sender/receiver reports, outgoing NACK responses, incoming PLI/FIR keyframe requests, and REMB bitrate limits.
 - Audio-only and video-only publishing through `expectedMedias`; rejected tracks do not start encoders.
-- Bounded native H.264 packet/byte retention before frame assembly, bounded media queues and reconnectable sessions. Observe `RtcSession.failure` for asynchronous failures.
+- Bounded native H.264/VP8/VP9 packet/byte retention before frame assembly, bounded media queues and reconnectable sessions. Observe `RtcSession.failure` for asynchronous failures.
 
 This is an initial transport implementation. It does not implement trickle ICE/PATCH,
 ICE restart, automatic ICE-server discovery from HTTP Link headers, simulcast, RTX,
 TWCC/GCC bandwidth estimation, or adaptive jitter buffering/packet-loss concealment.
-WHEP uses libdatachannel's depacketizers and the existing MediaLink playback scheduler.
+WHEP uses codec-specific bounded RTP reassembly and the existing MediaLink playback scheduler.
 RTP timestamps are extended across wraparound and initially anchored to arrival time;
 RTCP sender-report timestamps are not yet used to refine audio/video synchronization.
 Configure TURN explicitly when required. Validate interoperability and network-loss
@@ -60,7 +61,7 @@ mixer.dispose()
 `expectedMedias = setOf(MediaType.AUDIO, MediaType.VIDEO)` can explicitly select
 offered tracks before connecting, otherwise they are derived from the mixer sources.
 Configure video dimensions, bitrate and frame rate through `stream.videoSetting`.
-The initial implementation requires `H264_BASELINE_3_1`; use dimensions/frame rates
+When H.264 is selected, use `H264_BASELINE_3_1` and dimensions/frame rates
 within that level's limits (up to 3,600 macroblocks/frame, 108,000 macroblocks/second,
 and 14 Mbit/s). Incompatible H.264 profiles and receiver levels below 3.1 are rejected
 before publishing. Codec options cannot override the validated profile, level, dimensions,

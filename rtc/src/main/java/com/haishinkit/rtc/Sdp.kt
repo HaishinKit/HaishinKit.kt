@@ -91,12 +91,38 @@ internal object Sdp {
         }
     }
 
+    /** Apply declared receiver limits only to an accepted outgoing VP track. */
+    fun validateVpSender(
+        sdp: String,
+        width: Int,
+        height: Int,
+        frameRate: Int,
+    ) {
+        require(width > 0 && height > 0 && frameRate > 0)
+        val video = media(sdp).first { it.kind == "video" }
+        val fmtp = video.lines.firstOrNull { it.startsWith("a=fmtp:96 ") }.orEmpty()
+        val parameters =
+            fmtp.substringAfter(' ', "").split(';').associate {
+                val pair = it.trim().split('=', limit = 2)
+                pair.first().lowercase() to pair.getOrElse(1) { "" }
+            }
+
+        fun limit(key: String): Long? =
+            parameters[key]?.let {
+                require(it.matches(Regex("[0-9]+"))) { "Invalid VP $key" }
+                requireNotNull(it.toLongOrNull()?.takeIf { value -> value in 1..Int.MAX_VALUE.toLong() }) { "Invalid VP $key" }
+            }
+        limit("max-fr")?.let { require(frameRate <= it) { "Video frame rate exceeds the server's VP max-fr" } }
+        limit("max-fs")?.let { VpLimits(it.toInt(), frameRate).validateDimensions(width, height) }
+    }
+
     fun validateAnswer(
         sdp: String,
         publishing: Boolean,
         audio: Boolean,
         video: Boolean,
         duplex: Boolean = false,
+        videoCodec: RtcVideoCodec = RtcVideoCodec.H264,
     ): Set<String> {
         val media = media(sdp, allowDataChannel = duplex)
         require(media.map { it.kind }.distinct().size == media.size) { "Duplicate media sections" }
@@ -118,7 +144,7 @@ internal object Sdp {
                     },
             ) { "Answer has incompatible media direction" }
             val payload = if (isAudio) 111 else 96
-            val codec = if (isAudio) "opus/48000/2" else "H264/90000"
+            val codec = if (isAudio) "opus/48000/2" else "${videoCodec.rtpName}/90000"
             require(payload in section.payloads && section.lines.any { it.equals("a=rtpmap:$payload $codec", true) }) { "Server did not select $codec" }
             if (!isAudio) {
                 val fmtp = section.lines.firstOrNull { it.startsWith("a=fmtp:96 ") }.orEmpty()
@@ -127,8 +153,14 @@ internal object Sdp {
                         val pair = it.trim().split('=', limit = 2)
                         pair.first().lowercase() to pair.getOrElse(1) { "" }
                     }
-                require(parameters["packetization-mode"] == "1") { "H.264 packetization-mode=1 is required" }
-                validateH264Profile(parameters, publishing)
+                when (videoCodec) {
+                    RtcVideoCodec.H264 -> {
+                        require(parameters["packetization-mode"] == "1") { "H.264 packetization-mode=1 is required" }
+                        validateH264Profile(parameters, publishing)
+                    }
+                    RtcVideoCodec.VP9 -> require((parameters["profile-id"] ?: "0") == "0") { "RTC VP9 requires profile 0" }
+                    RtcVideoCodec.VP8 -> Unit
+                }
             }
             active.add(section.kind)
         }

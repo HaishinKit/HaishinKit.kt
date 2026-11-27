@@ -17,7 +17,7 @@ camera and microphone streams on Android using RTMP/RTMPS, SRT, and WHIP/WHEP.
 
 - RTMP/RTMPS publishing and playback, including H.264/AAC and Enhanced RTMP HEVC support.
 - Experimental SRT publishing and playback with MPEG-TS, H.264/H.265, AAC, and encryption.
-- Experimental WHIP publishing and WHEP playback with H.264/Opus over WebRTC.
+- Experimental WHIP publishing and WHEP playback with H.264/VP8/VP9 video and Opus over WebRTC.
 - A common `StreamSession` interface for protocol-specific publishing and playback.
 - Camera and microphone capture, multiple cameras, and streaming to multiple destinations.
 - Video compositions with text, images, and optional Lottie animations; preview and recording outputs.

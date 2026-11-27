@@ -4,9 +4,10 @@ import android.media.MediaFormat
 import com.haishinkit.codec.CodecOption
 
 /** Format overrides must not bypass the settings validated for the SDP offer. */
-internal object H264EncoderOptions {
+internal object VideoEncoderOptions {
     private val fixedFields =
         setOf(
+            MediaFormat.KEY_MIME,
             MediaFormat.KEY_PROFILE,
             MediaFormat.KEY_LEVEL,
             MediaFormat.KEY_WIDTH,
