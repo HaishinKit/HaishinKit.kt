@@ -89,7 +89,7 @@ android {
 }
 
 androidComponents {
-    // Keep debug-only frame-capture regressions in the host test suite too.
+    // Keep sample host tests enabled for the optimized debug build too.
     beforeVariants(selector().withBuildType("debug")) { variant ->
         (variant as com.android.build.api.variant.HasUnitTestBuilder).enableUnitTest = true
     }
@@ -126,12 +126,9 @@ dependencies {
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.ui.test.junit4)
+    debugImplementation(project(":mcp"))
     debugImplementation(libs.androidx.ui.tooling)
     add("uiTestImplementation", libs.androidx.ui.test.manifest)
     // LeakCanary rejects non-debuggable APKs; keep it with the debugger test build.
     add("uiTestImplementation", libs.leakcanary.android)
-    debugImplementation(libs.mcp.server)
-    debugImplementation(libs.ktor.server.netty)
-    debugImplementation(libs.ktor.server.content.negotiation)
-    debugImplementation(libs.ktor.serialization.json)
 }

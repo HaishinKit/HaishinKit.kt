@@ -57,6 +57,7 @@ and may include changes absent from that release or the published API reference.
 | `rtmp` | 6.0 / API 23 | RTMP/RTMPS transport |
 | `srt` | 6.0 / API 23 | Experimental SRT transport |
 | `rtc` | 6.0 / API 23 | Experimental WHIP/WHEP transport |
+| `mcp` | 6.0 / API 23 | Optional authenticated MCP server and application-owned tools (new; not in older releases) |
 | `compose` | 6.0 / API 23 | Jetpack Compose views |
 | `lottie` | 6.0 / API 23 | Lottie animations in compositions |
 | `vulkan` | 9.0 / API 28 | Experimental Vulkan output |
@@ -74,6 +75,7 @@ The module guides are included in generated documentation:
 - [RTMP/RTMPS](rtmp/module-docs.md)
 - [SRT](srt/module-docs.md)
 - [WHIP/WHEP](rtc/module-docs.md)
+- [MCP server and application-owned tools](mcp/module-docs.md)
 - [Vulkan output](vulkan/module-docs.md)
 
 Source guides track `main`; consult the matching release tag when integrating a

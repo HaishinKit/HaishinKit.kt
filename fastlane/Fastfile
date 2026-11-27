@@ -36,6 +36,8 @@ lane :review do
   gradle(task: ':vulkan:assembleDebug')
   gradle(task: ':vulkan:assembleDebugAndroidTest')
   gradle(task: ':haishinkit:testDebugUnitTest')
+  gradle(task: ':mcp:testDebugUnitTest')
+  gradle(task: ':mcp:assembleRelease')
   gradle(task: ':app:testUiTestUnitTest')
   gradle(task: ':app:testDebugUnitTest')
   gradle(task: ':rtc:assembleDebug')
