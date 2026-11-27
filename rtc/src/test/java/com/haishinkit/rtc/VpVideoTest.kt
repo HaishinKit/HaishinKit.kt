@@ -37,5 +37,13 @@ class VpVideoTest {
         }
     }
 
+    @Test fun vp9ReferenceAndDisplayPicturesGetDistinctDecoderTimes() {
+        assertEquals(100L, VpVideo.decoderTime(RtcVideoCodec.VP9, 100, 99, 99))
+        assertEquals(101L, VpVideo.decoderTime(RtcVideoCodec.VP9, 100, 100, 100))
+        assertEquals(102L, VpVideo.decoderTime(RtcVideoCodec.VP9, 101, 100, 101))
+        assertEquals(null, VpVideo.decoderTime(RtcVideoCodec.VP9, 99, 100, 101))
+        assertEquals(null, VpVideo.decoderTime(RtcVideoCodec.VP8, 100, 100, 100))
+    }
+
     private fun hex(value: String): ByteArray = value.chunked(2).map { it.toInt(16).toByte() }.toByteArray()
 }

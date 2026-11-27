@@ -38,8 +38,8 @@ private:
     const size_t mFragmentSize;
 };
 
-// Retain at most one bounded AU. Missing, duplicate, or reordered fragments drop
-// that timestamp and request a new keyframe rather than delivering partial data.
+// Retain at most one bounded AU. Missing/reordered new fragments drop that
+// timestamp and request a keyframe; already consumed packet duplicates are ignored.
 class VpRtpDepacketizer final : public rtc::MediaHandler {
 public:
     explicit VpRtpDepacketizer(bool vp9, size_t maxBytes = 4 * 1024 * 1024,
@@ -65,11 +65,12 @@ public:
                 if (padding == 0 || padding > end - start) continue;
                 end -= padding;
             }
-            // Padding-only probes still advance the sequence within an AU.
+            // Padding probes advance sequence between complete pictures too.
             if (end == start) {
-                if (mTimestamp && !mDiscarding && header->seqNumber() == mNextSequence) ++mNextSequence;
+                if (mTimestamp && header->seqNumber() == mNextSequence) ++mNextSequence;
                 continue;
             }
+            if (mTimestamp && uint16_t(header->seqNumber() - mNextSequence) >= 0x8000) continue;
             const auto timestamp = header->timestamp();
             if (!mTimestamp || *mTimestamp != timestamp) {
                 if (mTimestamp && (mStarted || header->seqNumber() != mNextSequence)) requestKeyframe(send);
@@ -78,8 +79,18 @@ public:
                 mData.clear();
                 mPackets = 0;
                 mStarted = false;
+                mCompleted = false;
             }
             if (mDiscarding) continue;
+            if (mCompleted) {
+                // A VP9 hidden reference picture may share a timestamp with the
+                // next picture. Retransmitted old sequence numbers are not new pictures.
+                const auto distance = uint16_t(header->seqNumber() - mNextSequence);
+                if (distance >= 0x8000) continue;
+                if (!mVp9) continue;
+                if (distance != 0) { discard(send); continue; }
+                mCompleted = false;
+            }
             size_t offset = start;
             bool begin = false, finish = false;
             if (!descriptor(*message, end, offset, begin, finish) || offset >= end ||
@@ -97,9 +108,10 @@ public:
                 auto info = std::make_shared<rtc::FrameInfo>(timestamp);
                 info->payloadType = header->payloadType();
                 output.push_back(rtc::make_message(std::move(mData), info));
-                // Ignore duplicate packets for an already delivered timestamp.
-                mDiscarding = true;
+                mData.clear();
+                mPackets = 0;
                 mStarted = false;
+                mCompleted = true;
             }
         }
         messages.swap(output);
@@ -180,5 +192,6 @@ private:
     uint16_t mNextSequence = 0;
     size_t mPackets = 0;
     bool mStarted = false;
+    bool mCompleted = false;
     bool mDiscarding = false;
 };

@@ -27,7 +27,48 @@ static rtc::message_vector feed(BoundedH264Depacketizer &decoder, rtc::message_p
     return messages;
 }
 
+class KeyframeCounter final : public rtc::MediaHandler {
+public:
+    unsigned requests = 0;
+    bool requestKeyframe(const rtc::message_callback &) override { ++requests; return true; }
+};
+
+static void vpSharedTimeAndPadding() {
+    auto frame = [](uint16_t seq, uint32_t time, rtc::byte value) {
+        auto message = packet(seq, time, true, 2);
+        (*message)[sizeof(rtc::RtpHeader)] = rtc::byte{0x0c}; // VP9 B/E
+        message->back() = value;
+        return message;
+    };
+    VpRtpDepacketizer receiver(true);
+    auto feedback = std::make_shared<KeyframeCounter>();
+    receiver.setNext(feedback);
+    auto hidden = frame(65534, 90, rtc::byte{0x84});
+    rtc::message_vector data{hidden};
+    receiver.incoming(data, [](rtc::message_ptr) {});
+    require(data.size() == 1, "VP9 hidden reference picture lost");
+    data = {hidden};
+    receiver.incoming(data, [](rtc::message_ptr) {});
+    require(data.empty(), "Retransmitted VP9 picture delivered twice");
+    data = {frame(65535, 90, rtc::byte{0x86})};
+    receiver.incoming(data, [](rtc::message_ptr) {});
+    require(data.size() == 1 && data[0]->frameInfo->timestamp == 90, "Visible VP9 picture sharing RTP time lost");
+    auto probe = packet(0, 91, false, 4);
+    reinterpret_cast<rtc::RtpHeader *>(probe->data())->_first |= 0x20;
+    probe->back() = rtc::byte{4};
+    data = {probe};
+    receiver.incoming(data, [](rtc::message_ptr) {});
+    require(data.empty(), "Padding became a video frame");
+    data = {frame(1, 92, rtc::byte{0x86})};
+    receiver.incoming(data, [](rtc::message_ptr) {});
+    require(data.size() == 1 && feedback->requests == 0, "Normal padding caused a spurious PLI");
+    data = {frame(3, 93, rtc::byte{0x86})}; // seq 2 really missing
+    receiver.incoming(data, [](rtc::message_ptr) {});
+    require(feedback->requests == 1, "Actual sequence loss did not request recovery");
+}
+
 static void vpTests() {
+    vpSharedTimeAndPadding();
     for (bool vp9 : {false, true}) {
         auto config = std::make_shared<rtc::RtpPacketizationConfig>(42, "test", 96, 90000);
         config->sequenceNumber = 65534;

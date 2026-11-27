@@ -91,6 +91,36 @@ internal object Sdp {
         }
     }
 
+    /** Apply declared receiver limits only to an accepted outgoing VP track. */
+    fun validateVpSender(
+        sdp: String,
+        width: Int,
+        height: Int,
+        frameRate: Int,
+    ) {
+        require(width > 0 && height > 0 && frameRate > 0)
+        val video = media(sdp).first { it.kind == "video" }
+        val fmtp = video.lines.firstOrNull { it.startsWith("a=fmtp:96 ") }.orEmpty()
+        val parameters =
+            fmtp.substringAfter(' ', "").split(';').associate {
+                val pair = it.trim().split('=', limit = 2)
+                pair.first().lowercase() to pair.getOrElse(1) { "" }
+            }
+
+        fun limit(key: String): Long? =
+            parameters[key]?.let {
+                require(it.matches(Regex("[0-9]+"))) { "Invalid VP $key" }
+                requireNotNull(it.toLongOrNull()?.takeIf { value -> value in 1..Int.MAX_VALUE.toLong() }) { "Invalid VP $key" }
+            }
+        limit("max-fr")?.let { require(frameRate <= it) { "Video frame rate exceeds the server's VP max-fr" } }
+        limit("max-fs")?.let {
+            val columns = (width.toLong() + 15) / 16
+            val rows = (height.toLong() + 15) / 16
+            val side = kotlin.math.sqrt(it * 8.0).toLong()
+            require(columns * rows <= it && columns < side && rows < side) { "Video dimensions exceed the server's VP max-fs" }
+        }
+    }
+
     fun validateAnswer(
         sdp: String,
         publishing: Boolean,

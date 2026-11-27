@@ -111,6 +111,7 @@ class RtcSession(
                         "No ${videoCodec.rtpName} ${if (publishing) "encoder" else "decoder"} is available on this device"
                     }
                 }
+                val videoLimits = if (video && !publishing && videoCodec != RtcVideoCodec.H264) VpLimits.forDecoder(videoCodec) else null
                 val gathered = CompletableDeferred<String>()
                 val opened = MutableStateFlow(emptySet<String>())
                 val events = Channel<Event>(64)
@@ -137,7 +138,7 @@ class RtcSession(
                                 stream.receive(audio, data, timestamp)
                             }
                         }
-                    }, videoCodec = videoCodec)
+                    }, videoCodec = videoCodec, videoLimits = videoLimits)
                 peer = native
                 var videoConfiguration = emptyList<ByteArray>()
                 val tracks =
@@ -146,6 +147,9 @@ class RtcSession(
                         val offer = gathered.await()
                         val response = http.createCancellable(URI(uri.toString()), offer) { resource = it }
                         val selected = Sdp.validateAnswer(response.answer, publishing, audio, video, videoCodec = videoCodec)
+                        if (publishing && "video" in selected && videoCodec != RtcVideoCodec.H264) {
+                            Sdp.validateVpSender(response.answer, stream.videoSetting.width and -2, stream.videoSetting.height and -2, stream.videoSetting.frameRate)
+                        }
                         videoConfiguration = if (videoCodec == RtcVideoCodec.H264) Sdp.videoConfiguration(response.answer) else emptyList()
                         native.answer(response.answer)
                         opened.first { it.containsAll(selected) }

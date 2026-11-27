@@ -301,27 +301,41 @@ class RtcStream internal constructor(context: Context, private val stop: () -> U
         peer: NativePeer,
     ) {
         var dimensions: Pair<Int, Int>? = null
-        var lastTime = Long.MIN_VALUE
+        var lastRtpTime = Long.MIN_VALUE
+        var lastInputTime = Long.MIN_VALUE
+        var recoveryRequested = false
         for (sample in run.video) {
             run.bytes.addAndGet(-sample.data.size.toLong())
-            if (sample.timeUs <= lastTime) continue
-            val key = VpVideo.keyframe(run.videoType, sample.data)
+            val inputTime = VpVideo.decoderTime(run.videoType, sample.timeUs, lastRtpTime, lastInputTime) ?: continue
+            // Only bitstream metadata failures are recoverable. Decoder/surface errors
+            // below still fail the session rather than being hidden as corrupt input.
+            val (key, next) =
+                try {
+                    val key = VpVideo.keyframe(run.videoType, sample.data)
+                    key to if (key) VpVideo.dimensions(run.videoType, sample.data) else null
+                } catch (_: IllegalArgumentException) {
+                    if (!recoveryRequested) peer.requestKeyframe()
+                    recoveryRequested = true
+                    continue
+                }
             if (key) {
-                val next = VpVideo.dimensions(run.videoType, sample.data)
                 if (dimensions != next) {
-                    configureVideo(run, next, emptyList())
+                    configureVideo(run, checkNotNull(next), emptyList())
                     dimensions = next
                 }
+                recoveryRequested = false
                 run.hasVideoKeyframe = true
-                run.keyframes.add(sample.timeUs)
+                run.keyframes.add(inputTime)
                 while (run.keyframes.size > 64) run.keyframes.pollFirst()
             }
-            if (dimensions == null) {
-                peer.requestKeyframe()
+            if (dimensions == null || recoveryRequested) {
+                if (!recoveryRequested) peer.requestKeyframe()
+                recoveryRequested = true
                 continue
             }
-            lastTime = sample.timeUs
-            feed(videoCodec.codec!!, run.videoIndices.receive(), sample)
+            lastRtpTime = sample.timeUs
+            lastInputTime = inputTime
+            feed(videoCodec.codec!!, run.videoIndices.receive(), sample.copy(timeUs = inputTime))
         }
     }
 

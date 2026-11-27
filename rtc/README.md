@@ -61,7 +61,7 @@ mixer.dispose()
 `expectedMedias = setOf(MediaType.AUDIO, MediaType.VIDEO)` can explicitly select
 offered tracks before connecting, otherwise they are derived from the mixer sources.
 Configure video dimensions, bitrate and frame rate through `stream.videoSetting`.
-The initial implementation requires `H264_BASELINE_3_1`; use dimensions/frame rates
+When H.264 is selected, use `H264_BASELINE_3_1` and dimensions/frame rates
 within that level's limits (up to 3,600 macroblocks/frame, 108,000 macroblocks/second,
 and 14 Mbit/s). Incompatible H.264 profiles and receiver levels below 3.1 are rejected
 before publishing. Codec options cannot override the validated profile, level, dimensions,

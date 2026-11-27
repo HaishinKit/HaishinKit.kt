@@ -97,6 +97,7 @@ class NativePeerTest {
             receiver.acceptOffer(offer)
             val answer = requireNotNull(answers.poll(10, TimeUnit.SECONDS)) { "ICE answer gathering timed out" }
             assertEquals(setOf("audio", "video"), Sdp.validateAnswer(answer, true, true, true, videoCodec = codec))
+            assertTrue("VP receiver limits are missing: $answer", answer.contains("max-fs=3600") && answer.contains("max-fr=30"))
             sender.answer(answer)
             assertTrue("Tracks did not open: $failures", opened.await(15, TimeUnit.SECONDS))
             val opus = byteArrayOf(0xf8.toByte(), 0xff.toByte(), 0xfe.toByte())
@@ -105,6 +106,14 @@ class NativePeerTest {
             sender.send(false, frame, 1_000_000)
             assertArrayEquals(opus, audioFrames.poll(5, TimeUnit.SECONDS))
             assertArrayEquals(frame, videoFrames.poll(5, TimeUnit.SECONDS))
+            if (codec == RtcVideoCodec.VP9) {
+                val hidden = frame.copyOf().apply { this[0] = 0x84.toByte() }
+                val visible = frame.copyOf().apply { this[0] = 0x86.toByte() }
+                sender.send(false, hidden, 2_000_000)
+                sender.send(false, visible, 2_000_000)
+                assertArrayEquals(hidden, videoFrames.poll(5, TimeUnit.SECONDS))
+                assertArrayEquals(visible, videoFrames.poll(5, TimeUnit.SECONDS))
+            }
             receiver.requestKeyframe()
             assertTrue("RTCP PLI was not delivered", pli.await(5, TimeUnit.SECONDS))
             assertTrue(failures.toString(), failures.isEmpty())

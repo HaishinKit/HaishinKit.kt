@@ -203,6 +203,32 @@ class RtcSessionTest {
             }
         }
 
+    @Test fun corruptVpHeadersDoNotStopOpusPlayback() =
+        runBlocking {
+            val context = InstrumentationRegistry.getInstrumentation().context
+            for (codec in listOf(RtcVideoCodec.VP8, RtcVideoCodec.VP9)) {
+                val endpoint = Endpoint(true, video = true, videoCodec = codec)
+                val receiver = RtcSession(context, endpoint.uri, StreamSession.Mode.PLAYBACK, RtcConfiguration(playbackVideoCodec = codec))
+                try {
+                    receiver.connect().getOrThrow()
+                    endpoint.peer!!.send(false, byteArrayOf(if (codec == RtcVideoCodec.VP9) 0x82.toByte() else 0), 0)
+                    withTimeout(5000) {
+                        var timestamp = 0L
+                        while ((receiver.stream.mediaLink.audioTrack?.playbackHeadPosition ?: 0) == 0) {
+                            assertTrue("Corrupt VP header stopped audio: ${receiver.failure.value}", receiver.isConnected)
+                            endpoint.peer!!.send(true, byteArrayOf(0xf8.toByte(), 0xff.toByte(), 0xfe.toByte()), timestamp)
+                            timestamp += 20_000
+                            delay(20)
+                        }
+                    }
+                } finally {
+                    receiver.close()
+                    receiver.stream.dispose()
+                    endpoint.close()
+                }
+            }
+        }
+
     private fun videoRoundTrip(codec: RtcVideoCodec) =
         runBlocking {
             assumeTrue("OS encoder and decoder required for ${codec.rtpName}", CodecCapabilities.isCodecSupportedByType(Codec.MODE_ENCODE, codec.mime) && CodecCapabilities.isCodecSupportedByType(Codec.MODE_DECODE, codec.mime))
@@ -264,8 +290,13 @@ class RtcSessionTest {
                 val receiver = RtcSession(context, whep.uri, StreamSession.Mode.PLAYBACK, RtcConfiguration(playbackVideoCodec = codec))
                 playback = receiver
                 receiver.connect().getOrThrow()
+                if (codec != RtcVideoCodec.H264) {
+                    whep.peer!!.send(false, byteArrayOf(if (codec == RtcVideoCodec.VP9) 0x82.toByte() else 0), 0)
+                    delay(200)
+                    assertTrue("Corrupt VP header closed WHEP: ${receiver.failure.value}", receiver.isConnected)
+                }
                 repeat(48) {
-                    whep.peer!!.send(false, if (it / 8 % 2 == 0) keyframe else resizedKeyframe, it * 100_000L)
+                    whep.peer!!.send(false, if (it / 8 % 2 == 0) keyframe else resizedKeyframe, (it + 1) * 100_000L)
                     delay(100)
                 }
                 assertTrue("WHEP failed: ${receiver.failure.value}", receiver.isConnected)

@@ -103,7 +103,7 @@ void configureChannel(const std::shared_ptr<Peer> &p, std::shared_ptr<rtc::DataC
         }
     });
 }
-void track(const std::shared_ptr<Peer> &p, bool audio, bool publishing, bool duplex = false, int videoCodec = 0) {
+void track(const std::shared_ptr<Peer> &p, bool audio, bool publishing, bool duplex = false, int videoCodec = 0, int maxFs = 3600, int maxFr = 30) {
     auto direction = duplex ? rtc::Description::Direction::SendRecv : publishing ? rtc::Description::Direction::SendOnly : rtc::Description::Direction::RecvOnly;
     rtc::Description::Media media = [&]() -> rtc::Description::Media {
         if (audio) {
@@ -112,8 +112,12 @@ void track(const std::shared_ptr<Peer> &p, bool audio, bool publishing, bool dup
             return description;
         }
         rtc::Description::Video description("video", direction);
-        if (videoCodec == 1) description.addVP8Codec(96);
-        else if (videoCodec == 2) description.addVP9Codec(96, "profile-id=0");
+        const std::string limits = publishing ? "" : "max-fs=" + std::to_string(maxFs) + ";max-fr=" + std::to_string(maxFr);
+        if (videoCodec == 1) {
+            if (publishing) description.addVP8Codec(96);
+            else description.addVP8Codec(96, limits);
+        }
+        else if (videoCodec == 2) description.addVP9Codec(96, "profile-id=0" + (limits.empty() ? "" : ";" + limits));
         else description.addH264Codec(96, "profile-level-id=42e01f;packetization-mode=1;level-asymmetry-allowed=1");
         return description;
     }();
@@ -159,9 +163,10 @@ void track(const std::shared_ptr<Peer> &p, bool audio, bool publishing, bool dup
 }
 }
 extern "C" JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *value, void *) { vm = value; return JNI_VERSION_1_6; }
-extern "C" JNIEXPORT jlong JNICALL Java_com_haishinkit_rtc_NativePeer_create(JNIEnv *env, jobject object, jboolean publishing, jboolean audio, jboolean video, jobjectArray servers, jboolean duplex, jstring channelLabel, jint videoCodec) {
+extern "C" JNIEXPORT jlong JNICALL Java_com_haishinkit_rtc_NativePeer_create(JNIEnv *env, jobject object, jboolean publishing, jboolean audio, jboolean video, jobjectArray servers, jboolean duplex, jstring channelLabel, jint videoCodec, jint maxFs, jint maxFr) {
     try {
         if (videoCodec < 0 || videoCodec > 2) throw std::invalid_argument("Unsupported RTC video codec");
+        if (video && !publishing && videoCodec != 0 && (maxFs <= 0 || maxFr <= 0)) throw std::invalid_argument("Invalid VP receiver limits");
         auto p = std::make_shared<Peer>(env, object);
         rtc::Configuration config;
         config.disableAutoNegotiation = true;
@@ -186,7 +191,7 @@ extern "C" JNIEXPORT jlong JNICALL Java_com_haishinkit_rtc_NativePeer_create(JNI
             if (auto p = weak.lock()) configureChannel(p, std::move(channel));
         });
         if (audio) track(p, true, publishing, duplex);
-        if (video) track(p, false, publishing, false, videoCodec);
+        if (video) track(p, false, publishing, false, videoCodec, maxFs, maxFr);
         const auto label = string(env, channelLabel);
         if (!label.empty()) configureChannel(p, p->pc->createDataChannel(label));
         auto id = nextId++;

@@ -2,6 +2,17 @@ package com.haishinkit.rtc
 
 /** Uncompressed keyframe metadata only; decoding stays with Android MediaCodec. */
 internal object VpVideo {
+    /** VP9 reference/display pictures may share RTP time; MediaCodec input PTS must be unique. */
+    fun decoderTime(
+        codec: RtcVideoCodec,
+        timestamp: Long,
+        previousRtp: Long,
+        previousInput: Long,
+    ): Long? {
+        if (timestamp < previousRtp || (timestamp == previousRtp && codec != RtcVideoCodec.VP9)) return null
+        return maxOf(timestamp, previousInput + 1)
+    }
+
     fun keyframe(
         codec: RtcVideoCodec,
         data: ByteArray,
