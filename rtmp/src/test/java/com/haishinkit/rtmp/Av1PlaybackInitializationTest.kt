@@ -306,6 +306,11 @@ class Av1PlaybackInitializationTest {
             assertFalse(stream.canReceiveAv1)
             assertTrue(stream.configure(record())) // The same wire placeholder remains valid after in-band correction.
             assertTrue(stream.canReceiveAv1)
+            assertTrue(stream.prepareAv1Frame(ByteBuffer.wrap(byteArrayOf(0x32, 1, 0)), true)) // Optional in-band header omitted.
+            assertFalse(stream.prepareAv1Frame(ByteBuffer.wrap(fixture.copyOfRange(4, fixture.size)), true)) // Same wire placeholder, actual sequence changed to SDR.
+            assertFalse(stream.canRenderVideo)
+            assertFalse(stream.configure(record())) // Repeated placeholder cannot revive an incompatible sequence.
+            assertFalse(stream.canReceiveAv1)
         } finally {
             executor.shutdownNow()
             surface.release()

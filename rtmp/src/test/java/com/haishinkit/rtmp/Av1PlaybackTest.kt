@@ -144,6 +144,47 @@ class Av1PlaybackTest {
         }
     }
 
+    @Test fun hlgHevcUsesVisibleDecoderCropWithoutReattachingTheSurface() {
+        withStream { stream, codec, screen ->
+            codec.dynamicRangeMode = com.haishinkit.graphics.DynamicRangeMode.HLG
+            codec.inputMimeType = MediaFormat.MIMETYPE_VIDEO_HEVC
+            val format =
+                MediaFormat.createVideoFormat(MediaFormat.MIMETYPE_VIDEO_RAW, 320, 184).apply {
+                    setInteger("crop-left", 0)
+                    setInteger("crop-top", 0)
+                    setInteger("crop-right", 319)
+                    setInteger("crop-bottom", 179)
+                }
+            stream.muxer.onFormatChanged(MediaFormat.MIMETYPE_VIDEO_RAW, format)
+            assertEquals(Rect(0, 0, 320, 180), screen.frame)
+            assertEquals(0, screen.attachments)
+        }
+    }
+
+    @Test fun hlgOutputRejectsExplicitIncompatibleColorButAllowsAbsentOptionalKeys() {
+        withStream { stream, codec, screen ->
+            codec.dynamicRangeMode = com.haishinkit.graphics.DynamicRangeMode.HLG
+            codec.inputMimeType = MediaFormat.MIMETYPE_VIDEO_HEVC
+            codec.isRunning.set(true)
+            RtmpStream::class.java.getDeclaredField("videoConfigurationAccepted").apply { isAccessible = true }.setBoolean(stream, true)
+            assertTrue(stream.acceptHlgOutputFormat(MediaFormat.createVideoFormat(MediaFormat.MIMETYPE_VIDEO_RAW, 320, 180)))
+            assertTrue(stream.canRenderVideo)
+            val fullRange =
+                MediaFormat.createVideoFormat(MediaFormat.MIMETYPE_VIDEO_RAW, 320, 180).apply {
+                    setInteger(MediaFormat.KEY_COLOR_STANDARD, MediaFormat.COLOR_STANDARD_BT2020)
+                    setInteger(MediaFormat.KEY_COLOR_TRANSFER, MediaFormat.COLOR_TRANSFER_HLG)
+                    setInteger(MediaFormat.KEY_COLOR_RANGE, MediaFormat.COLOR_RANGE_FULL)
+                }
+            stream.muxer.onFormatChanged(MediaFormat.MIMETYPE_VIDEO_RAW, fullRange)
+            assertFalse(stream.canRenderVideo)
+            assertTrue(stream.muxer.onSampleOutput(MediaFormat.MIMETYPE_VIDEO_RAW, 0, android.media.MediaCodec.BufferInfo(), ByteBuffer.allocate(0)))
+            fullRange.setInteger(MediaFormat.KEY_COLOR_RANGE, MediaFormat.COLOR_RANGE_LIMITED)
+            assertFalse(stream.acceptHlgOutputFormat(fullRange)) // Rejection is latched until close/restart.
+            assertEquals(0, screen.attachments)
+            codec.isRunning.set(false)
+        }
+    }
+
     private fun message(
         packet: Int,
         bytes: ByteArray,

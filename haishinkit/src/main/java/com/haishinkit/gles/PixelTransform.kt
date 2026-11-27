@@ -30,7 +30,7 @@ internal class PixelTransform(
     override val isRunning: AtomicBoolean = AtomicBoolean(false)
     override var screen: Screen? = null
         set(value) {
-            if (value == field) return
+            if (value == field && isRunning.get()) return
             if (field != null) {
                 stopRunning()
             }
@@ -43,7 +43,7 @@ internal class PixelTransform(
         }
     override var surface: Surface? = null
         set(value) {
-            if (value == field) return
+            if (value == field && isRunning.get()) return
             field = value
             if (value == null) {
                 stopRunning()
@@ -98,11 +98,9 @@ internal class PixelTransform(
             field = value
             field?.postFrameCallback(this)
         }
+
+    // ShaderLoader owns cached programs until the context is released.
     private var program: Program? = null
-        set(value) {
-            field?.dispose()
-            field = value
-        }
     private val shaderLoader by lazy {
         ShaderLoader(context)
     }
@@ -143,6 +141,21 @@ internal class PixelTransform(
         shaderLoader.release()
         graphicsContext.close()
         isRunning.set(false)
+    }
+
+    internal fun handleRenderingFailure(cause: RuntimeException) {
+        Log.e(TAG, "Unable to attach or configure the output surface; waiting for a replacement", cause)
+        choreographer = null
+        program = null
+        try {
+            shaderLoader.release()
+        } finally {
+            try {
+                graphicsContext.close()
+            } finally {
+                isRunning.set(false)
+            }
+        }
     }
 
     override fun doFrame(frameTimeNanos: Long) {

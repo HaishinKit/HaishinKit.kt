@@ -139,6 +139,9 @@ class HlgRenderingTest {
             transform.screen = fake
             transform.videoEffect = DefaultVideoEffect.shared
             val program = PixelTransform::class.java.getDeclaredField("program").apply { isAccessible = true }.get(transform) as Program
+            transform.videoEffect = BicubicVideoEffect()
+            transform.videoEffect = DefaultVideoEffect.shared
+            org.junit.Assert.assertSame(program, PixelTransform::class.java.getDeclaredField("program").apply { isAccessible = true }.get(transform))
             quad.layout(renderer)
             destination.render {
                 GLES20.glViewport(0, 0, 16, 16)
@@ -312,6 +315,42 @@ class HlgRenderingTest {
             }
         } finally {
             graphics.close()
+        }
+    }
+
+    @Test fun failedSurfaceAttachmentDoesNotKillTheWorkerAndCanRetry() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        for (mode in listOf(DynamicRangeMode.SDR, DynamicRangeMode.HLG)) {
+            val screen = com.haishinkit.screen.Screen.createOpenGL(context, mode).apply { frame = Rect(0, 0, 16, 16) }
+            val transform = ThreadPixelTransform(context)
+            val brokenTexture = android.graphics.SurfaceTexture(false)
+            val broken = android.view.Surface(brokenTexture).apply { release() }
+            val replacementTexture = android.graphics.SurfaceTexture(false)
+            val replacement = android.view.Surface(replacementTexture)
+            try {
+                transform.frameRate = 1
+                transform.imageExtent = android.util.Size(16, 16)
+                transform.surface = broken
+                transform.screen = screen
+                val handler = ThreadPixelTransform::class.java.getDeclaredMethod("getHandler").apply { isAccessible = true }.invoke(transform) as android.os.Handler
+                val actual = ThreadPixelTransform::class.java.getDeclaredMethod("getPixelTransform").apply { isAccessible = true }.invoke(transform) as PixelTransform
+
+                fun running(): Boolean {
+                    val state = java.util.concurrent.FutureTask { actual.isRunning.get() }
+                    handler.post(state)
+                    return state.get(5, java.util.concurrent.TimeUnit.SECONDS)
+                }
+                org.junit.Assert.assertFalse(running())
+                org.junit.Assert.assertTrue(handler.looper.thread.isAlive)
+                transform.surface = replacement
+                org.junit.Assert.assertTrue(running())
+            } finally {
+                transform.close()
+                screen.dispose()
+                brokenTexture.release()
+                replacement.release()
+                replacementTexture.release()
+            }
         }
     }
 

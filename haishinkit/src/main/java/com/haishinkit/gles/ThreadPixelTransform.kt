@@ -94,6 +94,17 @@ internal class ThreadPixelTransform(
 
         override fun handleMessage(message: Message) {
             val transform = weakTransform.get() ?: return
+            try {
+                applyMessage(transform, message)
+            } catch (cause: RuntimeException) {
+                transform.handleRenderingFailure(cause)
+            }
+        }
+
+        private fun applyMessage(
+            transform: com.haishinkit.gles.PixelTransform,
+            message: Message,
+        ) {
             when (message.what) {
                 MSG_SET_SCREEN -> {
                     if (message.obj == null) {
@@ -138,8 +149,12 @@ internal class ThreadPixelTransform(
 
     override fun close() {
         handler.post {
-            pixelTransform.surface = null
-            pixelTransform.screen = null
+            try {
+                pixelTransform.surface = null
+                pixelTransform.screen = null
+            } catch (cause: RuntimeException) {
+                pixelTransform.handleRenderingFailure(cause)
+            }
         }
         handler.looper.quitSafely()
         if (Looper.myLooper() != handler.looper) handler.looper.thread.join()

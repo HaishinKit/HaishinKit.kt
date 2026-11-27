@@ -142,7 +142,8 @@ internal class RtmpMuxer(
     ) {
         when (mime) {
             MediaFormat.MIMETYPE_VIDEO_RAW -> {
-                if (isNonNalVideo(stream.inputVideoMimeType) &&
+                if (!stream.acceptHlgOutputFormat(mediaFormat)) return
+                if (stream.requiresSurfaceDecoder(stream.inputVideoMimeType) &&
                     mediaFormat.containsKey(MediaFormat.KEY_WIDTH) && mediaFormat.containsKey(MediaFormat.KEY_HEIGHT)
                 ) {
                     stream.updateVideoSize(
@@ -263,6 +264,7 @@ internal class RtmpMuxer(
     ): Boolean {
         when (mime) {
             MediaFormat.MIMETYPE_VIDEO_RAW -> {
+                if (!stream.canRenderVideo) return true
                 val isKeyframe = info.flags == 1 || keyframes[info.presentationTimeUs] == true
                 if (isKeyframe) {
                     keyframes.remove(info.presentationTimeUs)

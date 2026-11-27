@@ -25,6 +25,8 @@ internal class GraphicsContext {
         shareGraphicsContext: GraphicsContext?,
         dynamicRangeMode: DynamicRangeMode = DynamicRangeMode.SDR,
     ) {
+        // Do not let an earlier failed attachment poison this initialization's error check.
+        EGL14.eglGetError()
         display = EGL14.eglGetDisplay(EGL14.EGL_DEFAULT_DISPLAY)
 
         if (display === EGL14.EGL_NO_DISPLAY) {
@@ -148,7 +150,7 @@ internal class GraphicsContext {
                 EGL14.EGL_NO_SURFACE,
                 EGL14.EGL_NO_CONTEXT,
             )
-            EGL14.eglDestroyContext(display, context)
+            if (context != EGL14.EGL_NO_CONTEXT) EGL14.eglDestroyContext(display, context)
             EGL14.eglReleaseThread()
             EGL14.eglTerminate(display)
         }
