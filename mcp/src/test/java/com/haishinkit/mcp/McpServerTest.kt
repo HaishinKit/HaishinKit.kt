@@ -2,6 +2,11 @@ package com.haishinkit.mcp
 
 import io.modelcontextprotocol.kotlin.sdk.types.CallToolResult
 import io.modelcontextprotocol.kotlin.sdk.types.TextContent
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -14,10 +19,56 @@ import org.robolectric.annotation.Config
 import java.net.ServerSocket
 import java.net.Socket
 import java.net.URL
+import java.util.concurrent.LinkedBlockingQueue
+import java.util.concurrent.TimeUnit
+import kotlin.coroutines.CoroutineContext
 
 @RunWith(RobolectricTestRunner::class)
 @Config(manifest = Config.NONE, sdk = [29])
 class McpServerTest {
+    @Test(timeout = 30_000)
+    fun singleOwnerFinallyStopsEndpointWhenStartupResultIsCancelled() {
+        val queue = LinkedBlockingQueue<Runnable>()
+        val dispatcher =
+            object : CoroutineDispatcher() {
+                override fun dispatch(
+                    context: CoroutineContext,
+                    block: Runnable,
+                ) {
+                    queue.add(block)
+                }
+            }
+        val owner = CoroutineScope(SupervisorJob() + dispatcher)
+        val port = ServerSocket(0).use { it.localPort }
+        val server = HaishinKitMcpServer(McpServerConfiguration(port = port))
+        var startReturned = false
+        try {
+            val job =
+                owner.launch {
+                    try {
+                        server.start()
+                        startReturned = true
+                    } finally {
+                        server.stop()
+                    }
+                }
+            // Begin startup, then hold the successful IO-to-owner delivery at the dispatcher.
+            checkNotNull(queue.poll(10, TimeUnit.SECONDS)).run()
+            val deliverStartup = checkNotNull(queue.poll(10, TimeUnit.SECONDS))
+            assertTrue(server.isRunning)
+            job.cancel()
+            deliverStartup.run()
+            // The cancelled owner's finally block dispatches non-cancellable stop to IO.
+            checkNotNull(queue.poll(10, TimeUnit.SECONDS)).run()
+            assertTrue(job.isCompleted)
+            assertFalse(startReturned)
+            assertFalse(server.isRunning)
+        } finally {
+            owner.cancel()
+            runBlocking { server.stop() }
+        }
+    }
+
     @Test
     fun validatesConfigurationWithoutDisclosingTokens() {
         val configuration = McpServerConfiguration()

@@ -1,7 +1,7 @@
 # 🤖 HaishinKit MCP for Android
 
 [![Android CI](https://github.com/HaishinKit/HaishinKit.kt/actions/workflows/android.yml/badge.svg?branch=main)](https://github.com/HaishinKit/HaishinKit.kt/actions/workflows/android.yml)
-[![API 23+](https://img.shields.io/badge/Android-API%2023%2B-3DDC84)](#-installation)
+[![API 24+](https://img.shields.io/badge/Android-API%2024%2B-3DDC84)](#-installation)
 [![BSD-3-Clause](https://img.shields.io/badge/License-BSD--3--Clause-blue.svg)](../LICENSE.md)
 
 Optional MCP Streamable HTTP server for Android compositions and application-owned tools.

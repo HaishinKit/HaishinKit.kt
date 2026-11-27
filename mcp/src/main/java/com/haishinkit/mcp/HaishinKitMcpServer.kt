@@ -70,7 +70,13 @@ public class HaishinKitMcpServer(
         frameCapture.detach(screen)
     }
 
-    /** Starts the endpoint off the UI thread. Idempotent; bind/setup failures are thrown. */
+    /**
+     * Starts the endpoint off the UI thread. Idempotent; bind/setup failures are thrown.
+     *
+     * The endpoint has an independent lifetime: cancellation during blocking startup or
+     * delivery of its result can leave it running. A single lifecycle owner should put
+     * this call inside a `try` block and always call [stop] from its `finally` block.
+     */
     public suspend fun start(): Unit =
         withContext(Dispatchers.IO) {
             lifecycleMutex.withLock {

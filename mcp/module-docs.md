@@ -1,8 +1,10 @@
 # Module mcp
 
-HaishinKit MCP is an optional Android API 23+ library exposing application-approved
+HaishinKit MCP is an optional Android API 24+ library exposing application-approved
 composition tools through MCP Streamable HTTP. It uses the official MCP Kotlin SDK
-0.8.4 and Ktor Netty 3.2.3. Neither dependency is added to the core media library.
+0.8.4 and Ktor Netty 3.2.3. Neither dependency is added to the core media library. Netty uses API 24 socket
+and concurrent-collection APIs; only this optional module requires API 24. The
+core library retains API 23 support.
 
 ## Lifecycle and capture
 
@@ -15,12 +17,21 @@ MediaMixer. Applications may include this module in release builds.
 val server = HaishinKitMcpServer()
 // The application obtains camera permission and starts its own mixer.
 server.attachScreen(mixer.screen)
-server.start() // suspend; opens 127.0.0.1:8080/mcp off the UI thread
-
-// Before stopping/disposal of this screen or mixer:
-server.detachScreen(mixer.screen)
-server.stop() // suspend; idempotent
+try {
+    server.start() // suspend; opens 127.0.0.1:8080/mcp off the UI thread
+    kotlinx.coroutines.awaitCancellation() // keep this single owner's endpoint active
+} finally {
+    // Detach before stopping/disposal of this screen or mixer.
+    server.detachScreen(mixer.screen)
+    server.stop() // suspend; idempotent, also runs from a cancelled coroutine
+}
 ```
+
+Put the call to `start()` itself inside the `try`: the server has an independent
+lifetime, so cancellation during blocking startup or while its successful result
+is returning to the caller can report cancellation after the endpoint has opened.
+`stop()` performs cleanup even from a cancelled coroutine. The example assumes
+one lifecycle owner; coordinate shared owners in an application-owned controller.
 
 Keep the server and mixer in an appropriate application-owned controller rather
 than allocating them repeatedly during Compose recomposition. `stop()` retains the
