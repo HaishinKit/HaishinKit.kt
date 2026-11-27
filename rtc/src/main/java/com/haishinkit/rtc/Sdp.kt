@@ -97,6 +97,7 @@ internal object Sdp {
         audio: Boolean,
         video: Boolean,
         duplex: Boolean = false,
+        videoCodec: RtcVideoCodec = RtcVideoCodec.H264,
     ): Set<String> {
         val media = media(sdp, allowDataChannel = duplex)
         require(media.map { it.kind }.distinct().size == media.size) { "Duplicate media sections" }
@@ -118,7 +119,7 @@ internal object Sdp {
                     },
             ) { "Answer has incompatible media direction" }
             val payload = if (isAudio) 111 else 96
-            val codec = if (isAudio) "opus/48000/2" else "H264/90000"
+            val codec = if (isAudio) "opus/48000/2" else "${videoCodec.rtpName}/90000"
             require(payload in section.payloads && section.lines.any { it.equals("a=rtpmap:$payload $codec", true) }) { "Server did not select $codec" }
             if (!isAudio) {
                 val fmtp = section.lines.firstOrNull { it.startsWith("a=fmtp:96 ") }.orEmpty()
@@ -127,8 +128,14 @@ internal object Sdp {
                         val pair = it.trim().split('=', limit = 2)
                         pair.first().lowercase() to pair.getOrElse(1) { "" }
                     }
-                require(parameters["packetization-mode"] == "1") { "H.264 packetization-mode=1 is required" }
-                validateH264Profile(parameters, publishing)
+                when (videoCodec) {
+                    RtcVideoCodec.H264 -> {
+                        require(parameters["packetization-mode"] == "1") { "H.264 packetization-mode=1 is required" }
+                        validateH264Profile(parameters, publishing)
+                    }
+                    RtcVideoCodec.VP9 -> require((parameters["profile-id"] ?: "0") == "0") { "RTC VP9 requires profile 0" }
+                    RtcVideoCodec.VP8 -> Unit
+                }
             }
             active.add(section.kind)
         }

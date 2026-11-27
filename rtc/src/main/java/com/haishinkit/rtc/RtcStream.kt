@@ -36,7 +36,7 @@ import java.nio.ByteOrder
 import java.util.concurrent.ConcurrentSkipListSet
 import java.util.concurrent.atomic.AtomicLong
 
-/** H.264/Opus media stream owned by [RtcSession]. Uses the existing mixer and output views. */
+/** H.264/VP8/VP9 and Opus media stream owned by [RtcSession]. Uses the existing mixer and output views. */
 class RtcStream internal constructor(context: Context, private val stop: () -> Unit) : Stream(context) {
     /** Tracks offered for WHIP. Set before connecting; an empty set derives them from the mixer. */
     var expectedMedias: Set<MediaType> = emptySet()
@@ -104,18 +104,19 @@ class RtcStream internal constructor(context: Context, private val stop: () -> U
         tracks: Set<String>,
         peer: NativePeer,
         videoConfiguration: List<ByteArray>,
+        videoType: RtcVideoCodec = RtcVideoCodec.H264,
         ready: () -> Unit,
     ): Unit =
         coroutineScope {
             check(current == null && !disposed)
-            val run = Run(publishing, tracks, videoConfiguration)
+            val run = Run(publishing, tracks, videoConfiguration, videoType)
             current = run
             try {
                 mode = if (publishing) Codec.MODE_ENCODE else Codec.MODE_DECODE
                 audioCodec.inputMimeType = if (publishing) MediaFormat.MIMETYPE_AUDIO_RAW else MediaFormat.MIMETYPE_AUDIO_OPUS
                 audioCodec.outputMimeType = if (publishing) MediaFormat.MIMETYPE_AUDIO_OPUS else MediaFormat.MIMETYPE_AUDIO_RAW
-                videoCodec.inputMimeType = if (publishing) MediaFormat.MIMETYPE_VIDEO_RAW else MediaFormat.MIMETYPE_VIDEO_AVC
-                videoCodec.outputMimeType = if (publishing) MediaFormat.MIMETYPE_VIDEO_AVC else MediaFormat.MIMETYPE_VIDEO_RAW
+                videoCodec.inputMimeType = if (publishing) MediaFormat.MIMETYPE_VIDEO_RAW else videoType.mime
+                videoCodec.outputMimeType = if (publishing) videoType.mime else MediaFormat.MIMETYPE_VIDEO_RAW
                 val listener = Listener(run)
                 audioCodec.listener = listener
                 videoCodec.listener = listener
@@ -123,10 +124,10 @@ class RtcStream internal constructor(context: Context, private val stop: () -> U
                 if (publishing) {
                     require(audioSetting.sampleRate in setOf(8000, 12000, 16000, 24000, 48000)) { "Opus requires an 8/12/16/24/48 kHz PCM source; use 48 kHz capture" }
                     require(audioSetting.channelCount in 1..2)
-                    if ("video" in tracks) {
+                    if ("video" in tracks) VideoEncoderOptions.validate(videoSetting.options)
+                    if ("video" in tracks && videoType == RtcVideoCodec.H264) {
                         require(videoSetting.profileLevel == VideoCodecProfileLevel.H264_BASELINE_3_1) { "RTC currently offers H.264 Baseline level 3.1" }
                         val options = videoSetting.options.toList()
-                        H264EncoderOptions.validate(options)
                         Sdp.validateH264Sender(videoSetting.width and -2, videoSetting.height and -2, videoSetting.frameRate, videoSetting.bitRate)
                         val profile =
                             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
@@ -135,6 +136,9 @@ class RtcStream internal constructor(context: Context, private val stop: () -> U
                                 MediaCodecInfo.CodecProfileLevel.AVCProfileBaseline
                             }
                         videoCodec.options = options + CodecOption(MediaFormat.KEY_PROFILE, profile)
+                    }
+                    if ("video" in tracks && videoType == RtcVideoCodec.VP9) {
+                        require(videoSetting.profileLevel.profile == MediaCodecInfo.CodecProfileLevel.VP9Profile0) { "RTC VP9 requires profile 0" }
                     }
                     audioCodec.sampleRate = audioSetting.sampleRate
                     audioCodec.channelCount = audioSetting.channelCount
@@ -145,7 +149,7 @@ class RtcStream internal constructor(context: Context, private val stop: () -> U
                     if ("audio" in tracks) audioCodec.startRunning()
                     if ("video" in tracks) videoCodec.startRunning()
                     check("audio" !in tracks || audioCodec.isRunning.get()) { "Opus encoder failed to start" }
-                    check("video" !in tracks || videoCodec.isRunning.get()) { "H.264 encoder failed to start" }
+                    check("video" !in tracks || videoCodec.isRunning.get()) { "${videoType.rtpName} encoder failed to start" }
                     isRunning.set(true)
                     launch {
                         for (sample in run.encoded) {
@@ -169,7 +173,7 @@ class RtcStream internal constructor(context: Context, private val stop: () -> U
                     super@RtcStream.startRunning()
                     if ("audio" in tracks) launch { decodeAudio(run) }
                     if ("video" in tracks) {
-                        launch { decodeVideo(run, peer) }
+                        launch { if (videoType == RtcVideoCodec.H264) decodeVideo(run, peer) else decodeVpVideo(run, peer) }
                         launch {
                             while (true) {
                                 peer.requestKeyframe()
@@ -270,38 +274,15 @@ class RtcStream internal constructor(context: Context, private val stop: () -> U
                 continue
             }
             if (changed) {
-                videoCodec.stopRunning()
-                while (run.videoIndices.tryReceive().isSuccess) { }
                 val dimensions = H264.dimensions(currentSps)
-                videoCodec.width = dimensions.first
-                videoCodec.height = dimensions.second
-                videoCodec.options = videoSetting.options.filterNot { it.key.startsWith("csd-") } +
+                configureVideo(
+                    run,
+                    dimensions,
                     listOf(
                         CodecOption("csd-0", ByteBuffer.wrap(H264.annexB(listOf(currentSps)))),
                         CodecOption("csd-1", ByteBuffer.wrap(H264.annexB(listOf(currentPps)))),
-                    )
-                val size = Size(dimensions.first, dimensions.second)
-                screen.frame = Rect(0, 0, size.width, size.height)
-                video.videoSize = size
-                videoCodec.surface = null
-                val attached = CompletableDeferred<Unit>()
-                val delegate = VideoCodecSource(videoCodec).apply { videoSize = size }
-                val source =
-                    object : VideoSource by delegate {
-                        override var surface: Surface? = null
-                            set(value) {
-                                field = value
-                                if (current === run) {
-                                    videoCodec.surface = value
-                                    if (value != null) attached.complete(Unit)
-                                }
-                            }
-                    }
-                screen.attachVideo(0, source)
-                withRtcDeadline(5000, "Decoder output surface was not attached") { attached.await() }
-                videoCodec.startRunning()
-                check(videoCodec.isRunning.get()) { "H.264 decoder failed to start" }
-                hasVideo = true
+                    ),
+                )
                 appliedSps = currentSps
                 appliedPps = currentPps
             }
@@ -313,6 +294,69 @@ class RtcStream internal constructor(context: Context, private val stop: () -> U
             lastTime = sample.timeUs
             feed(videoCodec.codec!!, run.videoIndices.receive(), sample)
         }
+    }
+
+    private suspend fun decodeVpVideo(
+        run: Run,
+        peer: NativePeer,
+    ) {
+        var dimensions: Pair<Int, Int>? = null
+        var lastTime = Long.MIN_VALUE
+        for (sample in run.video) {
+            run.bytes.addAndGet(-sample.data.size.toLong())
+            if (sample.timeUs <= lastTime) continue
+            val key = VpVideo.keyframe(run.videoType, sample.data)
+            if (key) {
+                val next = VpVideo.dimensions(run.videoType, sample.data)
+                if (dimensions != next) {
+                    configureVideo(run, next, emptyList())
+                    dimensions = next
+                }
+                run.hasVideoKeyframe = true
+                run.keyframes.add(sample.timeUs)
+                while (run.keyframes.size > 64) run.keyframes.pollFirst()
+            }
+            if (dimensions == null) {
+                peer.requestKeyframe()
+                continue
+            }
+            lastTime = sample.timeUs
+            feed(videoCodec.codec!!, run.videoIndices.receive(), sample)
+        }
+    }
+
+    private suspend fun configureVideo(
+        run: Run,
+        dimensions: Pair<Int, Int>,
+        configuration: List<CodecOption>,
+    ) {
+        videoCodec.stopRunning()
+        while (run.videoIndices.tryReceive().isSuccess) { }
+        videoCodec.width = dimensions.first
+        videoCodec.height = dimensions.second
+        videoCodec.options = videoSetting.options.filterNot { it.key.startsWith("csd-") } + configuration
+        val size = Size(dimensions.first, dimensions.second)
+        screen.frame = Rect(0, 0, size.width, size.height)
+        video.videoSize = size
+        videoCodec.surface = null
+        val attached = CompletableDeferred<Unit>()
+        val delegate = VideoCodecSource(videoCodec).apply { videoSize = size }
+        val source =
+            object : VideoSource by delegate {
+                override var surface: Surface? = null
+                    set(value) {
+                        field = value
+                        if (current === run) {
+                            videoCodec.surface = value
+                            if (value != null) attached.complete(Unit)
+                        }
+                    }
+            }
+        screen.attachVideo(0, source)
+        withRtcDeadline(5000, "Decoder output surface was not attached") { attached.await() }
+        videoCodec.startRunning()
+        check(videoCodec.isRunning.get()) { "${run.videoType.rtpName} decoder failed to start" }
+        hasVideo = true
     }
 
     private fun feed(
@@ -395,6 +439,7 @@ class RtcStream internal constructor(context: Context, private val stop: () -> U
             if (info.size == 0 || info.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG != 0) return true
             try {
                 val audio = mime == MediaFormat.MIMETYPE_AUDIO_OPUS
+                require(audio || mime == run.videoType.mime) { "Reconnect RTC before changing the video codec" }
                 var data =
                     copy(
                         buffer.duplicate().apply {
@@ -402,7 +447,7 @@ class RtcStream internal constructor(context: Context, private val stop: () -> U
                             limit(info.offset + info.size)
                         },
                     )
-                if (!audio && info.flags and MediaCodec.BUFFER_FLAG_KEY_FRAME != 0) {
+                if (!audio && run.videoType == RtcVideoCodec.H264 && info.flags and MediaCodec.BUFFER_FLAG_KEY_FRAME != 0) {
                     data = H264.annexB(configuration + H264.units(data))
                 }
                 enqueue(run, run.encoded, Sample(audio, data, info.presentationTimeUs))
@@ -415,7 +460,7 @@ class RtcStream internal constructor(context: Context, private val stop: () -> U
 
     private data class Sample(val audio: Boolean, val data: ByteArray, val timeUs: Long)
 
-    private class Run(val publishing: Boolean, val tracks: Set<String>, val videoConfiguration: List<ByteArray>) {
+    private class Run(val publishing: Boolean, val tracks: Set<String>, val videoConfiguration: List<ByteArray>, val videoType: RtcVideoCodec) {
         val epochUs = System.nanoTime() / 1000
         val audioClock = RtpClock(48_000)
         val videoClock = RtpClock(90_000)

@@ -48,7 +48,7 @@ data class PublishEncodingSettings(
         when (protocol) {
             PublishingProtocol.RTMP -> this
             PublishingProtocol.SRT -> copy(videoCodec = videoCodec.takeIf { it in listOf(PublishVideoCodec.H264, PublishVideoCodec.H265) } ?: PublishVideoCodec.H264, audioCodec = PublishAudioCodec.AAC)
-            PublishingProtocol.WEBRTC -> copy(videoCodec = PublishVideoCodec.H264, audioCodec = PublishAudioCodec.OPUS)
+            PublishingProtocol.WEBRTC -> copy(videoCodec = videoCodec.takeIf { it in listOf(PublishVideoCodec.H264, PublishVideoCodec.VP8, PublishVideoCodec.VP9) } ?: PublishVideoCodec.H264, audioCodec = PublishAudioCodec.OPUS)
         }
 
     fun applyTo(
@@ -70,7 +70,7 @@ data class PublishEncodingSettings(
         audioEnabled: Boolean = true,
     ) {
         require(this == forProtocol(protocol)) { "The selected codecs are not supported by ${protocol.label}." }
-        val profile = if (protocol == PublishingProtocol.WEBRTC) VideoCodecProfileLevel.H264_BASELINE_3_1 else videoCodec.profile
+        val profile = if (protocol == PublishingProtocol.WEBRTC && videoCodec == PublishVideoCodec.H264) VideoCodecProfileLevel.H264_BASELINE_3_1 else videoCodec.profile
         if (videoEnabled) {
             require(videoBitRate in MIN_VIDEO_BIT_RATE..MAX_VIDEO_BIT_RATE)
             require(CodecCapabilities.isCodecSupportedByType(Codec.MODE_ENCODE, profile.mime)) { "No ${videoCodec.label} encoder is available on this device." }
@@ -95,12 +95,12 @@ data class PublishEncodingSettings(
         video: VideoCodec.Setting,
         protocol: PublishingProtocol,
     ): MediaFormat {
-        val profile = if (protocol == PublishingProtocol.WEBRTC) VideoCodecProfileLevel.H264_BASELINE_3_1 else videoCodec.profile
+        val profile = if (protocol == PublishingProtocol.WEBRTC && videoCodec == PublishVideoCodec.H264) VideoCodecProfileLevel.H264_BASELINE_3_1 else videoCodec.profile
         return MediaFormat.createVideoFormat(profile.mime, video.width, video.height).apply {
             setInteger(MediaFormat.KEY_BIT_RATE, videoBitRate)
             setInteger(MediaFormat.KEY_FRAME_RATE, video.frameRate)
             setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface)
-            setInteger(MediaFormat.KEY_PROFILE, if (protocol == PublishingProtocol.WEBRTC) MediaCodecInfo.CodecProfileLevel.AVCProfileConstrainedBaseline else profile.profile)
+            setInteger(MediaFormat.KEY_PROFILE, if (protocol == PublishingProtocol.WEBRTC && videoCodec == PublishVideoCodec.H264) MediaCodecInfo.CodecProfileLevel.AVCProfileConstrainedBaseline else profile.profile)
             setInteger(MediaFormat.KEY_LEVEL, profile.level)
         }
     }

@@ -8,13 +8,14 @@ existing minimum Android versions.
 ## 🎬 Supported media and signaling
 
 - H.264 Baseline level 3.1, RTP packetization-mode 1; outgoing frames include SPS/PPS on keyframes.
+- VP8 and VP9 profile 0 (8-bit, single spatial layer), using OS encoders/decoders. [Codec selection](module-docs.md#video-codec-selection) must match the endpoint; reconnect to change codecs.
 - Opus audio, with RTP padding and padding-only probes removed before decoding. Capture PCM must match `stream.audioSetting` (48 kHz mono by default).
 - HTTP(S) SDP POST, 201 response validation, relative/absolute Location, and DELETE on close/setup failure.
 - Non-trickle ICE: candidates are gathered before POST. Configure STUN/TURN URLs through `RtcConfiguration`.
 - Bearer authentication and 307/308 POST redirects. Authorization is removed across origins; HTTPS downgrade is rejected.
 - RTCP sender/receiver reports, outgoing NACK responses, incoming PLI/FIR keyframe requests, and REMB bitrate limits.
 - Audio-only and video-only publishing through `expectedMedias`; rejected tracks do not start encoders.
-- Bounded native H.264 packet/byte retention before frame assembly, bounded media queues and reconnectable sessions. Observe `RtcSession.failure` for asynchronous failures.
+- Bounded native H.264/VP8/VP9 packet/byte retention before frame assembly, bounded media queues and reconnectable sessions. Observe `RtcSession.failure` for asynchronous failures.
 
 This is an initial transport implementation. It does not implement trickle ICE/PATCH,
 ICE restart, automatic ICE-server discovery from HTTP Link headers, simulcast, RTX,

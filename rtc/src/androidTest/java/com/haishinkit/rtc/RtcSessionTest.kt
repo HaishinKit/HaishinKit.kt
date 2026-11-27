@@ -6,10 +6,14 @@ import android.graphics.Color
 import android.graphics.Rect
 import android.net.Uri
 import androidx.test.platform.app.InstrumentationRegistry
+import com.haishinkit.codec.Codec
+import com.haishinkit.codec.CodecCapabilities
+import com.haishinkit.codec.VideoCodecProfileLevel
 import com.haishinkit.media.MediaBuffer
 import com.haishinkit.media.MediaMixer
 import com.haishinkit.media.MediaType
 import com.haishinkit.media.source.VideoSource
+import com.haishinkit.screen.ImageScreenObject
 import com.haishinkit.screen.Screen
 import com.haishinkit.screen.ScreenObject
 import com.haishinkit.stream.StreamSession
@@ -24,6 +28,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.Assume.assumeTrue
 import org.junit.Test
 import java.io.IOException
 import java.nio.ByteBuffer
@@ -87,82 +92,11 @@ class RtcSessionTest {
             }
         }
 
-    @Test fun whipEncodesH264AndWhepRendersTheDecodedFrame() =
-        runBlocking {
-            val context = InstrumentationRegistry.getInstrumentation().context
-            val whip = Endpoint(false, audio = false, video = true)
-            val publisher = RtcSession(context, whip.uri)
-            val mixer = MediaMixer(context)
-            publisher.stream.expectedMedias = setOf(MediaType.VIDEO)
-            publisher.stream.videoSetting.width = 128
-            publisher.stream.videoSetting.height = 96
-            mixer.screen.frame = Rect(0, 0, 128, 96)
-            mixer.screen.backgroundColor = Color.GREEN
-            mixer.registerOutput(publisher.stream)
-            var playback: RtcSession? = null
-            val whep = Endpoint(true, audio = false, video = true)
-            try {
-                suspend fun captureKeyframe(
-                    width: Int,
-                    height: Int,
-                ): ByteArray {
-                    publisher.stream.videoSetting.width = width
-                    publisher.stream.videoSetting.height = height
-                    whip.frames.clear()
-                    publisher.connect().getOrThrow()
-                    val encoder = com.haishinkit.stream.Stream::class.java.getDeclaredMethod("getVideoCodec").apply { isAccessible = true }.invoke(publisher.stream) as com.haishinkit.codec.VideoCodec
-                    assertEquals(publisher.stream.videoSetting.bitRate, encoder.bitRate)
-                    publisher.stream.requestBitrate(100_000)
-                    withTimeout(2_000) { while (encoder.bitRate != 100_000) delay(10) }
-                    val frame =
-                        withTimeout(10_000) {
-                            var key: ByteArray? = null
-                            while (key == null) {
-                                val candidate = whip.frames.poll()
-                                if (candidate != null && H264.units(candidate).any { it[0].toInt() and 31 == 5 }) key = candidate
-                                if (key == null) delay(20)
-                            }
-                            key
-                        }
-                    publisher.close().getOrThrow()
-                    return frame
-                }
-                val keyframe = captureKeyframe(128, 96)
-                val resizedKeyframe = captureKeyframe(256, 144)
-                val receiver = RtcSession(context, whep.uri, StreamSession.Mode.PLAYBACK)
-                playback = receiver
-                receiver.connect().getOrThrow()
-                repeat(48) {
-                    whep.peer!!.send(false, if (it / 8 % 2 == 0) keyframe else resizedKeyframe, it * 100_000L)
-                    delay(100)
-                }
-                assertTrue("WHEP failed: ${receiver.failure.value}", receiver.isConnected)
-                assertEquals(256, receiver.stream.screen.frame.width())
-                assertEquals(144, receiver.stream.screen.frame.height())
-                val pixel = CompletableDeferred<Int>()
-                receiver.stream.screen.readPixels { bitmap ->
-                    if (bitmap == null) {
-                        pixel.completeExceptionally(AssertionError("No decoded screen"))
-                    } else {
-                        pixel.complete(bitmap.getPixel(bitmap.width / 2, bitmap.height / 2))
-                        bitmap.recycle()
-                    }
-                }
-                val color = withTimeout(5000) { pixel.await() }
-                assertTrue("Decoded pixel is not green: $color", Color.green(color) > 180 && Color.red(color) < 80 && Color.blue(color) < 80)
-                receiver.close().getOrThrow()
-                assertMissingSurfaceFailure(context, whep, keyframe)
-            } finally {
-                playback?.close()
-                playback?.stream?.dispose()
-                publisher.close()
-                mixer.unregisterOutput(publisher.stream)
-                publisher.stream.dispose()
-                mixer.dispose()
-                whip.close()
-                whep.close()
-            }
-        }
+    @Test fun whipEncodesH264AndWhepRendersTheDecodedFrame() = videoRoundTrip(RtcVideoCodec.H264)
+
+    @Test fun whipEncodesVp8AndWhepRendersTheDecodedFrame() = videoRoundTrip(RtcVideoCodec.VP8)
+
+    @Test fun whipEncodesVp9AndWhepRendersTheDecodedFrame() = videoRoundTrip(RtcVideoCodec.VP9)
 
     @Test fun closeDuringConnectionLeavesTheSessionReconnectable() =
         runBlocking {
@@ -269,6 +203,99 @@ class RtcSessionTest {
             }
         }
 
+    private fun videoRoundTrip(codec: RtcVideoCodec) =
+        runBlocking {
+            assumeTrue("OS encoder and decoder required for ${codec.rtpName}", CodecCapabilities.isCodecSupportedByType(Codec.MODE_ENCODE, codec.mime) && CodecCapabilities.isCodecSupportedByType(Codec.MODE_DECODE, codec.mime))
+            val context = InstrumentationRegistry.getInstrumentation().context
+            val whip = Endpoint(false, audio = false, video = true, videoCodec = codec)
+            val publisher = RtcSession(context, whip.uri)
+            publisher.stream.videoSetting.profileLevel =
+                when (codec) {
+                    RtcVideoCodec.H264 -> VideoCodecProfileLevel.H264_BASELINE_3_1
+                    RtcVideoCodec.VP8 -> VideoCodecProfileLevel.VP8_MAIN
+                    RtcVideoCodec.VP9 -> VideoCodecProfileLevel.VP9_PROFILE0_31
+                }
+            val mixer = MediaMixer(context)
+            publisher.stream.expectedMedias = setOf(MediaType.VIDEO)
+            publisher.stream.videoSetting.width = 128
+            publisher.stream.videoSetting.height = 96
+            mixer.screen.frame = Rect(0, 0, 128, 96)
+            mixer.screen.addChild(
+                ImageScreenObject().apply {
+                    bitmap = Bitmap.createBitmap(128, 96, Bitmap.Config.ARGB_8888).apply { eraseColor(Color.GREEN) }
+                },
+            )
+            mixer.registerOutput(publisher.stream)
+            var playback: RtcSession? = null
+            val whep = Endpoint(true, audio = false, video = true, videoCodec = codec)
+            try {
+                suspend fun captureKeyframe(
+                    width: Int,
+                    height: Int,
+                ): ByteArray {
+                    publisher.stream.videoSetting.width = width
+                    publisher.stream.videoSetting.height = height
+                    whip.frames.clear()
+                    publisher.connect().getOrThrow()
+                    val encoder = com.haishinkit.stream.Stream::class.java.getDeclaredMethod("getVideoCodec").apply { isAccessible = true }.invoke(publisher.stream) as com.haishinkit.codec.VideoCodec
+                    assertEquals(publisher.stream.videoSetting.bitRate, encoder.bitRate)
+                    publisher.stream.requestBitrate(100_000)
+                    withTimeout(2_000) { while (encoder.bitRate != 100_000) delay(10) }
+                    // Surface encoders may emit the initial blank buffer before the mixer
+                    // submits the test signal. Capture a fresh keyframe after warm-up.
+                    delay(300)
+                    whip.frames.clear()
+                    publisher.stream.requestKeyframe()
+                    val frame =
+                        withTimeout(10_000) {
+                            var key: ByteArray? = null
+                            while (key == null) {
+                                val candidate = whip.frames.poll()
+                                if (candidate != null && (if (codec == RtcVideoCodec.H264) H264.units(candidate).any { it[0].toInt() and 31 == 5 } else VpVideo.keyframe(codec, candidate))) key = candidate
+                                if (key == null) delay(20)
+                            }
+                            key
+                        }
+                    publisher.close().getOrThrow()
+                    return frame
+                }
+                val keyframe = captureKeyframe(128, 96)
+                val resizedKeyframe = captureKeyframe(256, 144)
+                val receiver = RtcSession(context, whep.uri, StreamSession.Mode.PLAYBACK, RtcConfiguration(playbackVideoCodec = codec))
+                playback = receiver
+                receiver.connect().getOrThrow()
+                repeat(48) {
+                    whep.peer!!.send(false, if (it / 8 % 2 == 0) keyframe else resizedKeyframe, it * 100_000L)
+                    delay(100)
+                }
+                assertTrue("WHEP failed: ${receiver.failure.value}", receiver.isConnected)
+                assertEquals(256, receiver.stream.screen.frame.width())
+                assertEquals(144, receiver.stream.screen.frame.height())
+                val pixel = CompletableDeferred<Int>()
+                receiver.stream.screen.readPixels { bitmap ->
+                    if (bitmap == null) {
+                        pixel.completeExceptionally(AssertionError("No decoded screen"))
+                    } else {
+                        pixel.complete(bitmap.getPixel(bitmap.width / 2, bitmap.height / 2))
+                        bitmap.recycle()
+                    }
+                }
+                val color = withTimeout(5000) { pixel.await() }
+                assertTrue("Decoded pixel is not green: $color", Color.green(color) > 180 && Color.red(color) < 80 && Color.blue(color) < 80)
+                receiver.close().getOrThrow()
+                if (codec == RtcVideoCodec.H264) assertMissingSurfaceFailure(context, whep, keyframe)
+            } finally {
+                playback?.close()
+                playback?.stream?.dispose()
+                publisher.close()
+                mixer.unregisterOutput(publisher.stream)
+                publisher.stream.dispose()
+                mixer.dispose()
+                whip.close()
+                whep.close()
+            }
+        }
+
     private suspend fun assertMissingSurfaceFailure(
         context: Context,
         endpoint: Endpoint,
@@ -309,6 +336,7 @@ class RtcSessionTest {
         private val publishing: Boolean,
         private val audio: Boolean = true,
         private val video: Boolean = false,
+        private val videoCodec: RtcVideoCodec = RtcVideoCodec.H264,
     ) {
         val uri: Uri
             get() = Uri.parse("http://127.0.0.1:${http.address.port}/endpoint")
@@ -324,7 +352,7 @@ class RtcSessionTest {
                 val created =
                     NativePeer(publishing, audio, video, emptyArray(), { kind, _, text ->
                         if (kind == NativePeer.SDP) answer.offer(text)
-                    }, { _, frame, _ -> frames.offer(frame) })
+                    }, { _, frame, _ -> frames.offer(frame) }, videoCodec = videoCodec)
                 peer = created
                 created.acceptOffer(request.requestBody.bufferedReader().readText())
                 val sdp = requireNotNull(answer.poll(10, TimeUnit.SECONDS))

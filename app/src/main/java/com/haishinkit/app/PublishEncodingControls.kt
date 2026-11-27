@@ -59,7 +59,7 @@ internal fun PublishEncodingControls(
         if (encoders?.isFailure == true) Text(stringResource(R.string.studio_encoding_error), color = MaterialTheme.colorScheme.error)
         Text(stringResource(R.string.studio_encoding_video), style = MaterialTheme.typography.labelLarge)
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            PublishVideoCodec.entries.filter { codec -> protocol == PublishingProtocol.RTMP || codec == PublishVideoCodec.H264 || (protocol == PublishingProtocol.SRT && codec == PublishVideoCodec.H265) }.forEach { codec ->
+            PublishVideoCodec.entries.filter { codec -> protocol == PublishingProtocol.RTMP || codec == PublishVideoCodec.H264 || (protocol == PublishingProtocol.SRT && codec == PublishVideoCodec.H265) || (protocol == PublishingProtocol.WEBRTC && codec in listOf(PublishVideoCodec.VP8, PublishVideoCodec.VP9)) }.forEach { codec ->
                 val supported = codec.profile.mime in available
                 FilterChip(
                     selected = settings.videoCodec == codec,
