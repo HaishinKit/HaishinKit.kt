@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="ai_title">AI chat</string>
+    <string name="ai_close">Close AI chat</string>
+    <string name="ai_intro">Ask about your camera composition. Each new camera image requires your approval before it is sent to OpenAI. Chat and images stay in memory until cleared or the app closes.</string>
+    <string name="ai_plan_required">Uses your eligible ChatGPT plan and its usage limits. No API key is needed.</string>
+    <string name="ai_camera_ready">Camera composition connected</string>
+    <string name="ai_camera_unavailable">Camera composition is not connected</string>
+    <string name="ai_reconnect">Reconnect</string>
+    <string name="ai_sign_out">Sign out</string>
+    <string name="ai_add_account">Add account or workspace</string>
+    <string name="ai_manage_usage">Manage usage</string>
+    <string name="ai_clear">New chat</string>
+    <string name="ai_model">Model: %1$s</string>
+    <string name="ai_you">You</string>
+    <string name="ai_assistant">Assistant</string>
+    <string name="ai_image_sent">A camera image was approved in this chat.</string>
+    <string name="ai_prompt">Message</string>
+    <string name="ai_stop">Stop</string>
+    <string name="ai_send">Send</string>
+    <string name="ai_image_title">Send a camera image?</string>
+    <string name="ai_image_consent">Capture one image of the current composition and send it to OpenAI for this chat? It may include people, text, or private information in view. Approved images are also included in later turns of this chat. Choose New chat to remove them from future requests.</string>
+    <string name="ai_allow_image">Send image</string>
+    <string name="ai_decline_image">Do not send</string>
+    <string name="ai_denied">Sign-in was declined. You can try again.</string>
+    <string name="ai_usage_limit">ChatGPT plan usage is unavailable or the limit was reached. Check Manage usage.</string>
+    <string name="ai_request_failed">The request could not be completed. Check your connection or reconnect to ChatGPT.</string>
+    <string name="ai_revocation_unconfirmed">Signed out on this device. Remote revocation could not be confirmed; check Manage usage.</string>
+    <string name="ai_plan_title">You’re using your ChatGPT plan</string>
+    <string name="ai_plan_notice">Eligible requests in this sample use your ChatGPT plan and its limits. Review or change access with Manage usage in ChatGPT settings.</string>
+    <string name="ai_got_it">Got it</string>
+    <string name="ai_using_plan">Using ChatGPT plan</string>
+</resources>

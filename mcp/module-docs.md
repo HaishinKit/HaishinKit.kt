@@ -128,3 +128,92 @@ The release AAR and sources JAR are published through this repository's existing
 Maven/JitPack multi-module build as artifact `mcp`. This is a new module: older
 release tags do not contain it. Validate the intended release tag before using
 `com.github.HaishinKit.HaishinKit~kt:mcp:<version>`; keep core and MCP versions equal.
+
+
+## Android AI chat sample
+
+The Android sample includes **Publish → AI chat** in debug and release builds.
+Keep Publish open, grant camera access, then choose **Continue with ChatGPT**.
+Complete approval in the system browser and return to HaishinKit. The model picker
+loads the selected account's current model catalog. Ask, for example, “What product
+is in the camera view?” No streaming destination or active broadcast is needed.
+
+This is an on-device, open-source demonstration of
+[Sign in with ChatGPT](https://developers.openai.com/siwc/token-sharing-open-source),
+subject to OpenAI's current account eligibility and preview availability. It uses
+ChatGPT plan usage rather than a separately configured API key. Commercial/hosted
+integrations must check OpenAI's applicable onboarding requirements instead of
+reusing this sample's local registration flow.
+
+### Authentication and storage
+
+`ChatGptAuth` starts a temporary IPv4 loopback callback listener before opening
+the system browser. Each attempt has fresh state, nonce and S256 PKCE values.
+The issued client ID is saved before code exchange, then reused for that account
+and workspace. ID-token signature, issuer, audience, expiry and nonce are checked
+against OpenAI's OIDC metadata/JWKS before an account becomes active. Account and
+workspace registrations are separate choices even if their email labels match.
+The suffix shown in the account picker distinguishes their issued client IDs.
+
+Credentials and a stable installation host ID are stored as one AES-GCM encrypted
+atomic record in Android's no-backup directory; the key remains in AndroidKeyStore.
+Refreshes are serialized and rotated credentials are saved atomically. Sign out
+revokes the refresh token when reachable and clears local tokens. If remote
+revocation cannot be confirmed, the UI says so and links to ChatGPT usage settings.
+No client secret, shared Codex registration, credential logging, or credential
+export is used. Interrupted or expired browser sign-in can be retried with the
+saved registration. Process death during a pending sign-in requires a new attempt.
+
+### Local MCP and image approval
+
+`LocalMcpBridge` connects the official MCP Kotlin client to an application-owned
+`McpServer` at `127.0.0.1:8081`. Its random bearer token stays on the device and is
+never included in an OpenAI request. The existing debug endpoint uses another port.
+Only `hello_android` and `capture_frame` are exposed to the model. The sample maps
+these MCP schemas into a function namespace and executes requested tools locally;
+it does not expose the local endpoint as a hosted OpenAI MCP connector.
+
+A capture request displays a confirmation **before** reading camera pixels.
+Declining returns a refusal to the model without reading or sending an image.
+Approval captures a single JPEG of the composition and sends it to OpenAI with the
+next model request. Images may include people, text and private information visible
+in the scene. This is still-image analysis, not continuous audio/video transmission.
+
+Chat history and approved images remain in memory for at most six completed turns.
+Later requests in the same chat may resend these images as context. **New chat**,
+account changes and successful sign-out clear them from future requests. These
+controls do not recall data already sent to OpenAI. Closing the sheet or backgrounding
+the app cancels inference and closes its MCP connection; reopening the sheet can
+resume the in-memory chat. Browser authentication is allowed to finish while the
+browser is in front. The Screen is detached before its mixer stops or is disposed.
+
+Requests use streaming Responses with `store: false`, explicit context and encrypted
+reasoning continuity. A response is committed only after `response.completed`;
+interrupted streams, incomplete responses and usage-limit failures remain failures.
+Model changes require a new chat. The sample limits tool rounds and does not retry
+inference automatically. See OpenAI's
+[preview limitations](https://developers.openai.com/siwc/token-sharing-open-source/preview-limitations)
+for supported inputs and tools. `store: false` is an API conversation-storage setting,
+not a promise of zero retention or a replacement for OpenAI's data policies.
+
+### Validation
+
+Host tests exercise PKCE, signed identity checks, callback rejection, streamed
+terminal events, tool allowlisting, declined capture and image/context handling:
+
+```sh
+./gradlew :app:testDebugUnitTest :app:testUiTestUnitTest
+```
+
+Device tests use a synthetic blue composition, with no camera or OpenAI account:
+
+```sh
+./gradlew :app:connectedUiTestAndroidTest \
+  -Pandroid.testInstrumentationRunnerArguments.class=com.haishinkit.app.chatgpt.LocalMcpBridgeTest,com.haishinkit.app.chatgpt.AiChatContentTest,com.haishinkit.app.chatgpt.ChatGptAuthTest
+```
+
+A real account is still required to verify browser authorization, refresh/revocation,
+account-specific model availability, usage limits and live visual answers end to end.
+For a manual check, sign in, ask about the composition, decline the first image request,
+then ask again and approve. Check **New chat**, background/resume and **Sign out** too.
+Never put real tokens, callback URLs, camera images or account details into test logs.

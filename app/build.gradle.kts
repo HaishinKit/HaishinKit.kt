@@ -127,7 +127,11 @@ dependencies {
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.ui.test.junit4)
-    debugImplementation(project(":mcp"))
+    implementation(project(":mcp"))
+    implementation(libs.kotlinx.serialization.json)
+    implementation(libs.mcp.client)
+    implementation(libs.ktor.client.okhttp)
+    implementation(libs.okhttp)
     debugImplementation(libs.androidx.ui.tooling)
     add("uiTestImplementation", libs.androidx.ui.test.manifest)
     // LeakCanary rejects non-debuggable APKs; keep it with the debugger test build.

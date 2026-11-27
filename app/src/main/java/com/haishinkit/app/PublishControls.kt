@@ -54,6 +54,7 @@ internal fun PublishControls(
     onDismissError: () -> Unit = {},
     onOpenSettings: () -> Unit = {},
     onOpenIngest: (() -> Unit)? = null,
+    onOpenAiChat: (() -> Unit)? = null,
     settings: @Composable ColumnScope.() -> Unit,
     actions: @Composable () -> Unit,
 ) {
@@ -70,6 +71,9 @@ internal fun PublishControls(
                         style = MaterialTheme.typography.headlineSmall,
                     )
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        onOpenAiChat?.let { open ->
+                            TextButton(onClick = open) { Text(stringResource(R.string.ai_title)) }
+                        }
                         StreamStatus(readyState)
                         onOpenIngest?.let { open ->
                             TextButton(onClick = open, enabled = readyState == StreamSession.ReadyState.CLOSED) {
@@ -111,6 +115,11 @@ internal fun PublishControls(
                     IconButton(onClick = { toolsExpanded = true }) {
                         Icon(Icons.Filled.Settings, contentDescription = stringResource(R.string.studio_camera_tools), tint = PreviewColors.content)
                     }
+                }
+            }
+            onOpenAiChat?.let { open ->
+                Surface(modifier = Modifier.align(Alignment.End), shape = MaterialTheme.shapes.large, color = PreviewColors.container) {
+                    TextButton(onClick = open) { Text(stringResource(R.string.ai_title), color = PreviewColors.content) }
                 }
             }
             if (needsPermissions) {
