@@ -41,7 +41,7 @@ internal fun SceneFileControls(
             if (uri != null) {
                 scope.launch {
                     onSave(uri).onSuccess { Toast.makeText(context, R.string.scene_saved, Toast.LENGTH_SHORT).show() }
-                        .onFailure { onError(it.message ?: context.getString(R.string.scene_file_error)) }
+                        .onFailure { onError(context.getString(R.string.scene_file_error)) }
                 }
             }
         }
@@ -51,7 +51,7 @@ internal fun SceneFileControls(
             if (uri != null) {
                 scope.launch {
                     onOpen(uri).onSuccess { Toast.makeText(context, R.string.scene_restored, Toast.LENGTH_SHORT).show() }
-                        .onFailure { onError(it.message ?: context.getString(R.string.scene_file_error)) }
+                        .onFailure { onError(context.getString(R.string.scene_file_error)) }
                 }
             }
         }

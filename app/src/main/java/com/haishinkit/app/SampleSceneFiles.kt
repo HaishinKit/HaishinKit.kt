@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.BitmapFactory
 import android.net.Uri
 import android.util.Base64
+import com.airbnb.lottie.LottieCompositionFactory
 import com.haishinkit.lottie.LottieScreen
 import com.haishinkit.screen.ScreenObjectContainer
 import com.haishinkit.screen.ScreenObjectFactory
@@ -62,6 +63,7 @@ internal class SampleSceneFiles(private val context: Context) {
     }
 
     internal fun prepare(file: SceneFile): Loaded {
+        require(file.resources.values.sumOf { it.size.toLong() } <= MAXIMUM_FILE_BYTES) { "Sample scene resources must be 32 MiB or smaller." }
         val root = file.snapshot
         require(root.type == "screen" || root.type == "container") { "Choose a scene with a screen or container root." }
         require(root.size.width in 1..4096 && root.size.height in 1..4096 && root.size.width.toLong() * root.size.height <= 8_388_608) { "Scene canvas exceeds the sample's supported size." }
@@ -77,6 +79,10 @@ internal class SampleSceneFiles(private val context: Context) {
                 depth: Int,
             ): ScreenObjectSnapshot {
                 require(depth <= 32 && ++count <= 256 && names.add(node.id)) { "Scene has duplicate IDs or too many objects." }
+                if (node.type == "asset" && node.elements["format"] == "lottie") {
+                    val bytes = requireNotNull(file.resources[node.elements.getValue("source").removePrefix("media/")])
+                    requireNotNull(LottieCompositionFactory.fromJsonStringSync(bytes.toString(Charsets.UTF_8), animationKey(bytes)).value) { "Scene contains an unreadable animation." }
+                }
                 var elements = node.elements
                 if (node.type == "image") {
                     val source = node.elements["source"].orEmpty()
@@ -113,8 +119,7 @@ internal class SampleSceneFiles(private val context: Context) {
                 val name = node.elements.getValue("source").removePrefix("media/")
                 val json = requireNotNull(loaded.file.resources[name]).toString(Charsets.UTF_8)
                 LottieScreen(context, node.id).apply {
-                    setAnimationFromJson(json)
-                    playAnimation()
+                    setAnimationFromJson(json, animationKey(loaded.file.resources.getValue(name)))
                 }
             }
         }
@@ -143,6 +148,8 @@ internal class SampleSceneFiles(private val context: Context) {
     }
 
     internal data class Loaded(val file: SceneFile, val snapshot: ScreenObjectSnapshot, val directory: File)
+
+    private fun animationKey(bytes: ByteArray): String = "sample-scene-" + MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
 
     private companion object {
         const val MAXIMUM_FILE_BYTES = 32 * 1024 * 1024

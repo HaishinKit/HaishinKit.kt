@@ -184,8 +184,9 @@ class CameraViewModel(
             try {
                 withContext(Dispatchers.IO) { pending = sceneFiles.read(uri) }
                 val loaded = checkNotNull(pending)
-                val container = sceneFiles.create(loaded)
                 cameraLock.withLock {
+                    check(!recorder.isRecording && (session?.readyState?.value ?: StreamSession.ReadyState.CLOSED) == StreamSession.ReadyState.CLOSED) { "Stop publishing and recording before restoring a scene." }
+                    val container = sceneFiles.create(loaded)
                     val hadFront = frontCameraObject != null
                     val restoredFront = container.findByClass(VideoScreenObject::class.java).firstOrNull { it.track == FRONT_CAMERA_TRACK }
                     if (hadFront && restoredFront == null) mixer.attachVideos(mapOf(FRONT_CAMERA_TRACK to null)).getOrThrow()
@@ -193,6 +194,7 @@ class CameraViewModel(
                     val size = Size(loaded.snapshot.size.width, loaded.snapshot.size.height)
                     mixer.screen.frame = Rect(0, 0, size.width, size.height)
                     mixer.screen.transition(container)
+                    container.findByClass(LottieScreen::class.java).forEach { it.playAnimation() }
                     frontCameraObject = if (hadFront) restoredFront else null
                     loadedSceneSize = size
                     compositionSize = size
@@ -289,6 +291,7 @@ class CameraViewModel(
         position: Offset,
         onError: (String) -> Unit,
     ) {
+        if (sceneFileBusy) return
         val target =
             when (kind) {
                 ExampleScreenObjectKind.TEXT ->

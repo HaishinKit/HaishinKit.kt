@@ -106,6 +106,7 @@ dependencies {
     implementation(project(":srt"))
     implementation(project(":rtc"))
     implementation(project(":lottie"))
+    implementation(libs.lottie)
     implementation(project(":compose"))
     implementation(libs.accompanist.permissions)
     implementation(libs.accompanist.pager.indicators)

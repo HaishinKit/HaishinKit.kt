@@ -19,6 +19,23 @@ import kotlin.math.ln
 @Config(manifest = Config.NONE, sdk = [28])
 class ScreenObjectDragControllerTest {
     @Test
+    fun sceneReplacementClearsSelectionAndEditsOnlyRestoredObjects() {
+        val screen = ScreenObjectContainer().apply { frame = Rect(0, 0, 1000, 1000) }
+        val old = ScreenObjectContainer().apply { bounds.set(100, 100, 300, 300) }
+        val restored = ScreenObjectContainer().apply { bounds.set(500, 500, 700, 700) }
+        val controller = ScreenObjectDragController(screen, listOf(old))
+        val preview = IntSize(1000, 1000)
+        assertTrue(controller.begin(Offset(200f, 200f), preview))
+        controller.replaceObjects(listOf(restored))
+        assertEquals(null, controller.focusedObject)
+        assertFalse(controller.begin(Offset(200f, 200f), preview))
+        assertTrue(controller.begin(Offset(600f, 600f), preview))
+        controller.move(Offset(650f, 650f), preview)
+        assertEquals(Rect(550, 550, 750, 750), restored.frame)
+        assertEquals(Rect(), old.frame)
+    }
+
+    @Test
     fun aspectFillConvertsCroppedPreviewCoordinatesAndPreservesGrabOffset() {
         val screen = ScreenObjectContainer().apply { frame = Rect(0, 0, 1280, 720) }
         val target = ScreenObjectContainer().apply { bounds.set(400, 100, 600, 300) }

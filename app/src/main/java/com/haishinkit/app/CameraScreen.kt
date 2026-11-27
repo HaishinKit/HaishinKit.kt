@@ -201,7 +201,8 @@ fun CameraScreen(
             StudioPreviewFrame(expanded || viewModel.loadedSceneSize != null, viewModel.compositionSize.width.toFloat() / viewModel.compositionSize.height) {
                 Box(
                     modifier =
-                        Modifier.fillMaxSize().pointerInput(viewModel, configuration.orientation) {
+                        Modifier.fillMaxSize().pointerInput(viewModel, configuration.orientation, viewModel.sceneFileBusy) {
+                            if (viewModel.sceneFileBusy) return@pointerInput
                             val controller = viewModel.screenObjectDragController
                             awaitEachGesture {
                                 val down = awaitFirstDown()
@@ -252,7 +253,8 @@ fun CameraScreen(
                                 }
                             }
                         }
-                            .pointerInput(viewModel, configuration.orientation) {
+                            .pointerInput(viewModel, configuration.orientation, viewModel.sceneFileBusy) {
+                                if (viewModel.sceneFileBusy) return@pointerInput
                                 awaitPointerEventScope {
                                     while (true) {
                                         val event = awaitPointerEvent()
@@ -277,7 +279,7 @@ fun CameraScreen(
                 if (!pictureInPicture) {
                     ScreenObjectSelectionOverlay(
                         controller = viewModel.screenObjectDragController,
-                        onDelete = { viewModel.removeFocusedScreenObject() },
+                        onDelete = { if (!viewModel.sceneFileBusy) viewModel.removeFocusedScreenObject() },
                     )
 
                     if (filterFeedbackVisible) {
@@ -389,6 +391,7 @@ fun CameraScreen(
                 actions = {
                     CameraControllerView(
                         isRecording = recorderState.isRecording,
+                        controlsEnabled = !viewModel.sceneFileBusy,
                         isConnected = sessionActive,
                         readyState = sessionReadyState,
                         canCancelConnection = sessionState.stream is SrtStream || sessionState.stream is RtcStream,
@@ -396,7 +399,7 @@ fun CameraScreen(
                             viewModel.takeSnapShot(context)
                         },
                         onClickConnect = {
-                            if (applyingIngest) return@CameraControllerView
+                            if (applyingIngest || viewModel.sceneFileBusy) return@CameraControllerView
                             errorMessage = null
                             scope.launch {
                                 if (sessionActive) {
@@ -409,6 +412,7 @@ fun CameraScreen(
                                     viewModel.preparePublishing().onFailure {
                                         errorMessage = it.message ?: context.getString(R.string.studio_encoding_error)
                                     }.getOrElse { return@launch }
+                                    if (viewModel.sceneFileBusy) return@launch
                                     sessionState.connect().onFailure {
                                         errorMessage = it.message ?: context.getString(R.string.studio_connection_error)
                                     }
@@ -416,6 +420,7 @@ fun CameraScreen(
                             }
                         },
                         onClickRecording = {
+                            if (viewModel.sceneFileBusy) return@CameraControllerView
                             if (recorderState.isRecording) {
                                 recorderState.stopRecording()
                             } else {

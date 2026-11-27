@@ -11,10 +11,12 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PlayArrow
@@ -112,7 +114,7 @@ internal fun MainScreenLayout(
     changingRenderer: Boolean,
     selectedRoute: String,
     onNavigate: (MainScreenTab) -> Unit,
-    safeInsets: WindowInsets = WindowInsets.safeDrawing,
+    safeInsets: WindowInsets = WindowInsets.systemBars.union(WindowInsets.displayCutout),
     content: @Composable () -> Unit,
 ) {
     val insets = if (pictureInPicture) WindowInsets(0.dp, 0.dp, 0.dp, 0.dp) else safeInsets
@@ -120,7 +122,7 @@ internal fun MainScreenLayout(
         val useRail = maxWidth >= 600.dp && !pictureInPicture
         Row(Modifier.fillMaxSize()) {
             if (useRail) {
-                NavigationRail(containerColor = MaterialTheme.colorScheme.surface) {
+                NavigationRail(windowInsets = insets.only(WindowInsetsSides.Vertical + WindowInsetsSides.Start), containerColor = MaterialTheme.colorScheme.surface) {
                     MainScreenTab.entries.forEach { tab ->
                         NavigationRailItem(
                             modifier = Modifier.testTag("navigation-${tab.name}"),
@@ -137,7 +139,7 @@ internal fun MainScreenLayout(
                 modifier = Modifier.weight(1f),
                 bottomBar = {
                     if (!pictureInPicture && !useRail) {
-                        NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
+                        NavigationBar(windowInsets = insets.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom), containerColor = MaterialTheme.colorScheme.surface) {
                             MainScreenTab.entries.forEach { tab ->
                                 NavigationBarItem(
                                     icon = { TabIcon(tab) },

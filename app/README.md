@@ -46,6 +46,21 @@ The first native build downloads the pinned transport dependencies. A WHIP/WHEP
 server and endpoints for the stream you want to send or receive are required for
 network testing. The sample does not run a streaming server.
 
+## 💾 Scene files
+
+In **Publish → Camera tools → Scene**, choose **Save scene** to export a portable
+`.scene` file, or **Open scene** to replace the current composition. Stop streaming
+and recording first. Android's file picker lets you choose where to save or open.
+
+Files retain the canvas size, object placement, text, images and the sample's
+animation. Restored text and images remain editable, and the preview fits the
+saved canvas. Camera objects use the current capture sources; files do not contain
+camera footage, permissions or streaming credentials. Unknown objects are retained
+when saving again but are not rendered by the sample.
+
+The sample accepts files and extracted resources up to 32 MiB, a canvas up to
+4096 pixels per side and 8 megapixels total, and images up to 16 megapixels total.
+
 ## 📡 Bonjour SRT publishing
 
 On the Mac sample, open **Playback**, start the SRT listener and enable its
