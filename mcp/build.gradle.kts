@@ -9,7 +9,7 @@ android {
     namespace = "com.haishinkit.mcp"
     compileSdk = 37
     defaultConfig {
-        minSdk = 24
+        minSdk = 26
         consumerProguardFiles("consumer-rules.pro")
     }
     compileOptions {

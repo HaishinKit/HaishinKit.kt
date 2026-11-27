@@ -1,9 +1,9 @@
 # Module mcp
 
-HaishinKit MCP is an optional Android API 24+ library exposing application-approved
+HaishinKit MCP is an optional Android API 26+ library exposing application-approved
 composition tools through MCP Streamable HTTP. It uses the official MCP Kotlin SDK
-0.8.4 and Ktor Netty 3.2.3. Neither dependency is added to the core media library. Netty uses API 24 socket
-and concurrent-collection APIs; only this optional module requires API 24. The
+0.8.4 and Ktor Netty 3.2.3. Neither dependency is added to the core media library. Netty uses API 26 method-handle APIs during initialization; only this optional
+module requires API 26. The
 core library retains API 23 support.
 
 ## Lifecycle and capture

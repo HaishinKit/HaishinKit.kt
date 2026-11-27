@@ -57,7 +57,7 @@ and may include changes absent from that release or the published API reference.
 | `rtmp` | 6.0 / API 23 | RTMP/RTMPS transport |
 | `srt` | 6.0 / API 23 | Experimental SRT transport |
 | `rtc` | 6.0 / API 23 | Experimental WHIP/WHEP transport |
-| `mcp` | 7.0 / API 24 | Optional authenticated MCP server and application-owned tools (new; not in older releases) |
+| `mcp` | 8.0 / API 26 | Optional authenticated MCP server and application-owned tools (new; not in older releases) |
 | `compose` | 6.0 / API 23 | Jetpack Compose views |
 | `lottie` | 6.0 / API 23 | Lottie animations in compositions |
 | `vulkan` | 9.0 / API 28 | Experimental Vulkan output |
