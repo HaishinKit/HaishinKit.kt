@@ -1,3 +1,3 @@
 -keep class com.haishinkit.rtc.NativePeer { *; }
 
--keep class com.haishinkit.rtc.RTCWebSocket { *; }
+-keep class com.haishinkit.rtc.RtcWebSocket { *; }

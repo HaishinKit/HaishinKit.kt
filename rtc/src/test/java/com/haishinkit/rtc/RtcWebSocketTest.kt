@@ -25,12 +25,12 @@ import java.io.IOException
 import java.net.InetAddress
 import java.util.concurrent.TimeUnit
 
-class RTCWebSocketTest {
+class RtcWebSocketTest {
     @Test fun nativeTextAndBinaryFramesPreserveUnicodeAndNul() =
         runBlocking {
             requireNativeTests()
             val server = echoServer()
-            val socket = RTCWebSocket()
+            val socket = RtcWebSocket()
             try {
                 withTimeout(5000) { socket.connect(server.url("/").toString().replace("http:", "ws:")) }
                 val text = "こんにちは 🎙️" + 0.toChar() + "끝"
@@ -51,7 +51,7 @@ class RTCWebSocketTest {
         runBlocking {
             requireNativeTests()
             val server = echoServer(bindAddress = InetAddress.getByName("::1"))
-            val socket = RTCWebSocket()
+            val socket = RtcWebSocket()
             try {
                 val url = server.url("/ipv6").newBuilder().host("::1").build().toString().replace("http:", "ws:")
                 assertTrue(url.contains("["))
@@ -71,7 +71,7 @@ class RTCWebSocketTest {
             val leaf = HeldCertificate.Builder().commonName("localhost").addSubjectAlternativeName("localhost").signedBy(root).build()
             val certificates = HandshakeCertificates.Builder().heldCertificate(leaf, root.certificate).build()
             val server = echoServer(certificates)
-            val socket = RTCWebSocket(root.certificatePem())
+            val socket = RtcWebSocket(root.certificatePem())
             try {
                 withTimeout(5000) { socket.connect(server.url("/").toString().replace("https:", "wss:")) }
                 socket.send("verified")
@@ -89,7 +89,7 @@ class RTCWebSocketTest {
             val leaf = HeldCertificate.Builder().commonName("localhost").addSubjectAlternativeName("localhost").signedBy(root).build()
             val certificates = HandshakeCertificates.Builder().heldCertificate(leaf, root.certificate).build()
             val server = echoServer(certificates)
-            val socket = RTCWebSocket(root.certificatePem())
+            val socket = RtcWebSocket(root.certificatePem())
             try {
                 val result =
                     runCatching {
@@ -108,7 +108,7 @@ class RTCWebSocketTest {
             val server = MockWebServer()
             server.enqueue(MockResponse().setSocketPolicy(SocketPolicy.NO_RESPONSE))
             server.start()
-            val socket = RTCWebSocket()
+            val socket = RtcWebSocket()
             val connect = async { socket.connect(server.url("/").toString().replace("http:", "ws:")) }
             try {
                 assertNotNull(withContext(Dispatchers.IO) { server.takeRequest(3, TimeUnit.SECONDS) })
@@ -127,7 +127,7 @@ class RTCWebSocketTest {
             val server = MockWebServer()
             server.enqueue(MockResponse().setSocketPolicy(SocketPolicy.NO_RESPONSE))
             server.start()
-            val socket = RTCWebSocket()
+            val socket = RtcWebSocket()
             val connect = async { socket.connect(server.url("/").toString().replace("http:", "ws:")) }
             try {
                 assertNotNull(withContext(Dispatchers.IO) { server.takeRequest(3, TimeUnit.SECONDS) })
@@ -151,7 +151,7 @@ class RTCWebSocketTest {
         runBlocking {
             requireNativeTests()
             val server = echoServer()
-            val socket = RTCWebSocket()
+            val socket = RtcWebSocket()
             try {
                 withTimeout(5000) { socket.connect(server.url("/").toString().replace("http:", "ws:")) }
                 val received =
@@ -175,7 +175,7 @@ class RTCWebSocketTest {
             val server = MockWebServer()
             server.enqueue(MockResponse().setResponseCode(403))
             server.start()
-            val socket = RTCWebSocket()
+            val socket = RtcWebSocket()
             try {
                 val result =
                     withContext(Dispatchers.Unconfined) {

@@ -31,13 +31,13 @@ import java.net.URI
  * while closed. Cancellation disconnects the active HTTP request; redirects and response
  * reads share an absolute HTTP deadline before cleanup and reconnection.
  */
-class RTCSession(
+class RtcSession(
     context: Context,
     private val uri: Uri,
     private val mode: StreamSession.Mode = StreamSession.Mode.PUBLISH,
-    private val configuration: RTCConfiguration = RTCConfiguration(),
+    private val configuration: RtcConfiguration = RtcConfiguration(),
 ) : StreamSession {
-    override val stream = RTCStream(context.applicationContext) { synchronized(guard) { current?.job?.cancel() } }
+    override val stream = RtcStream(context.applicationContext) { synchronized(guard) { current?.job?.cancel() } }
     override val readyState: StateFlow<StreamSession.ReadyState>
         get() = state.asStateFlow()
     override val isConnected: Boolean
@@ -94,8 +94,8 @@ class RTCSession(
     }
 
     private suspend fun execute(run: Run) {
-        val http = HTTPTransport(configuration)
-        var resource: HTTPTransport.Resource? = null
+        val http = HttpTransport(configuration)
+        var resource: HttpTransport.Resource? = null
         var peer: NativePeer? = null
         try {
             coroutineScope {
@@ -133,12 +133,12 @@ class RTCSession(
                 peer = native
                 var videoConfiguration = emptyList<ByteArray>()
                 val tracks =
-                    withRTCDeadline(configuration.connectionTimeoutMillis, "RTC connection timed out") {
+                    withRtcDeadline(configuration.connectionTimeoutMillis, "RTC connection timed out") {
                         native.offer()
                         val offer = gathered.await()
                         val response = http.createCancellable(URI(uri.toString()), offer) { resource = it }
-                        val selected = SDP.validateAnswer(response.answer, publishing, audio, video)
-                        videoConfiguration = SDP.videoConfiguration(response.answer)
+                        val selected = Sdp.validateAnswer(response.answer, publishing, audio, video)
+                        videoConfiguration = Sdp.videoConfiguration(response.answer)
                         native.answer(response.answer)
                         opened.first { it.containsAll(selected) }
                         selected

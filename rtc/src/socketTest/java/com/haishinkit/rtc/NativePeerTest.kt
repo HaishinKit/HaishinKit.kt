@@ -39,8 +39,8 @@ class NativePeerTest {
             left.offer()
             right.acceptOffer(requireNotNull(offers.poll(10, TimeUnit.SECONDS)))
             val answer = requireNotNull(answers.poll(10, TimeUnit.SECONDS))
-            assertEquals(setOf("audio"), SDP.validateAnswer(answer, false, true, false, duplex = true))
-            assertThrows(IllegalArgumentException::class.java) { SDP.validateAnswer(answer, true, true, false) }
+            assertEquals(setOf("audio"), Sdp.validateAnswer(answer, false, true, false, duplex = true))
+            assertThrows(IllegalArgumentException::class.java) { Sdp.validateAnswer(answer, true, true, false) }
             left.answer(answer)
             assertTrue("Tracks/data channel did not open: $failures", ready.await(15, TimeUnit.SECONDS))
             val opus = byteArrayOf(0xf8.toByte(), 0xff.toByte(), 0xfe.toByte())
@@ -92,7 +92,7 @@ class NativePeerTest {
             val offer = requireNotNull(offers.poll(10, TimeUnit.SECONDS)) { "ICE offer gathering timed out" }
             receiver.acceptOffer(offer)
             val answer = requireNotNull(answers.poll(10, TimeUnit.SECONDS)) { "ICE answer gathering timed out" }
-            assertEquals(setOf("audio", "video"), SDP.validateAnswer(answer, true, true, true))
+            assertEquals(setOf("audio", "video"), Sdp.validateAnswer(answer, true, true, true))
             sender.answer(answer)
             assertTrue("Tracks did not open: $failures", opened.await(15, TimeUnit.SECONDS))
             val opus = byteArrayOf(0xf8.toByte(), 0xff.toByte(), 0xfe.toByte())

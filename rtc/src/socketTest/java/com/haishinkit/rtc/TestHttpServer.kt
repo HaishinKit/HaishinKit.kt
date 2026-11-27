@@ -9,7 +9,7 @@ import java.util.concurrent.atomic.AtomicReference
 import kotlin.concurrent.thread
 
 /** Small HTTP/1.1 fixture; no JDK-only HTTP server or external test dependency. */
-internal class TestHTTPServer {
+internal class TestHttpServer {
     val address: InetSocketAddress
         get() = socket.localSocketAddress as InetSocketAddress
     private val socket = ServerSocket(0, 16, java.net.InetAddress.getByName("127.0.0.1"))

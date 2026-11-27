@@ -14,7 +14,7 @@ import java.net.HttpURLConnection
 import java.net.URI
 
 /** HTTP signaling, separated from Android and the peer so protocol behavior is testable. */
-internal class HTTPTransport(private val configuration: RTCConfiguration) {
+internal class HttpTransport(private val configuration: RtcConfiguration) {
     data class Resource(val uri: URI, val authorization: String?, val answer: String)
 
     suspend fun createCancellable(
@@ -116,7 +116,7 @@ internal class HTTPTransport(private val configuration: RTCConfiguration) {
         message: String,
         block: (Call) -> T,
     ): T =
-        withRTCDeadline(configuration.httpTimeoutMillis.toLong(), message) {
+        withRtcDeadline(configuration.httpTimeoutMillis.toLong(), message) {
             coroutineScope {
                 val call = Call()
                 val worker =

@@ -16,7 +16,7 @@ import java.io.IOException
 import java.net.URI
 import java.util.concurrent.atomic.AtomicReference
 
-class HTTPTransportTest {
+class HttpTransportTest {
     @Test fun postResolvesRelativeLocationAndDeleteUsesAuthentication() {
         server { server, endpoint ->
             var posted = ""
@@ -38,8 +38,8 @@ class HTTPTransportTest {
                 request.sendResponseHeaders(204, -1)
                 request.close()
             }
-            val http = HTTPTransport(RTCConfiguration(bearerToken = "secret"))
-            var allocated: HTTPTransport.Resource? = null
+            val http = HttpTransport(RtcConfiguration(bearerToken = "secret"))
+            var allocated: HttpTransport.Resource? = null
             val resource = http.create(URI(endpoint.resolve("/live/whip").toString().replace("http:", "HTTP:")), "offer") { allocated = it }
             assertEquals("offer", posted)
             assertEquals("answer", resource.answer)
@@ -58,8 +58,8 @@ class HTTPTransportTest {
                 request.sendResponseHeaders(201, -1)
                 request.close()
             }
-            var resource: HTTPTransport.Resource? = null
-            assertThrows(IOException::class.java) { HTTPTransport(RTCConfiguration()).create(endpoint.resolve("/whip"), "offer") { resource = it } }
+            var resource: HttpTransport.Resource? = null
+            assertThrows(IOException::class.java) { HttpTransport(RtcConfiguration()).create(endpoint.resolve("/whip"), "offer") { resource = it } }
             assertEquals(endpoint.resolve("/resource"), resource!!.uri)
         }
     }
@@ -71,7 +71,7 @@ class HTTPTransportTest {
                 request.sendResponseHeaders(401, -1)
                 request.close()
             }
-            assertThrows(IOException::class.java) { HTTPTransport(RTCConfiguration()).create(endpoint.resolve("/whip"), "offer") { fail("No resource should be allocated") } }
+            assertThrows(IOException::class.java) { HttpTransport(RtcConfiguration()).create(endpoint.resolve("/whip"), "offer") { fail("No resource should be allocated") } }
         }
     }
 
@@ -93,7 +93,7 @@ class HTTPTransportTest {
                     request.sendResponseHeaders(307, -1)
                     request.close()
                 }
-                val resource = HTTPTransport(RTCConfiguration(bearerToken = "secret")).create(endpoint.resolve("/whip"), "offer") { }
+                val resource = HttpTransport(RtcConfiguration(bearerToken = "secret")).create(endpoint.resolve("/whip"), "offer") { }
                 assertNull(resource.authorization)
             }
         }
@@ -108,8 +108,8 @@ class HTTPTransportTest {
                 it.sendResponseHeaders(204, -1)
                 it.close()
             }
-            val transport = HTTPTransport(RTCConfiguration(httpTimeoutMillis = 500))
-            val allocated = AtomicReference<HTTPTransport.Resource>()
+            val transport = HttpTransport(RtcConfiguration(httpTimeoutMillis = 500))
+            val allocated = AtomicReference<HttpTransport.Resource>()
             val start = System.nanoTime()
             assertThrows(IOException::class.java) {
                 runBlocking { transport.createCancellable(endpoint.resolve("/whip"), "offer") { allocated.set(it) } }
@@ -128,9 +128,9 @@ class HTTPTransportTest {
                 it.sendResponseHeaders(204, -1)
                 it.close()
             }
-            val transport = HTTPTransport(RTCConfiguration())
+            val transport = HttpTransport(RtcConfiguration())
             runBlocking {
-                val allocated = CompletableDeferred<HTTPTransport.Resource>()
+                val allocated = CompletableDeferred<HttpTransport.Resource>()
                 val request = async { transport.createCancellable(endpoint.resolve("/whip"), "offer") { allocated.complete(it) } }
                 val resource = withTimeout(3000) { allocated.await() }
                 val start = System.nanoTime()
@@ -162,7 +162,7 @@ class HTTPTransportTest {
                     }
                 }
             }
-            val transport = HTTPTransport(RTCConfiguration(httpTimeoutMillis = 500))
+            val transport = HttpTransport(RtcConfiguration(httpTimeoutMillis = 500))
             val failure =
                 assertThrows(IOException::class.java) {
                     runBlocking { transport.createCancellable(endpoint.resolve("/hop0"), "offer") { } }
@@ -189,7 +189,7 @@ class HTTPTransportTest {
                     request.close()
                 }
             }
-            val transport = HTTPTransport(RTCConfiguration(httpTimeoutMillis = 500))
+            val transport = HttpTransport(RtcConfiguration(httpTimeoutMillis = 500))
             val start = System.nanoTime()
             assertThrows(IOException::class.java) {
                 runBlocking { transport.createCancellable(endpoint.resolve("/whip"), "offer") { } }
@@ -199,9 +199,9 @@ class HTTPTransportTest {
     }
 
     private fun server(
-        block: (TestHTTPServer, URI) -> Unit,
+        block: (TestHttpServer, URI) -> Unit,
     ) {
-        val server = TestHTTPServer()
+        val server = TestHttpServer()
         server.start()
         try {
             block(server, URI("http://127.0.0.1:${server.address.port}"))

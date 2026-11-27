@@ -31,12 +31,12 @@ import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 
-class RTCSessionTest {
+class RtcSessionTest {
     @Test fun whipEncodesOpusAndReconnectsWithoutLeakingServerResources() =
         runBlocking {
             val server = Endpoint(false)
             val context = InstrumentationRegistry.getInstrumentation().context
-            val session = RTCSession(context, server.uri)
+            val session = RtcSession(context, server.uri)
             session.stream.expectedMedias = setOf(MediaType.AUDIO)
             try {
                 repeat(2) {
@@ -62,7 +62,7 @@ class RTCSessionTest {
         runBlocking {
             val server = Endpoint(true)
             val context = InstrumentationRegistry.getInstrumentation().context
-            val session = RTCSession(context, server.uri, StreamSession.Mode.PLAYBACK)
+            val session = RtcSession(context, server.uri, StreamSession.Mode.PLAYBACK)
             try {
                 session.connect().getOrThrow()
                 // A valid Opus silence frame, with timestamps in microseconds.
@@ -91,7 +91,7 @@ class RTCSessionTest {
         runBlocking {
             val context = InstrumentationRegistry.getInstrumentation().context
             val whip = Endpoint(false, audio = false, video = true)
-            val publisher = RTCSession(context, whip.uri)
+            val publisher = RtcSession(context, whip.uri)
             val mixer = MediaMixer(context)
             publisher.stream.expectedMedias = setOf(MediaType.VIDEO)
             publisher.stream.videoSetting.width = 128
@@ -99,7 +99,7 @@ class RTCSessionTest {
             mixer.screen.frame = Rect(0, 0, 128, 96)
             mixer.screen.backgroundColor = Color.GREEN
             mixer.registerOutput(publisher.stream)
-            var playback: RTCSession? = null
+            var playback: RtcSession? = null
             val whep = Endpoint(true, audio = false, video = true)
             try {
                 suspend fun captureKeyframe(
@@ -129,7 +129,7 @@ class RTCSessionTest {
                 }
                 val keyframe = captureKeyframe(128, 96)
                 val resizedKeyframe = captureKeyframe(256, 144)
-                val receiver = RTCSession(context, whep.uri, StreamSession.Mode.PLAYBACK)
+                val receiver = RtcSession(context, whep.uri, StreamSession.Mode.PLAYBACK)
                 playback = receiver
                 receiver.connect().getOrThrow()
                 repeat(48) {
@@ -168,7 +168,7 @@ class RTCSessionTest {
         runBlocking {
             val endpoint = Endpoint(false)
             val context = InstrumentationRegistry.getInstrumentation().context
-            val session = RTCSession(context, endpoint.uri)
+            val session = RtcSession(context, endpoint.uri)
             session.stream.expectedMedias = setOf(MediaType.AUDIO)
             try {
                 repeat(5) {
@@ -195,7 +195,7 @@ class RTCSessionTest {
         runBlocking {
             val endpoint = Endpoint(false)
             val context = InstrumentationRegistry.getInstrumentation().context
-            val session = RTCSession(context, endpoint.uri, configuration = RTCConfiguration(connectionTimeoutMillis = 1))
+            val session = RtcSession(context, endpoint.uri, configuration = RtcConfiguration(connectionTimeoutMillis = 1))
             session.stream.expectedMedias = setOf(MediaType.AUDIO)
             try {
                 val result = session.connect()
@@ -214,7 +214,7 @@ class RTCSessionTest {
             val context = InstrumentationRegistry.getInstrumentation().context
             for (deadline in listOf(false, true)) {
                 val backend = Endpoint(false)
-                val http = TestHTTPServer()
+                val http = TestHttpServer()
                 val first = java.util.concurrent.atomic.AtomicBoolean(true)
                 val headers = CompletableDeferred<Unit>()
                 val deleted = AtomicInteger()
@@ -233,8 +233,8 @@ class RTCSessionTest {
                     request.close()
                 }
                 http.start()
-                val configuration = RTCConfiguration(connectionTimeoutMillis = if (deadline) 1000 else 30_000)
-                val session = RTCSession(context, Uri.parse("http://127.0.0.1:${http.address.port}/whip"), configuration = configuration)
+                val configuration = RtcConfiguration(connectionTimeoutMillis = if (deadline) 1000 else 30_000)
+                val session = RtcSession(context, Uri.parse("http://127.0.0.1:${http.address.port}/whip"), configuration = configuration)
                 session.stream.expectedMedias = setOf(MediaType.AUDIO)
                 try {
                     val connecting = async { session.connect() }
@@ -289,9 +289,9 @@ class RTCSessionTest {
                 ) {}
             }
         }
-        var session: RTCSession? = null
+        var session: RtcSession? = null
         try {
-            val waiting = RTCSession(context, endpoint.uri, StreamSession.Mode.PLAYBACK)
+            val waiting = RtcSession(context, endpoint.uri, StreamSession.Mode.PLAYBACK)
             session = waiting
             waiting.connect().getOrThrow()
             endpoint.peer!!.send(false, keyframe, 0)
@@ -316,7 +316,7 @@ class RTCSessionTest {
         val deleted = AtomicInteger()
 
         @Volatile var peer: NativePeer? = null
-        private val http = TestHTTPServer()
+        private val http = TestHttpServer()
 
         init {
             http.createContext("/endpoint") { request ->

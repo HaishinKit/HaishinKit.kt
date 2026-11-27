@@ -5,7 +5,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 import java.io.IOException
 
 /** Local transport deadlines are failures; cancellation owned by a caller still propagates. */
-internal suspend fun <T> withRTCDeadline(
+internal suspend fun <T> withRtcDeadline(
     timeoutMillis: Long,
     message: String,
     block: suspend CoroutineScope.() -> T,

@@ -1,7 +1,7 @@
 package com.haishinkit.rtc
 
 /** Set before creating a session. ICE URLs accept libdatachannel's STUN/TURN URI syntax. */
-data class RTCConfiguration(
+data class RtcConfiguration(
     val iceServers: List<String> = emptyList(),
     val bearerToken: String? = null,
     val connectionTimeoutMillis: Long = 30_000,

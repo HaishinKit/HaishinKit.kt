@@ -23,12 +23,12 @@ import java.io.IOException
  * The separate [outgoing] and [incoming] streams never feed decoded audio into capture.
  * Create one instance per call; [run] disposes both streams on exit.
  */
-class RTCDuplexSession(context: Context) {
+class RtcDuplexSession(context: Context) {
     /** Register with the capture mixer; closing this stream cancels the active call. */
-    val outgoing = RTCStream(context.applicationContext) { synchronized(guard) { activeJob?.cancel() } }
+    val outgoing = RtcStream(context.applicationContext) { synchronized(guard) { activeJob?.cancel() } }
 
     /** Playback stream with communication audio attributes; do not register with capture. */
-    val incoming = RTCStream(context.applicationContext) { synchronized(guard) { activeJob?.cancel() } }
+    val incoming = RtcStream(context.applicationContext) { synchronized(guard) { activeJob?.cancel() } }
 
     private val guard = Any()
     private var peer: NativePeer? = null
@@ -117,7 +117,7 @@ class RTCDuplexSession(context: Context) {
                     created.offer()
                     val answer = exchange(gathered.await())
                     // Validate that Opus audio was accepted. The server must also accept sendrecv.
-                    SDP.validateAnswer(answer, false, true, false, duplex = true)
+                    Sdp.validateAnswer(answer, false, true, false, duplex = true)
                     created.answer(answer)
                     connected.await()
                     audioOpen.await()

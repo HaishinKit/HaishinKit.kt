@@ -35,7 +35,7 @@ import com.haishinkit.media.MediaMixer
 import com.haishinkit.media.MediaRecorder
 import com.haishinkit.media.source.AudioRecordSource
 import com.haishinkit.media.source.Camera2Source
-import com.haishinkit.rtc.RTCStream
+import com.haishinkit.rtc.RtcStream
 import com.haishinkit.screen.ImageScreenObject
 import com.haishinkit.screen.Screen
 import com.haishinkit.screen.ScreenObject
@@ -79,7 +79,7 @@ class CameraViewModel(
         get() =
             when (session?.stream) {
                 is SrtStream -> PublishingProtocol.SRT
-                is RTCStream -> PublishingProtocol.WEBRTC
+                is RtcStream -> PublishingProtocol.WEBRTC
                 else -> PublishingProtocol.RTMP
             }
 

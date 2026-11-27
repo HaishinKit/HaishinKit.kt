@@ -36,8 +36,8 @@ import java.nio.ByteOrder
 import java.util.concurrent.ConcurrentSkipListSet
 import java.util.concurrent.atomic.AtomicLong
 
-/** H.264/Opus media stream owned by [RTCSession]. Uses the existing mixer and output views. */
-class RTCStream internal constructor(context: Context, private val stop: () -> Unit) : Stream(context) {
+/** H.264/Opus media stream owned by [RtcSession]. Uses the existing mixer and output views. */
+class RtcStream internal constructor(context: Context, private val stop: () -> Unit) : Stream(context) {
     /** Tracks offered for WHIP. Set before connecting; an empty set derives them from the mixer. */
     var expectedMedias: Set<MediaType> = emptySet()
 
@@ -127,7 +127,7 @@ class RTCStream internal constructor(context: Context, private val stop: () -> U
                         require(videoSetting.profileLevel == VideoCodecProfileLevel.H264_BASELINE_3_1) { "RTC currently offers H.264 Baseline level 3.1" }
                         val options = videoSetting.options.toList()
                         H264EncoderOptions.validate(options)
-                        SDP.validateH264Sender(videoSetting.width and -2, videoSetting.height and -2, videoSetting.frameRate, videoSetting.bitRate)
+                        Sdp.validateH264Sender(videoSetting.width and -2, videoSetting.height and -2, videoSetting.frameRate, videoSetting.bitRate)
                         val profile =
                             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
                                 MediaCodecInfo.CodecProfileLevel.AVCProfileConstrainedBaseline
@@ -166,7 +166,7 @@ class RTCStream internal constructor(context: Context, private val stop: () -> U
                     // SDP can retain a video section without sending video. Start audio
                     // immediately; switch to video synchronization once a frame is decodable.
                     hasVideo = false
-                    super@RTCStream.startRunning()
+                    super@RtcStream.startRunning()
                     if ("audio" in tracks) launch { decodeAudio(run) }
                     if ("video" in tracks) {
                         launch { decodeVideo(run, peer) }
@@ -196,7 +196,7 @@ class RTCStream internal constructor(context: Context, private val stop: () -> U
                     run.videoIndices.cancel()
                     run.keyframe.cancel()
                     run.bitrate.cancel()
-                    super@RTCStream.stopRunning()
+                    super@RtcStream.stopRunning()
                     audioCodec.stopRunning()
                     videoCodec.stopRunning()
                     audioCodec.listener = null
@@ -298,7 +298,7 @@ class RTCStream internal constructor(context: Context, private val stop: () -> U
                             }
                     }
                 screen.attachVideo(0, source)
-                withRTCDeadline(5000, "Decoder output surface was not attached") { attached.await() }
+                withRtcDeadline(5000, "Decoder output surface was not attached") { attached.await() }
                 videoCodec.startRunning()
                 check(videoCodec.isRunning.get()) { "H.264 decoder failed to start" }
                 hasVideo = true
@@ -417,8 +417,8 @@ class RTCStream internal constructor(context: Context, private val stop: () -> U
 
     private class Run(val publishing: Boolean, val tracks: Set<String>, val videoConfiguration: List<ByteArray>) {
         val epochUs = System.nanoTime() / 1000
-        val audioClock = RTPClock(48_000)
-        val videoClock = RTPClock(90_000)
+        val audioClock = RtpClock(48_000)
+        val videoClock = RtpClock(90_000)
         val failed = CompletableDeferred<Throwable>()
         val encoded = Channel<Sample>(64)
         val audio = Channel<Sample>(64)
