@@ -19,6 +19,49 @@ import kotlin.math.ln
 @Config(manifest = Config.NONE, sdk = [28])
 class ScreenObjectDragControllerTest {
     @Test
+    fun populatedGroupPinchMovesWithoutResizingItsChildrenAndWheelDoesNotShrinkIt() {
+        val screen = ScreenObjectContainer().apply { frame = Rect(0, 0, 1000, 1000) }
+        val child =
+            TextScreenObject().apply {
+                value = "Nested"
+                layoutMargin.set(0, 40, 0, 40)
+            }
+        val group =
+            ScreenObjectContainer().apply {
+                frame = Rect(200, 200, 400, 400)
+                bounds.set(frame)
+                addChild(child)
+            }
+        val controller = ScreenObjectDragController(screen, listOf(group))
+        val preview = IntSize(1000, 1000)
+        assertTrue(controller.begin(Offset(250f, 250f), preview))
+        controller.transform(Offset(250f, 250f), Offset(300f, 310f), 0.1f, preview)
+        assertEquals(Rect(250, 260, 450, 460), group.frame)
+        controller.end()
+        assertFalse(controller.scroll(Offset(300f, 310f), 10f, preview))
+        assertEquals(200, group.frame.width())
+        assertEquals(40, child.layoutMargin.left)
+        assertEquals(40, child.layoutMargin.right)
+    }
+
+    @Test
+    fun sceneReplacementClearsSelectionAndEditsOnlyRestoredObjects() {
+        val screen = ScreenObjectContainer().apply { frame = Rect(0, 0, 1000, 1000) }
+        val old = ScreenObjectContainer().apply { bounds.set(100, 100, 300, 300) }
+        val restored = ScreenObjectContainer().apply { bounds.set(500, 500, 700, 700) }
+        val controller = ScreenObjectDragController(screen, listOf(old))
+        val preview = IntSize(1000, 1000)
+        assertTrue(controller.begin(Offset(200f, 200f), preview))
+        controller.replaceObjects(listOf(restored))
+        assertEquals(null, controller.focusedObject)
+        assertFalse(controller.begin(Offset(200f, 200f), preview))
+        assertTrue(controller.begin(Offset(600f, 600f), preview))
+        controller.move(Offset(650f, 650f), preview)
+        assertEquals(Rect(550, 550, 750, 750), restored.frame)
+        assertEquals(Rect(), old.frame)
+    }
+
+    @Test
     fun aspectFillConvertsCroppedPreviewCoordinatesAndPreservesGrabOffset() {
         val screen = ScreenObjectContainer().apply { frame = Rect(0, 0, 1280, 720) }
         val target = ScreenObjectContainer().apply { bounds.set(400, 100, 600, 300) }

@@ -85,4 +85,13 @@
     <string name="studio_encoding_kbps">%1$d kbps</string>
     <string name="studio_encoding_bitrate_help">100–12,000 kbps. Release the slider to apply, including while publishing. The encoder may limit the actual bitrate.</string>
     <string name="studio_encoding_transport_help">Shows codecs supported by the configured URL. SRT uses H.264 or H.265 with AAC; WebRTC uses H.264 Baseline, VP8 or VP9 with Opus.</string>
+    <string name="scene_title">Scene</string>
+    <string name="scene_save">Save scene</string>
+    <string name="scene_open">Open scene</string>
+    <string name="scene_file_help">Save the layout, text, images and sample animation in a .scene file. Opening a file replaces the current scene.</string>
+    <string name="scene_stop_first">Stop publishing and recording to save or open a scene.</string>
+    <string name="scene_file_working">Working with scene file…</string>
+    <string name="scene_saved">Scene saved</string>
+    <string name="scene_restored">Scene restored</string>
+    <string name="scene_file_error">Could not read or write this scene file.</string>
 </resources>

@@ -4,13 +4,20 @@ import androidx.activity.compose.BackHandler
 import androidx.annotation.StringRes
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.layout.union
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Settings
@@ -66,25 +73,63 @@ private fun TabIcon(tab: MainScreenTab) {
 fun MainScreen(onApplyRenderer: suspend (Renderer) -> Unit) {
     val pictureInPicture = LocalContext.current.mainActivity()?.pictureInPicture == true
     var changingRenderer by remember { mutableStateOf(false) }
-    BackHandler(enabled = changingRenderer) {}
+    var sceneFileBusy by remember { mutableStateOf(false) }
+    val navigationBlocked = changingRenderer || sceneFileBusy
+    BackHandler(enabled = navigationBlocked) {}
     val navController = rememberNavController()
     val entry by navController.currentBackStackEntryAsState()
     val selectedRoute = entry?.destination?.route?.let { if (it == "main/codecs") MainScreenTab.Preference.id else it } ?: MainScreenTab.Camera.id
     val navigate: (MainScreenTab) -> Unit = { tab ->
-        if (!changingRenderer) {
+        if (!changingRenderer && !sceneFileBusy) {
             navController.navigateToMainTab(tab)
         }
     }
-    BoxWithConstraints(Modifier.fillMaxSize()) {
+    MainScreenLayout(pictureInPicture, navigationBlocked, selectedRoute, navigate) {
+        NavHost(
+            navController = navController,
+            startDestination = MainScreenTab.Camera.id,
+            enterTransition = { EnterTransition.None },
+            exitTransition = { ExitTransition.None },
+        ) {
+            composable(MainScreenTab.Camera.id) { CameraScreen(onOpenSettings = { navigate(MainScreenTab.Preference) }, onSceneFileBusy = { sceneFileBusy = it }) }
+            composable(MainScreenTab.MediaProjection.id) { MediaProjectionScreen(onOpenSettings = { navigate(MainScreenTab.Preference) }) }
+            composable(MainScreenTab.Playback.id) { PlaybackScreen(onOpenSettings = { navigate(MainScreenTab.Preference) }) }
+            composable("main/codecs") { DeviceCodecScreen(onBack = { navController.popBackStack() }) }
+            composable(MainScreenTab.Preference.id) {
+                PreferenceScreen(onOpenCodecs = { if (!changingRenderer) navController.navigate("main/codecs") }, onApplyRenderer = { renderer ->
+                    changingRenderer = true
+                    try {
+                        onApplyRenderer(renderer)
+                    } finally {
+                        changingRenderer = false
+                    }
+                })
+            }
+        }
+    }
+}
+
+@Suppress("ktlint:standard:function-naming")
+@Composable
+internal fun MainScreenLayout(
+    pictureInPicture: Boolean,
+    changingRenderer: Boolean,
+    selectedRoute: String,
+    onNavigate: (MainScreenTab) -> Unit,
+    safeInsets: WindowInsets = WindowInsets.systemBars.union(WindowInsets.displayCutout),
+    content: @Composable () -> Unit,
+) {
+    val insets = if (pictureInPicture) WindowInsets(0.dp, 0.dp, 0.dp, 0.dp) else safeInsets
+    BoxWithConstraints(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surface).windowInsetsPadding(insets.only(WindowInsetsSides.Horizontal))) {
         val useRail = maxWidth >= 600.dp && !pictureInPicture
         Row(Modifier.fillMaxSize()) {
             if (useRail) {
-                NavigationRail(containerColor = MaterialTheme.colorScheme.surface) {
+                NavigationRail(windowInsets = insets.only(WindowInsetsSides.Vertical + WindowInsetsSides.Start), containerColor = MaterialTheme.colorScheme.surface) {
                     MainScreenTab.entries.forEach { tab ->
                         NavigationRailItem(
                             modifier = Modifier.testTag("navigation-${tab.name}"),
                             selected = selectedRoute == tab.id,
-                            onClick = { navigate(tab) },
+                            onClick = { onNavigate(tab) },
                             icon = { TabIcon(tab) },
                             label = { Text(stringResource(tab.label)) },
                             enabled = !changingRenderer,
@@ -96,7 +141,7 @@ fun MainScreen(onApplyRenderer: suspend (Renderer) -> Unit) {
                 modifier = Modifier.weight(1f),
                 bottomBar = {
                     if (!pictureInPicture && !useRail) {
-                        NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
+                        NavigationBar(windowInsets = insets.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom), containerColor = MaterialTheme.colorScheme.surface) {
                             MainScreenTab.entries.forEach { tab ->
                                 NavigationBarItem(
                                     icon = { TabIcon(tab) },
@@ -104,38 +149,18 @@ fun MainScreen(onApplyRenderer: suspend (Renderer) -> Unit) {
                                     modifier = Modifier.testTag("navigation-${tab.name}"),
                                     selected = selectedRoute == tab.id,
                                     enabled = !changingRenderer,
-                                    onClick = { navigate(tab) },
+                                    onClick = { onNavigate(tab) },
                                 )
                             }
                         }
                     }
                 },
-                contentWindowInsets = WindowInsets(0.dp, 0.dp, 0.dp, 0.dp),
+                contentWindowInsets = insets,
             ) { padding ->
                 Box(
                     Modifier.padding(padding).consumeWindowInsets(padding),
                 ) {
-                    NavHost(
-                        navController = navController,
-                        startDestination = MainScreenTab.Camera.id,
-                        enterTransition = { EnterTransition.None },
-                        exitTransition = { ExitTransition.None },
-                    ) {
-                        composable(MainScreenTab.Camera.id) { CameraScreen(onOpenSettings = { navigate(MainScreenTab.Preference) }) }
-                        composable(MainScreenTab.MediaProjection.id) { MediaProjectionScreen(onOpenSettings = { navigate(MainScreenTab.Preference) }) }
-                        composable(MainScreenTab.Playback.id) { PlaybackScreen(onOpenSettings = { navigate(MainScreenTab.Preference) }) }
-                        composable("main/codecs") { DeviceCodecScreen(onBack = { navController.popBackStack() }) }
-                        composable(MainScreenTab.Preference.id) {
-                            PreferenceScreen(onOpenCodecs = { if (!changingRenderer) navController.navigate("main/codecs") }, onApplyRenderer = { renderer ->
-                                changingRenderer = true
-                                try {
-                                    onApplyRenderer(renderer)
-                                } finally {
-                                    changingRenderer = false
-                                }
-                            })
-                        }
-                    }
+                    content()
                 }
             }
         }

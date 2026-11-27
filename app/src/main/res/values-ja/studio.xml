@@ -85,4 +85,13 @@
     <string name="studio_encoding_kbps">%1$d kbps</string>
     <string name="studio_encoding_bitrate_help">100〜12,000 kbps。指を離すと反映します。配信中も変更できます。実際のビットレートはエンコーダーによって制限される場合があります。</string>
     <string name="studio_encoding_transport_help">設定画面のURLに対応するコーデックを表示します。SRTはH.264／H.265とAAC、WebRTCはH.264 Baseline／VP8／VP9とOpusを使用します。</string>
+    <string name="scene_title">シーン</string>
+    <string name="scene_save">シーンを保存</string>
+    <string name="scene_open">シーンを開く</string>
+    <string name="scene_file_help">配置・文字・画像・サンプルアニメーションを.sceneファイルに保存します。ファイルを開くと現在のシーンを置き換えます。</string>
+    <string name="scene_stop_first">シーンの保存・読み込み前に配信と録画を停止してください。</string>
+    <string name="scene_file_working">シーンファイルを処理しています…</string>
+    <string name="scene_saved">シーンを保存しました</string>
+    <string name="scene_restored">シーンを復元しました</string>
+    <string name="scene_file_error">シーンファイルを読み書きできませんでした。</string>
 </resources>

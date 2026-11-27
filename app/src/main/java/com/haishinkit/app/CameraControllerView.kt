@@ -37,6 +37,7 @@ fun CameraControllerView(
     onClickRecording: () -> Unit,
     readyState: StreamSession.ReadyState = if (isConnected) StreamSession.ReadyState.OPEN else StreamSession.ReadyState.CLOSED,
     canCancelConnection: Boolean = false,
+    controlsEnabled: Boolean = true,
 ) {
     val connecting = readyState == StreamSession.ReadyState.CONNECTING
     val closing = readyState == StreamSession.ReadyState.CLOSING
@@ -56,8 +57,9 @@ fun CameraControllerView(
             stringResource(R.string.studio_snapshot),
             onClickScreenShot,
             Modifier.weight(1f),
+            enabled = controlsEnabled,
         ) { Icon(painterResource(R.drawable.studio_snapshot), contentDescription = null) }
-        val enabled = !closing && (!connecting || canCancelConnection)
+        val enabled = controlsEnabled && !closing && (!connecting || canCancelConnection)
         PublishAction(
             label,
             onClickConnect,
@@ -91,6 +93,7 @@ fun CameraControllerView(
             stringResource(if (isRecording) R.string.studio_record_stop else R.string.studio_record),
             onClickRecording,
             Modifier.weight(1f),
+            enabled = controlsEnabled,
         ) {
             Icon(painterResource(if (isRecording) R.drawable.studio_stop else R.drawable.studio_record), contentDescription = null, tint = PreviewColors.content)
         }

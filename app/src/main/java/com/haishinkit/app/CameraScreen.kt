@@ -71,6 +71,7 @@ fun CameraScreen(
     modifier: Modifier = Modifier,
     viewModel: CameraViewModel = viewModel(),
     onOpenSettings: () -> Unit = {},
+    onSceneFileBusy: (Boolean) -> Unit = {},
 ) {
     var showIngest by remember { mutableStateOf(false) }
     var applyingIngest by remember { mutableStateOf(false) }
@@ -136,6 +137,19 @@ fun CameraScreen(
         )
     }
 
+    // Keep picker registrations and in-flight operations outside the transient tools layout.
+    val sceneFileActions =
+        rememberSceneFileActions(
+            onSave = viewModel::saveSceneFile,
+            onOpen = { uri ->
+                editingText = null
+                insertionPosition = null
+                viewModel.restoreSceneFile(uri)
+            },
+            onError = { errorMessage = it },
+            onBusyChange = onSceneFileBusy,
+        )
+
     val currentSession = viewModel.session
     if (currentSession == null) {
         Box(modifier.fillMaxSize().safeDrawingPadding().padding(16.dp)) {
@@ -198,10 +212,11 @@ fun CameraScreen(
         modifier = modifier,
         pictureInPicture = pictureInPicture,
         preview = { expanded ->
-            StudioPreviewFrame(expanded, viewModel.compositionSize.width.toFloat() / viewModel.compositionSize.height) {
+            StudioPreviewFrame(expanded || viewModel.loadedSceneSize != null, viewModel.compositionSize.width.toFloat() / viewModel.compositionSize.height) {
                 Box(
                     modifier =
-                        Modifier.fillMaxSize().pointerInput(viewModel, configuration.orientation) {
+                        Modifier.fillMaxSize().pointerInput(viewModel, configuration.orientation, viewModel.sceneFileBusy) {
+                            if (viewModel.sceneFileBusy) return@pointerInput
                             val controller = viewModel.screenObjectDragController
                             awaitEachGesture {
                                 val down = awaitFirstDown()
@@ -252,7 +267,8 @@ fun CameraScreen(
                                 }
                             }
                         }
-                            .pointerInput(viewModel, configuration.orientation) {
+                            .pointerInput(viewModel, configuration.orientation, viewModel.sceneFileBusy) {
+                                if (viewModel.sceneFileBusy) return@pointerInput
                                 awaitPointerEventScope {
                                     while (true) {
                                         val event = awaitPointerEvent()
@@ -277,7 +293,7 @@ fun CameraScreen(
                 if (!pictureInPicture) {
                     ScreenObjectSelectionOverlay(
                         controller = viewModel.screenObjectDragController,
-                        onDelete = { viewModel.removeFocusedScreenObject() },
+                        onDelete = { if (!viewModel.sceneFileBusy) viewModel.removeFocusedScreenObject() },
                     )
 
                     if (filterFeedbackVisible) {
@@ -310,6 +326,7 @@ fun CameraScreen(
                         { showIngest = true }
                     },
                 settings = {
+                    SceneFileControls(enabled = !sessionActive && !recorderState.isRecording, busy = viewModel.sceneFileBusy, actions = sceneFileActions)
                     selectedIngest?.let { Text(stringResource(R.string.ingest_selected, it)) }
                     PublishEncodingControls(
                         settings = viewModel.encoding,
@@ -378,6 +395,7 @@ fun CameraScreen(
                 actions = {
                     CameraControllerView(
                         isRecording = recorderState.isRecording,
+                        controlsEnabled = !viewModel.sceneFileBusy,
                         isConnected = sessionActive,
                         readyState = sessionReadyState,
                         canCancelConnection = sessionState.stream is SrtStream || sessionState.stream is RtcStream,
@@ -385,7 +403,7 @@ fun CameraScreen(
                             viewModel.takeSnapShot(context)
                         },
                         onClickConnect = {
-                            if (applyingIngest) return@CameraControllerView
+                            if (applyingIngest || viewModel.sceneFileBusy) return@CameraControllerView
                             errorMessage = null
                             scope.launch {
                                 if (sessionActive) {
@@ -398,6 +416,7 @@ fun CameraScreen(
                                     viewModel.preparePublishing().onFailure {
                                         errorMessage = it.message ?: context.getString(R.string.studio_encoding_error)
                                     }.getOrElse { return@launch }
+                                    if (viewModel.sceneFileBusy) return@launch
                                     sessionState.connect().onFailure {
                                         errorMessage = it.message ?: context.getString(R.string.studio_connection_error)
                                     }
@@ -405,6 +424,7 @@ fun CameraScreen(
                             }
                         },
                         onClickRecording = {
+                            if (viewModel.sceneFileBusy) return@CameraControllerView
                             if (recorderState.isRecording) {
                                 recorderState.stopRecording()
                             } else {
