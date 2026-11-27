@@ -14,7 +14,7 @@ an Android Service, start cameras, request permissions, log credentials, or own 
 MediaMixer. Applications may include this module in release builds.
 
 ```kotlin
-val server = HaishinKitMcpServer()
+val server = McpServer()
 // The application obtains camera permission and starts its own mixer.
 server.attachScreen(mixer.screen)
 try {
@@ -63,7 +63,7 @@ readPixels implementation must deliver exactly one callback or throw on initiati
 The constructor's `configureTools` lambda uses the official SDK `Server` API:
 
 ```kotlin
-val server = HaishinKitMcpServer {
+val server = McpServer {
     addTool(name = "get_scene_name", description = "Read the current scene name") {
         // Example: use your own controller and its synchronization policy.
         CallToolResult(content = listOf(TextContent("Main scene")))

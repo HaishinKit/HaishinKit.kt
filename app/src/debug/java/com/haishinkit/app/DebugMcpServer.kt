@@ -3,7 +3,7 @@ package com.haishinkit.app
 import android.util.Log
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
-import com.haishinkit.mcp.HaishinKitMcpServer
+import com.haishinkit.mcp.McpServer
 import kotlinx.coroutines.runBlocking
 import java.util.concurrent.Executors
 
@@ -36,7 +36,7 @@ internal class DebugMcpServer : DefaultLifecycleObserver {
     }
 
     companion object {
-        val server = HaishinKitMcpServer()
+        val server = McpServer()
         private const val TAG = "DebugMcpServer"
         private val worker = Executors.newSingleThreadExecutor()
         private val activeOwners = mutableSetOf<DebugMcpServer>()

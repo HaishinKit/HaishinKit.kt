@@ -40,7 +40,7 @@ class McpServerTest {
             }
         val owner = CoroutineScope(SupervisorJob() + dispatcher)
         val port = ServerSocket(0).use { it.localPort }
-        val server = HaishinKitMcpServer(McpServerConfiguration(port = port))
+        val server = McpServer(McpServerConfiguration(port = port))
         var startReturned = false
         try {
             val job =
@@ -84,7 +84,7 @@ class McpServerTest {
         runBlocking {
             val port = ServerSocket(0).use { it.localPort }
             val server =
-                HaishinKitMcpServer(McpServerConfiguration(port = port)) {
+                McpServer(McpServerConfiguration(port = port)) {
                     addTool("example_tool", "An application-owned tool") {
                         CallToolResult(content = listOf(TextContent("Application tool called")))
                     }
@@ -119,7 +119,7 @@ class McpServerTest {
         }
 
     private fun post(
-        server: HaishinKitMcpServer,
+        server: McpServer,
         body: String,
         token: String = server.configuration.bearerToken,
         origin: String? = null,

@@ -44,7 +44,7 @@ import kotlinx.serialization.json.put
  * Tool handlers must enforce their application's permission and threading requirements.
  * The built-in names `hello_android` and `capture_frame` are reserved.
  */
-public class HaishinKitMcpServer(
+public class McpServer(
     public val configuration: McpServerConfiguration = McpServerConfiguration(),
     private val configureTools: Server.() -> Unit = {},
 ) {
