@@ -14,27 +14,28 @@ import java.util.Locale
 internal class ShaderLoader(
     private val applicationContext: Context,
 ) {
-    private var texture2dPrograms = mutableMapOf<VideoEffect, Program>()
-    private var textureOesPrograms = mutableMapOf<VideoEffect, Program>()
+    private var texture2dPrograms = mutableMapOf<Pair<VideoEffect, Int>, Program>()
+    private var textureOesPrograms = mutableMapOf<Pair<VideoEffect, Int>, Program>()
 
     fun getProgram(
         target: Int,
         videoEffect: VideoEffect,
+        conversion: Int = 0,
     ): Program? =
         if (target == GLES11Ext.GL_TEXTURE_EXTERNAL_OES) {
-            if (!textureOesPrograms.containsKey(videoEffect)) {
-                createProgram(target, videoEffect)?.let {
-                    textureOesPrograms[videoEffect] = it
+            if (!textureOesPrograms.containsKey(videoEffect to conversion)) {
+                createProgram(target, videoEffect, conversion)?.let {
+                    textureOesPrograms[videoEffect to conversion] = it
                 }
             }
-            textureOesPrograms[videoEffect]
+            textureOesPrograms[videoEffect to conversion]
         } else {
-            if (!texture2dPrograms.containsKey(videoEffect)) {
-                createProgram(target, videoEffect)?.let {
-                    texture2dPrograms[videoEffect] = it
+            if (!texture2dPrograms.containsKey(videoEffect to conversion)) {
+                createProgram(target, videoEffect, conversion)?.let {
+                    texture2dPrograms[videoEffect to conversion] = it
                 }
             }
-            texture2dPrograms[videoEffect]
+            texture2dPrograms[videoEffect to conversion]
         }
 
     fun release() {
@@ -51,12 +52,13 @@ internal class ShaderLoader(
     private fun createProgram(
         target: Int,
         videoEffect: VideoEffect,
+        conversion: Int,
     ): Program? {
-        val vertexShader = loadShader(target, GLES20.GL_VERTEX_SHADER, videoEffect)
+        val vertexShader = loadShader(target, GLES20.GL_VERTEX_SHADER, videoEffect, conversion)
         if (vertexShader == 0) {
             return null
         }
-        val fragmentShader = loadShader(target, GLES20.GL_FRAGMENT_SHADER, videoEffect)
+        val fragmentShader = loadShader(target, GLES20.GL_FRAGMENT_SHADER, videoEffect, conversion)
         if (fragmentShader == 0) {
             return null
         }
@@ -113,6 +115,7 @@ internal class ShaderLoader(
         target: Int,
         shaderType: Int,
         videoEffect: VideoEffect,
+        conversion: Int,
     ): Int {
         var suffix = ""
         var shader = GLES20.glCreateShader(shaderType)
@@ -124,7 +127,7 @@ internal class ShaderLoader(
         ) {
             suffix = "-300"
         }
-        GLES20.glShaderSource(shader, readFile(target, shaderType, videoEffect.name, suffix))
+        GLES20.glShaderSource(shader, HlgShaderSource.convert(readFile(target, shaderType, videoEffect.name, suffix), shaderType == GLES20.GL_VERTEX_SHADER, target == GLES11Ext.GL_TEXTURE_EXTERNAL_OES, conversion))
         GLES20.glCompileShader(shader)
         val compiled = IntArray(1)
         GLES20.glGetShaderiv(shader, GLES20.GL_COMPILE_STATUS, compiled, 0)

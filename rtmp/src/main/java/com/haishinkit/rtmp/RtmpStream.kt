@@ -10,6 +10,7 @@ import android.util.Size
 import com.haishinkit.codec.Codec
 import com.haishinkit.codec.CodecCapabilities
 import com.haishinkit.codec.CodecOption
+import com.haishinkit.graphics.DynamicRangeMode
 import com.haishinkit.media.MediaType
 import com.haishinkit.media.source.VideoCodecSource
 import com.haishinkit.rtmp.amf.AmfEcmaArray
@@ -19,6 +20,7 @@ import com.haishinkit.rtmp.event.EventUtils
 import com.haishinkit.rtmp.event.IEventDispatcher
 import com.haishinkit.rtmp.event.IEventListener
 import com.haishinkit.rtmp.iso.AudioSpecificConfig
+import com.haishinkit.rtmp.iso.Av1DecoderConfigurationRecord
 import com.haishinkit.rtmp.iso.DecoderConfigurationRecord
 import com.haishinkit.rtmp.iso.OpusConfiguration
 import com.haishinkit.rtmp.iso.VpDecoderConfigurationRecord
@@ -44,7 +46,8 @@ import java.util.concurrent.atomic.AtomicInteger
 class RtmpStream(
     context: Context,
     internal var connection: RtmpConnection,
-) : Stream(context),
+    playbackDynamicRangeMode: DynamicRangeMode,
+) : Stream(context, playbackDynamicRangeMode),
     IEventDispatcher {
     /**
      * Information about the publishing resource.
@@ -317,7 +320,10 @@ class RtmpStream(
         get() = canReceiveCodedVideo && inputVideoMimeType == MediaFormat.MIMETYPE_VIDEO_AV1
 
     internal val canReceiveCodedVideo: Boolean
-        get() = videoConfigurationAccepted && mode == Codec.MODE_DECODE && videoCodec.isRunning.get()
+        get() = videoConfigurationAccepted && !hlgVideoRejected && mode == Codec.MODE_DECODE && videoCodec.isRunning.get()
+
+    internal val isHlgPlayback: Boolean get() = mode == Codec.MODE_DECODE && videoCodec.dynamicRangeMode == DynamicRangeMode.HLG
+    internal val canRenderVideo: Boolean get() = !isHlgPlayback || (!hlgVideoRejected && videoConfigurationAccepted)
 
     private val dispatcher: EventDispatcher by lazy {
         EventDispatcher(this)
@@ -329,6 +335,11 @@ class RtmpStream(
 
     @Volatile
     private var audioConfigurationAccepted = false
+
+    @Volatile
+    private var hlgVideoRejected = false
+    private var acceptedAv1WireConfiguration: ByteBuffer? = null
+    private var pendingAv1Configuration: Av1DecoderConfigurationRecord? = null
     private var pendingVpConfiguration: VpDecoderConfigurationRecord? = null
 
     @Volatile
@@ -347,6 +358,9 @@ class RtmpStream(
         audioCodec.listener = muxer
         videoCodec.listener = muxer
     }
+
+    /** Creates the default SDR pipeline. */
+    constructor(context: Context, connection: RtmpConnection) : this(context, connection, DynamicRangeMode.SDR)
 
     /**
      * Requests publishing to the server. The request is queued until the server stream is created.
@@ -382,6 +396,7 @@ class RtmpStream(
                 "No Opus encoder is available on this device"
             }
         }
+        if (hasVideo) videoCodec.validateEncodingSettings()
         info.resourceName = name
 
         val arguments = mutableListOf<Any?>()
@@ -531,6 +546,8 @@ class RtmpStream(
     override fun startRunning() {
         if (isRunning.get()) return
         muxer.clear()
+        acceptedAv1WireConfiguration = null
+        hlgVideoRejected = false
         audioTimestamp = null
         audioConfiguration = null
         audioConfigurationAccepted = false
@@ -545,6 +562,7 @@ class RtmpStream(
         }
         videoConfiguration = null
         pendingVpConfiguration = null
+        pendingAv1Configuration = null
         videoConfigurationAccepted = false
         audioCodec.listener = muxer
         videoCodec.listener = muxer
@@ -557,6 +575,9 @@ class RtmpStream(
         audioConfigurationAccepted = false
         audioCodec.options = audioSetting.options
         pendingVpConfiguration = null
+        acceptedAv1WireConfiguration = null
+        hlgVideoRejected = false
+        pendingAv1Configuration = null
         videoCodec.options = videoSetting.options
     }
 
@@ -644,13 +665,37 @@ class RtmpStream(
         }
     }
 
+    internal fun acceptHlgOutputFormat(format: MediaFormat): Boolean {
+        if (!isHlgPlayback) return true
+        if (hlgVideoRejected) return false
+        val expected =
+            listOf(
+                MediaFormat.KEY_PROFILE to 2,
+                MediaFormat.KEY_COLOR_STANDARD to MediaFormat.COLOR_STANDARD_BT2020,
+                MediaFormat.KEY_COLOR_TRANSFER to MediaFormat.COLOR_TRANSFER_HLG,
+                MediaFormat.KEY_COLOR_RANGE to MediaFormat.COLOR_RANGE_LIMITED,
+            )
+        for ((key, value) in expected) {
+            if (format.containsKey(key) && format.getInteger(key) > 0 && format.getInteger(key) != value) {
+                rejectHlgVideo("Unsupported decoded HLG $key=${format.getInteger(key)}")
+                return false
+            }
+        }
+        return true
+    }
+
+    internal fun requiresSurfaceDecoder(mime: String): Boolean =
+        RtmpMuxer.isNonNalVideo(mime) ||
+            (videoCodec.dynamicRangeMode == DynamicRangeMode.HLG && mime == MediaFormat.MIMETYPE_VIDEO_HEVC)
+
     internal fun isVideoCodecSwitch(mime: String): Boolean =
         videoCodec.isRunning.get() && inputVideoMimeType != mime &&
-            (RtmpMuxer.isNonNalVideo(mime) || RtmpMuxer.isNonNalVideo(inputVideoMimeType))
+            (requiresSurfaceDecoder(mime) || requiresSurfaceDecoder(inputVideoMimeType))
 
     internal fun invalidateVideoConfiguration() {
         videoConfigurationAccepted = false
         pendingVpConfiguration = null
+        pendingAv1Configuration = null
     }
 
     internal fun prepareVpFrame(
@@ -663,25 +708,88 @@ class RtmpStream(
         return try {
             val sizedRecord = record.withKeyFrameSize(frame)
             pendingVpConfiguration = null
+            pendingAv1Configuration = null
             configure(sizedRecord)
         } catch (cause: IllegalArgumentException) {
             false // A mid-GOP join waits for a complete keyframe.
         }
     }
 
+    internal fun prepareAv1Frame(
+        frame: ByteBuffer,
+        keyframe: Boolean,
+    ): Boolean {
+        if (hlgVideoRejected) return false
+        if (canReceiveAv1) {
+            if (isHlgPlayback && keyframe) {
+                val actual =
+                    try {
+                        Av1DecoderConfigurationRecord.fromKeyFrame(frame)
+                    } catch (cause: IllegalArgumentException) {
+                        rejectHlgVideo("Invalid AV1 sync sequence")
+                        return false
+                    }
+                val active = videoConfiguration?.duplicate()?.let(Av1DecoderConfigurationRecord::decode)
+                if (actual != null && (active == null || !actual.hasSameSequenceHeader(active))) {
+                    rejectHlgVideo("AV1 configuration changed; close playback before restarting")
+                    return false
+                }
+            }
+            return true
+        }
+        val pending = pendingAv1Configuration ?: return false
+        if (!keyframe) return false
+        return try {
+            val actual = pending.withSequenceHeader(frame) ?: pending.takeIf { it.isHlg } ?: return false
+            if (!actual.isHlg) return false
+            pendingAv1Configuration = null
+            configureVideoDecoder(actual).also { if (it) acceptedAv1WireConfiguration = pending.toByteBuffer() }
+        } catch (cause: IllegalArgumentException) {
+            false
+        }
+    }
+
     internal fun configure(decoderConfigurationRecord: DecoderConfigurationRecord): Boolean {
-        val nonNal = RtmpMuxer.isNonNalVideo(decoderConfigurationRecord.mime)
+        if (hlgVideoRejected) return false
+        if (decoderConfigurationRecord is Av1DecoderConfigurationRecord && videoCodec.dynamicRangeMode == DynamicRangeMode.HLG && videoCodec.isRunning.get() && decoderConfigurationRecord.toByteBuffer() == acceptedAv1WireConfiguration) {
+            videoConfigurationAccepted = true
+            return true
+        }
+
+        if (decoderConfigurationRecord is Av1DecoderConfigurationRecord && videoCodec.dynamicRangeMode == DynamicRangeMode.HLG && !videoCodec.isRunning.get()) {
+            if (mode != Codec.MODE_DECODE || !isRunning.get()) return false
+            pendingAv1Configuration = decoderConfigurationRecord
+            videoConfigurationAccepted = false
+            return true
+        }
+        return configureVideoDecoder(decoderConfigurationRecord)
+    }
+
+    private fun rejectHlgVideo(reason: String) {
+        hlgVideoRejected = true
+        videoConfigurationAccepted = false
+        Log.w(TAG, "$reason; ignoring video until playback is closed")
+    }
+
+    private fun configureVideoDecoder(decoderConfigurationRecord: DecoderConfigurationRecord): Boolean {
+        if (isHlgPlayback && decoderConfigurationRecord is com.haishinkit.rtmp.iso.HevcDecoderConfigurationRecord &&
+            (decoderConfigurationRecord.generalProfileIdc != 2.toUByte() || decoderConfigurationRecord.bitDepthLumaMinus8 != 2.toUByte() || decoderConfigurationRecord.bitDepthChromaMinus8 != 2.toUByte() || decoderConfigurationRecord.chromaFormat != 1.toUByte())
+        ) {
+            rejectHlgVideo("HLG HEVC requires Main10 4:2:0 configuration")
+            return false
+        }
+        val surfaceDecoder = requiresSurfaceDecoder(decoderConfigurationRecord.mime)
         if (isVideoCodecSwitch(decoderConfigurationRecord.mime)) {
             Log.w(TAG, "Close playback before changing to a different video codec")
             return false
         }
-        val configuration = if (nonNal) decoderConfigurationRecord.toByteBuffer() else null
-        if (nonNal && videoCodec.isRunning.get()) {
+        val configuration = if (surfaceDecoder) decoderConfigurationRecord.toByteBuffer() else null
+        if (surfaceDecoder && videoCodec.isRunning.get()) {
             videoConfigurationAccepted = configuration == videoConfiguration
             if (!videoConfigurationAccepted) Log.w(TAG, "Close playback before changing the video configuration")
             return videoConfigurationAccepted
         }
-        if (nonNal) {
+        if (surfaceDecoder) {
             videoConfigurationAccepted = false
             if (mode != Codec.MODE_DECODE || !isRunning.get()) return false
         }
@@ -692,7 +800,9 @@ class RtmpStream(
         // Reject an unsupported VP format before changing options or attaching a renderer.
         val vpDecoderName =
             if (decoderConfigurationRecord is VpDecoderConfigurationRecord) {
-                val size = decoderConfigurationRecord.videoSize ?: return false
+                val size =
+                    decoderConfigurationRecord.videoSize
+                        ?: return false
                 val format = MediaFormat.createVideoFormat(decoderConfigurationRecord.mime, size.width, size.height)
                 format.setInteger(MediaFormat.KEY_PROFILE, 1 shl decoderConfigurationRecord.profile)
                 try {
@@ -705,11 +815,15 @@ class RtmpStream(
             }
         if (decoderConfigurationRecord.configure(videoCodec)) {
             val size = decoderConfigurationRecord.videoSize
-            if (size != null || nonNal) {
+            if (surfaceDecoder && size != null) {
+                videoCodec.width = size.width
+                videoCodec.height = size.height
+            }
+            if (size != null || surfaceDecoder) {
                 val initialSize = size ?: Size(videoCodec.width, videoCodec.height)
                 playbackVideoSource = VideoCodecSource(videoCodec).apply { videoSize = initialSize }
                 updateVideoSize(initialSize)
-                if (nonNal) {
+                if (surfaceDecoder) {
                     val source = RtmpPlaybackVideoSource(playbackVideoSource!!)
                     screen.attachVideo(0, source)
                     if (!source.awaitSurface() || !isRunning.get() || mode != Codec.MODE_DECODE) {
@@ -720,7 +834,7 @@ class RtmpStream(
                     screen.attachVideo(0, playbackVideoSource)
                 }
             }
-            if (nonNal) {
+            if (surfaceDecoder) {
                 // Serialize startup/publication with Stream.stopRunning, after waiting without its monitor.
                 return synchronized(this) {
                     if (!isRunning.get() || mode != Codec.MODE_DECODE) return@synchronized false
@@ -797,7 +911,7 @@ class RtmpStream(
                 MediaFormat.MIMETYPE_VIDEO_HEVC ->
                     metadata["videocodecid"] = RtmpMuxer.FLV_VIDEO_FOUR_CC_HVC1
 
-                MediaFormat.MIMETYPE_VIDEO_VP8, MediaFormat.MIMETYPE_VIDEO_VP9 ->
+                MediaFormat.MIMETYPE_VIDEO_VP8, MediaFormat.MIMETYPE_VIDEO_VP9, MediaFormat.MIMETYPE_VIDEO_AV1 ->
                     metadata["videocodecid"] = RtmpMuxer.getVideoFourCCByType(videoCodec.profileLevel.mime)
 
                 MediaFormat.MIMETYPE_VIDEO_AVC -> {

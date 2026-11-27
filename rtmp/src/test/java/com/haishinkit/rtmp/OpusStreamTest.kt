@@ -110,6 +110,7 @@ class OpusStreamTest {
             listOf(
                 VideoCodecProfileLevel.H264_BASELINE_3_1 to 7,
                 VideoCodecProfileLevel.HEVC_MAIN_3_1 to 0x68766331,
+                VideoCodecProfileLevel.AV1_MAIN8_3_1 to 0x61763031,
                 VideoCodecProfileLevel.VP8_MAIN to 0x76703038,
                 VideoCodecProfileLevel.VP9_PROFILE0_31 to 0x76703039,
             )
@@ -353,6 +354,25 @@ class OpusStreamTest {
             AudioCodec::class.java.getDeclaredMethod("createMediaFormat", String::class.java)
                 .apply { isAccessible = true }.invoke(codec, MediaFormat.MIMETYPE_AUDIO_AAC) as MediaFormat
         assertEquals(MediaCodecInfo.CodecProfileLevel.AACObjectLC, format.getInteger(MediaFormat.KEY_AAC_PROFILE))
+    }
+
+    @Test fun av1PublicationWithoutCsdBuildsSequenceStartFromTheSyncFrame() {
+        val packets = capture()
+        val sequence = javaClass.getResourceAsStream("/hdr/pixel8-hlg-sequence.obu")!!.readBytes()
+        val bytes = byteArrayOf(0x12, 0) + sequence + byteArrayOf(0x32, 1, 0)
+        val format = MediaFormat.createVideoFormat(MediaFormat.MIMETYPE_VIDEO_AV1, 320, 180)
+        stream.muxer.onFormatChanged(MediaFormat.MIMETYPE_VIDEO_AV1, format)
+        assertTrue(packets.isEmpty())
+        val buffer = ByteBuffer.wrap(bytes)
+        val info = MediaCodec.BufferInfo().apply { set(0, bytes.size, 1_000_000, MediaCodec.BUFFER_FLAG_KEY_FRAME) }
+        assertTrue(stream.muxer.onSampleOutput(MediaFormat.MIMETYPE_VIDEO_AV1, 0, info, buffer))
+        assertEquals(2, packets.size)
+        assertEquals(0, buffer.position())
+        val header = body(packets[0])
+        assertEquals(0x90, header[0].toInt() and 255)
+        val record = com.haishinkit.rtmp.iso.Av1DecoderConfigurationRecord.decode(ByteBuffer.wrap(header.copyOfRange(5, header.size)))
+        assertTrue(record.isHlg)
+        assertArrayEquals(bytes, body(packets[1]).copyOfRange(5, body(packets[1]).size))
     }
 
     private fun capture(): MutableList<ByteArray> {

@@ -16,6 +16,13 @@ interface PixelTransform : AutoCloseable {
      */
     val context: Context
 
+/** Marks a 10-bit encoder input surface. Custom backends must opt in to HDR output. */
+    var isEncoderOutput: Boolean
+        get() = false
+        set(value) {
+            require(!value) { "This pixel transform does not support HLG encoder surfaces" }
+        }
+
     /**
      * The screen to render, or `null` when no screen is attached.
      */

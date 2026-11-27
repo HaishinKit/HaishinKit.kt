@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import android.graphics.Color
 import android.graphics.Rect
 import androidx.annotation.RestrictTo
+import com.haishinkit.graphics.DynamicRangeMode
 import com.haishinkit.media.source.Camera2Source
 import com.haishinkit.media.source.VideoSource
 
@@ -13,6 +14,7 @@ import com.haishinkit.media.source.VideoSource
  */
 abstract class Screen(
     val context: Context,
+    val dynamicRangeMode: DynamicRangeMode,
 ) : ScreenObjectContainer() {
     /**
      * Callbacks for a screen.
@@ -32,6 +34,9 @@ abstract class Screen(
     open var backgroundColor: Int = Color.BLACK
 
     protected var callbacks = mutableListOf<Callback>()
+
+    /** Creates the default SDR pipeline. */
+    constructor(context: Context) : this(context, DynamicRangeMode.SDR)
 
     /**
      * Reads the pixels of a displayed image.
@@ -108,12 +113,23 @@ abstract class Screen(
         /**
          * Creates a screen with a dedicated rendering thread and a default size of 1280 × 720 pixels.
          */
-        fun create(context: Context): Screen = factory(context)
+        @JvmOverloads
+        fun create(
+            context: Context,
+            dynamicRangeMode: DynamicRangeMode = DynamicRangeMode.SDR,
+        ): Screen =
+            if (dynamicRangeMode == DynamicRangeMode.SDR) factory(context) else createOpenGL(context, dynamicRangeMode)
 
         /** Creates the OpenGL screen without consulting [factory]. */
-        fun createOpenGL(context: Context): Screen =
-            com.haishinkit.gles.screen.ThreadScreen(context).apply {
+        @JvmOverloads
+        fun createOpenGL(
+            context: Context,
+            dynamicRangeMode: DynamicRangeMode = DynamicRangeMode.SDR,
+        ): Screen {
+            require(dynamicRangeMode == DynamicRangeMode.SDR || android.os.Build.VERSION.SDK_INT >= 33) { "HLG rendering requires Android 13 or later" }
+            return com.haishinkit.gles.screen.ThreadScreen(context, dynamicRangeMode).apply {
                 frame = Rect(0, 0, DEFAULT_WIDTH, DEFAULT_HEIGHT)
             }
+        }
     }
 }

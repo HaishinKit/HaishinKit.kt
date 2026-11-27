@@ -17,6 +17,9 @@ class VideoCodecSource(
         }
     override var videoSize: Size = Size(0, 0)
     override val imageOrientation: ImageOrientation = ImageOrientation.UP
+    override val dynamicRangeMode
+        get() = videoCodec.dynamicRangeMode
+
     override val videoCropRect
         get() = videoCodec.videoCropRect
 

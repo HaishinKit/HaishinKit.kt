@@ -13,7 +13,7 @@ Organization.
 Please check [this repository](https://github.com/veovera/enhanced-rtmp/) for the specifications.
 
 Publishing sends `onMetaData` as an AMF ECMA array. Enhanced video codecs use
-numeric FourCC values in `videocodecid` (HEVC, VP8 and VP9), and Opus uses its
+numeric FourCC values in `videocodecid` (HEVC, AV1, VP8 and VP9), and Opus uses its
 numeric FourCC in `audiocodecid`. H.264 and AAC retain their legacy numeric IDs.
 
 ## [Enhanced RTMP v1 support](https://github.com/veovera/enhanced-rtmp/blob/main/docs/enhanced/enhanced-rtmp-v1.md)
@@ -21,6 +21,7 @@ numeric FourCC in `audiocodecid`. H.264 and AAC retain their legacy numeric IDs.
 | Video codec | Publishing | Playback |
 | --- | --- | --- |
 | HEVC | ☑️ | ☑️ |
+| HEVC Main10 HDR (HLG) | ☑️ | ☑️ |
 | VP9 | ☑️ | ☑️ |
 | AV1 | ☑️ | ☑️ |
 
@@ -31,6 +32,60 @@ numeric FourCC in `audiocodecid`. H.264 and AAC retain their legacy numeric IDs.
 | Metadata Frame | — |
 
 ☑️ Supported · — Not implemented. Codec availability also depends on the device.
+
+### HLG composition, publishing and playback
+
+Select `DynamicRangeMode.HLG` when creating the mixer. HLG uses 10-bit BT.2020
+surfaces and a floating-point, linear-light OpenGL composition buffer. SDR sRGB images/text and BT.709 video are converted to the working space; SDR reference white is 203 cd/m²
+in a nominal 1000 cd/m² HLG output. Existing mixers remain SDR by default.
+
+```kotlin
+val mixer = MediaMixer(context, dynamicRangeMode = DynamicRangeMode.HLG)
+val camera = Camera2Source(context, dynamicRangeMode = DynamicRangeMode.HLG)
+mixer.attachVideo(0, camera).getOrThrow()
+
+val connection = RtmpConnection()
+val stream = RtmpStream(context, connection)
+stream.videoSetting.profileLevel = VideoCodecProfileLevel.HEVC_MAIN10_4_1
+// For AV1: VideoCodecProfileLevel.AV1_MAIN10_4_1
+mixer.registerOutput(stream)
+mixer.registerOutput(surfaceView) // HkSurfaceView
+mixer.startRunning()
+// Connect and publish using the normal RtmpConnection / RtmpStream flow.
+```
+
+This path requires Android 13 or later, an HLG10 camera for HDR capture, OpenGL ES 3,
+10-bit EGL output, floating-point color buffers, `GL_EXT_YUV_target`, and an encoder
+that supports Main10 at the selected resolution/rate and HDR/HLG editing from RGB
+surfaces. An SDR camera can also be composited into an HLG mixer; it does not become
+an HDR capture source. Unsupported camera or encoder settings are rejected.
+
+Use the OpenGL pixel-transform backend and `HkSurfaceView` for HLG display;
+`HkTextureView` and the Vulkan backend are not supported by this path. HLG input is currently limited-range BT.2020.
+Video sources in an HLG composition use the default effect; other source-video
+effects fall back to the default with a warning. Custom effects must not assume the
+SDR gamma-encoded working space. `Screen.readPixels` returns `null` for HLG screens;
+8-bit bitmap export and HDR-to-SDR tone mapping are not implemented.
+
+For a known HLG incoming stream, select the playback composition range before connecting:
+
+```kotlin
+val player = RtmpStream(context, connection, playbackDynamicRangeMode = DynamicRangeMode.HLG)
+player.registerOutput(surfaceView) // HkSurfaceView
+// Connect and play using the normal flow.
+```
+
+The server must preserve the HEVC/AV1 sequence configuration and frame data. HLG
+AV1 decoding waits for the first sync frame and validates its in-band sequence
+header before configuring the decoder; this avoids starting a 10-bit decoder with
+a stale or placeholder 8-bit configuration. Midstream configuration changes still
+require a new stream. HLG
+color signaling is carried in the codec bitstream; `VideoPacketType.Metadata`
+(`colorInfo`), HDR10/PQ, HDR10+ and Dolby Vision are not implemented. Select a new
+mixer or playback stream to change dynamic range. The connect command keeps the
+`videoFunction` HDR flag unset because that flag also implies `colorInfo` support.
+HDR brightness and appearance
+require a compatible display and physical-device validation.
 
 ### AV1 publishing and playback
 
@@ -48,6 +103,10 @@ AV1 playback uses Enhanced RTMP (`av01`) and the device's built-in Android decod
 It requires Android 10 or later, an available AV1 decoder, and an Enhanced RTMP server
 such as MediaMTX. No additional software codec is bundled. Use the normal
 [RtmpStream.play][com.haishinkit.rtmp.RtmpStream.play] API; codec selection follows the received stream.
+
+Playback accepts both AV1 `CodedFrames` and `CodedFramesX` with no composition-time
+field. Publishing completes header-only encoder configuration records from the
+first keyframe before sending SequenceStart.
 
 AV1 playback waits up to five seconds for the renderer's initial output surface. Changing
 to or from AV1, or changing its decoder configuration during playback, is rejected and logged.
@@ -84,14 +143,14 @@ The record's initialization-data length must be zero, as required for VP8/VP9 by
 
 Codec changes involving VP8, VP9 or AV1, and changes to an active codec configuration,
 are rejected. Close playback before making those changes. Identical repeated headers
-are accepted. This does not add SRT/TS codec support or a new HDR publishing pipeline.
+are accepted. This section does not add SRT/TS support for VP8 or VP9.
 
 ## [Enhanced RTMP v2 support](https://github.com/veovera/enhanced-rtmp/blob/main/docs/enhanced/enhanced-rtmp-v2.md)
 
 | Codec | Publishing | Playback |
 | --- | --- | --- |
 | VP8 (Enhanced Video) | ☑️ | ☑️ |
-| AV1 HDR (Enhanced Video) | — | — |
+| AV1 Main10 HDR, HLG (Enhanced Video) | ☑️ | ☑️ |
 | Opus, mono/stereo (Enhanced Audio) | ☑️ | ☑️ |
 
 | Other features | Status |

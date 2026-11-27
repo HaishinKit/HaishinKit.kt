@@ -16,8 +16,9 @@ internal class ThreadPixelTransform(
     override val context: Context,
 ) : PixelTransform {
     override var screen: Screen?
-        get() = pixelTransform.screen
+        get() = selectedScreen
         set(value) {
+            selectedScreen = value
             handler.apply {
                 sendMessage(obtainMessage(MSG_SET_SCREEN, value))
             }
@@ -28,6 +29,11 @@ internal class ThreadPixelTransform(
             handler.apply {
                 sendMessage(obtainMessage(MSG_SET_OUTPUT_SURFACE, value))
             }
+        }
+    override var isEncoderOutput: Boolean
+        get() = pixelTransform.isEncoderOutput
+        set(value) {
+            handler.post { pixelTransform.isEncoderOutput = value }
         }
     override var videoGravity: VideoGravity
         get() = pixelTransform.videoGravity
@@ -66,6 +72,9 @@ internal class ThreadPixelTransform(
             }
         }
 
+    @Volatile
+    private var selectedScreen: Screen? = null
+
     private val handler: Handler by lazy {
         val thread = HandlerThread(TAG)
         thread.start()
@@ -85,6 +94,17 @@ internal class ThreadPixelTransform(
 
         override fun handleMessage(message: Message) {
             val transform = weakTransform.get() ?: return
+            try {
+                applyMessage(transform, message)
+            } catch (cause: RuntimeException) {
+                transform.handleRenderingFailure(cause)
+            }
+        }
+
+        private fun applyMessage(
+            transform: com.haishinkit.gles.PixelTransform,
+            message: Message,
+        ) {
             when (message.what) {
                 MSG_SET_SCREEN -> {
                     if (message.obj == null) {
@@ -129,8 +149,12 @@ internal class ThreadPixelTransform(
 
     override fun close() {
         handler.post {
-            pixelTransform.surface = null
-            pixelTransform.screen = null
+            try {
+                pixelTransform.surface = null
+                pixelTransform.screen = null
+            } catch (cause: RuntimeException) {
+                pixelTransform.handleRenderingFailure(cause)
+            }
         }
         handler.looper.quitSafely()
         if (Looper.myLooper() != handler.looper) handler.looper.thread.join()

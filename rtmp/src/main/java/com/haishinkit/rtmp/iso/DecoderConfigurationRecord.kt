@@ -35,6 +35,7 @@ internal interface DecoderConfigurationRecord {
             when (mime) {
                 MediaFormat.MIMETYPE_VIDEO_AVC -> AvcDecoderConfigurationRecord.create(mediaFormat)
                 MediaFormat.MIMETYPE_VIDEO_HEVC -> HevcDecoderConfigurationRecord.create(mediaFormat)
+                MediaFormat.MIMETYPE_VIDEO_AV1 -> Av1DecoderConfigurationRecord.create(mediaFormat)
                 else -> null
             }
 

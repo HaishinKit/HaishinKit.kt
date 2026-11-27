@@ -5,6 +5,7 @@ import android.util.AttributeSet
 import android.util.Size
 import android.view.SurfaceHolder
 import android.view.SurfaceView
+import com.haishinkit.graphics.DynamicRangeMode
 import com.haishinkit.graphics.PixelTransform
 import com.haishinkit.graphics.VideoGravity
 import com.haishinkit.graphics.effect.VideoEffect
@@ -27,6 +28,12 @@ class HkSurfaceView
         StreamView {
         override var dataSource: WeakReference<MediaOutputDataSource>? = null
             set(value) {
+                val hlg = value?.get()?.screen?.dynamicRangeMode == DynamicRangeMode.HLG
+                require(!hlg || pixelTransform is com.haishinkit.gles.ThreadPixelTransform) { "HLG display requires the OpenGL pixel transform" }
+                if (hlg != isHlgSurface) {
+                    holder.setFormat(if (hlg) android.graphics.PixelFormat.RGBA_1010102 else android.graphics.PixelFormat.OPAQUE)
+                    isHlgSurface = hlg
+                }
                 field = value
                 pixelTransform.screen = value?.get()?.screen
             }
@@ -49,6 +56,7 @@ class HkSurfaceView
                 pixelTransform.videoEffect = value
             }
 
+        private var isHlgSurface = false
         private val pixelTransform: PixelTransform by lazy { PixelTransform.create(context) }
 
         init {

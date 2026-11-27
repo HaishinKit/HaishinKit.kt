@@ -110,6 +110,109 @@ class Av1PlaybackTest {
         }
     }
 
+    @Test fun mediaMtxCodedFramesXPreservesAv1PayloadAndTimestamp() {
+        ShadowMediaCodecList.reset()
+        val capabilities =
+            MediaCodecInfoBuilder.CodecCapabilitiesBuilder.newBuilder()
+                .setMediaFormat(MediaFormat.createVideoFormat(MediaFormat.MIMETYPE_VIDEO_AV1, 320, 180)).setIsEncoder(false).setColorFormats(intArrayOf(MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420Flexible)).setProfileLevels(emptyArray()).build()
+        ShadowMediaCodecList.addCodec(MediaCodecInfoBuilder.newBuilder().setName("test.av1.decoder").setIsEncoder(false).setCapabilities(capabilities).build())
+        try {
+            withStream { stream, codec, _ ->
+                codec.inputMimeType = MediaFormat.MIMETYPE_VIDEO_AV1
+                codec.isRunning.set(true)
+                stream.connection.streams[1] = stream
+                RtmpStream::class.java.getDeclaredField("videoConfigurationAccepted").apply { isAccessible = true }.setBoolean(stream, true)
+                val wire = byteArrayOf(0x93.toByte(), 0x61, 0x76, 0x30, 0x31, 0x12, 0, 0x32, 1, 0)
+                val input =
+                    RtmpVideoMessage().apply {
+                        length = wire.size
+                        streamID = 1
+                        timestamp = 42
+                    }
+                input.decode(ByteBuffer.wrap(wire)).execute(stream.connection)
+                val controller = RtmpMuxer::class.java.getDeclaredMethod("getVideoBufferController").apply { isAccessible = true }.invoke(stream.muxer)
+                val queue = BufferController::class.java.getDeclaredField("messages").apply { isAccessible = true }.get(controller) as LinkedBlockingDeque<*>
+                assertEquals(1, queue.size)
+                val received = queue.first as RtmpVideoMessage
+                assertEquals(ByteBuffer.wrap(wire.copyOfRange(5, wire.size)), received.data)
+                assertEquals(42, received.timestamp)
+                assertEquals(0, received.compositeTime)
+                codec.isRunning.set(false)
+            }
+        } finally {
+            ShadowMediaCodecList.reset()
+        }
+    }
+
+    @Test fun hlgHevcUsesVisibleDecoderCropWithoutReattachingTheSurface() {
+        withStream { stream, codec, screen ->
+            codec.dynamicRangeMode = com.haishinkit.graphics.DynamicRangeMode.HLG
+            codec.inputMimeType = MediaFormat.MIMETYPE_VIDEO_HEVC
+            val format =
+                MediaFormat.createVideoFormat(MediaFormat.MIMETYPE_VIDEO_RAW, 320, 184).apply {
+                    setInteger("crop-left", 0)
+                    setInteger("crop-top", 0)
+                    setInteger("crop-right", 319)
+                    setInteger("crop-bottom", 179)
+                }
+            stream.muxer.onFormatChanged(MediaFormat.MIMETYPE_VIDEO_RAW, format)
+            assertEquals(Rect(0, 0, 320, 180), screen.frame)
+            assertEquals(0, screen.attachments)
+        }
+    }
+
+    @Test fun hlgOutputRejectsExplicitIncompatibleColorButAllowsAbsentOptionalKeys() {
+        withStream { stream, codec, screen ->
+            codec.dynamicRangeMode = com.haishinkit.graphics.DynamicRangeMode.HLG
+            codec.inputMimeType = MediaFormat.MIMETYPE_VIDEO_HEVC
+            codec.isRunning.set(true)
+            RtmpStream::class.java.getDeclaredField("videoConfigurationAccepted").apply { isAccessible = true }.setBoolean(stream, true)
+            assertTrue(stream.acceptHlgOutputFormat(MediaFormat.createVideoFormat(MediaFormat.MIMETYPE_VIDEO_RAW, 320, 180)))
+            assertTrue(stream.canRenderVideo)
+            val fullRange =
+                MediaFormat.createVideoFormat(MediaFormat.MIMETYPE_VIDEO_RAW, 320, 180).apply {
+                    setInteger(MediaFormat.KEY_COLOR_STANDARD, MediaFormat.COLOR_STANDARD_BT2020)
+                    setInteger(MediaFormat.KEY_COLOR_TRANSFER, MediaFormat.COLOR_TRANSFER_HLG)
+                    setInteger(MediaFormat.KEY_COLOR_RANGE, MediaFormat.COLOR_RANGE_FULL)
+                }
+            stream.muxer.onFormatChanged(MediaFormat.MIMETYPE_VIDEO_RAW, fullRange)
+            assertFalse(stream.canRenderVideo)
+            assertTrue(stream.muxer.onSampleOutput(MediaFormat.MIMETYPE_VIDEO_RAW, 0, android.media.MediaCodec.BufferInfo(), ByteBuffer.allocate(0)))
+            fullRange.setInteger(MediaFormat.KEY_COLOR_RANGE, MediaFormat.COLOR_RANGE_LIMITED)
+            assertFalse(stream.acceptHlgOutputFormat(fullRange)) // Rejection is latched until close/restart.
+            assertEquals(0, screen.attachments)
+            codec.isRunning.set(false)
+        }
+    }
+
+    @Test fun hlgIgnoresAllUnsupportedVideoPacketsBeforeChangingStateOrQueueing() {
+        withStream { stream, codec, screen ->
+            codec.dynamicRangeMode = com.haishinkit.graphics.DynamicRangeMode.HLG
+            stream.connection.streams[1] = stream
+            val inputMime = codec.inputMimeType
+            val avc = byteArrayOf(1, 100, 0, 31, -1, -31, 0, 27, 103, 100, 0, 31, -84, -39, 64, 72, 5, -70, 106, 2, 2, 2, -128, 0, 0, 3, 0, -128, 0, 0, 30, 71, -116, 24, -53, 1, 0, 4, 104, -17, -68, -80)
+            for (packet in listOf(0, 1)) {
+                RtmpVideoMessage().apply {
+                    streamID = 1
+                    isExHeader = false
+                    this.codec = RtmpMuxer.FLV_VIDEO_CODEC_AVC
+                    packetType = packet.toByte()
+                    data = ByteBuffer.wrap(if (packet == 0) avc else byteArrayOf(0, 0, 0, 1, 0x65, 0))
+                }.execute(stream.connection)
+            }
+            for (fourcc in listOf(RtmpMuxer.FLV_VIDEO_FOUR_CC_VP08, RtmpMuxer.FLV_VIDEO_FOUR_CC_VP09)) {
+                message(0, byteArrayOf(1)).apply { fourCC = fourcc }.execute(stream.connection)
+            }
+            val controller = RtmpMuxer::class.java.getDeclaredMethod("getVideoBufferController").apply { isAccessible = true }.invoke(stream.muxer)
+            val queue = BufferController::class.java.getDeclaredField("messages").apply { isAccessible = true }.get(controller) as LinkedBlockingDeque<*>
+            assertEquals(0, queue.size)
+            assertEquals(inputMime, codec.inputMimeType)
+            assertEquals(0, screen.attachments)
+            assertFalse(codec.isRunning.get())
+            assertEquals(stream, stream.connection.streams[1])
+        }
+    }
+
     private fun message(
         packet: Int,
         bytes: ByteArray,

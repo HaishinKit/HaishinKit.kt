@@ -6,6 +6,7 @@ import android.util.AttributeSet
 import android.util.Size
 import android.view.Surface
 import android.view.TextureView
+import com.haishinkit.graphics.DynamicRangeMode
 import com.haishinkit.graphics.PixelTransform
 import com.haishinkit.graphics.VideoGravity
 import com.haishinkit.graphics.effect.VideoEffect
@@ -29,6 +30,7 @@ class HkTextureView
         TextureView.SurfaceTextureListener {
         override var dataSource: WeakReference<MediaOutputDataSource>? = null
             set(value) {
+                require(value?.get()?.screen?.dynamicRangeMode != DynamicRangeMode.HLG) { "HLG display requires HkSurfaceView" }
                 field = value
                 pixelTransform.screen = value?.get()?.screen
             }

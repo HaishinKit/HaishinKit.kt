@@ -11,6 +11,7 @@ import com.haishinkit.media.BufferController
 import com.haishinkit.media.MediaType
 import com.haishinkit.metrics.FrameTracker
 import com.haishinkit.rtmp.event.Event
+import com.haishinkit.rtmp.iso.Av1DecoderConfigurationRecord
 import com.haishinkit.rtmp.iso.AvcDecoderConfigurationRecord
 import com.haishinkit.rtmp.iso.DecoderConfigurationRecord
 import com.haishinkit.rtmp.iso.OpusConfiguration
@@ -27,6 +28,8 @@ internal class RtmpMuxer(
     @Volatile
     private var vpxConfigurationSent = false
     private var vpxLevel = 0
+    private var pendingAv1Configuration: Av1DecoderConfigurationRecord? = null
+    private var av1ConfigurationSent = false
     private var bufferTime = BufferController.DEFAULT_BUFFER_TIME
         set(value) {
             if (value == field) return
@@ -71,6 +74,8 @@ internal class RtmpMuxer(
 
     fun clear() {
         vpxConfigurationSent = false
+        pendingAv1Configuration = null
+        av1ConfigurationSent = false
         audioTimestamp = 0L
         audioTimestampInitialized = false
         opusConfigurationSent = false
@@ -137,7 +142,8 @@ internal class RtmpMuxer(
     ) {
         when (mime) {
             MediaFormat.MIMETYPE_VIDEO_RAW -> {
-                if (isNonNalVideo(stream.inputVideoMimeType) &&
+                if (!stream.acceptHlgOutputFormat(mediaFormat)) return
+                if (stream.requiresSurfaceDecoder(stream.inputVideoMimeType) &&
                     mediaFormat.containsKey(MediaFormat.KEY_WIDTH) && mediaFormat.containsKey(MediaFormat.KEY_HEIGHT)
                 ) {
                     stream.updateVideoSize(
@@ -186,6 +192,13 @@ internal class RtmpMuxer(
             MediaFormat.MIMETYPE_VIDEO_HEVC,
             -> {
                 val config = DecoderConfigurationRecord.create(mime, mediaFormat) ?: return
+                if (config is Av1DecoderConfigurationRecord) {
+                    if (!config.hasSequenceHeader) {
+                        pendingAv1Configuration = config
+                        return
+                    }
+                    av1ConfigurationSent = true
+                }
                 stream.doOutput(
                     RtmpChunk.ZERO,
                     stream.messageFactory.createRtmpVideoMessage().apply {
@@ -251,6 +264,7 @@ internal class RtmpMuxer(
     ): Boolean {
         when (mime) {
             MediaFormat.MIMETYPE_VIDEO_RAW -> {
+                if (!stream.canRenderVideo) return true
                 val isKeyframe = info.flags == 1 || keyframes[info.presentationTimeUs] == true
                 if (isKeyframe) {
                     keyframes.remove(info.presentationTimeUs)
@@ -306,7 +320,7 @@ internal class RtmpMuxer(
                 }
                 val vpx = mime == MediaFormat.MIMETYPE_VIDEO_VP8 || mime == MediaFormat.MIMETYPE_VIDEO_VP9
                 val codedBuffer =
-                    if (vpx) {
+                    if (vpx || mime == MediaFormat.MIMETYPE_VIDEO_AV1) {
                         if (info.offset < 0 || info.size <= 0 || info.size > buffer.capacity() - info.offset) return true
                         buffer.duplicate().apply {
                             limit(info.offset + info.size)
@@ -321,6 +335,30 @@ internal class RtmpMuxer(
                 }
                 val timestamp = (info.presentationTimeUs - videoTimestamp).toInt()
                 val keyframe = info.flags and MediaCodec.BUFFER_FLAG_KEY_FRAME != 0
+                if (mime == MediaFormat.MIMETYPE_VIDEO_AV1 && !av1ConfigurationSent) {
+                    if (!keyframe) return true
+                    val config =
+                        try {
+                            pendingAv1Configuration?.withSequenceHeader(codedBuffer) ?: Av1DecoderConfigurationRecord.fromKeyFrame(codedBuffer)
+                        } catch (cause: IllegalArgumentException) {
+                            null
+                        } ?: return true
+                    stream.doOutput(
+                        RtmpChunk.ZERO,
+                        stream.messageFactory.createRtmpVideoMessage().apply {
+                            isExHeader = true
+                            frame = FLV_FRAME_TYPE_KEY
+                            packetType = FLV_VIDEO_PACKET_TYPE_SEQUENCE_START
+                            fourCC = FLV_VIDEO_FOUR_CC_AV01
+                            data = config.toByteBuffer()
+                            chunkStreamID = RtmpChunk.VIDEO
+                            streamID = stream.id
+                            this.timestamp = 0
+                        },
+                    )
+                    pendingAv1Configuration = null
+                    av1ConfigurationSent = true
+                }
                 if ((mime == MediaFormat.MIMETYPE_VIDEO_VP8 || mime == MediaFormat.MIMETYPE_VIDEO_VP9) && !vpxConfigurationSent) {
                     if (!keyframe) return true
                     val record =

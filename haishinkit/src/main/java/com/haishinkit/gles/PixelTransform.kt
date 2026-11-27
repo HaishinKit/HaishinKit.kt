@@ -8,6 +8,7 @@ import android.util.Size
 import android.view.Choreographer
 import android.view.Surface
 import com.haishinkit.BuildConfig
+import com.haishinkit.graphics.DynamicRangeMode
 import com.haishinkit.graphics.FpsController
 import com.haishinkit.graphics.PixelTransform
 import com.haishinkit.graphics.ScheduledFpsController
@@ -29,7 +30,7 @@ internal class PixelTransform(
     override val isRunning: AtomicBoolean = AtomicBoolean(false)
     override var screen: Screen? = null
         set(value) {
-            if (value == field) return
+            if (value == field && isRunning.get()) return
             if (field != null) {
                 stopRunning()
             }
@@ -42,7 +43,7 @@ internal class PixelTransform(
         }
     override var surface: Surface? = null
         set(value) {
-            if (value == field) return
+            if (value == field && isRunning.get()) return
             field = value
             if (value == null) {
                 stopRunning()
@@ -77,7 +78,7 @@ internal class PixelTransform(
         set(value) {
             if (field == value) return
             field = value
-            program = shaderLoader.getProgram(GLES20.GL_TEXTURE_2D, value)
+            program = shaderLoader.getProgram(GLES20.GL_TEXTURE_2D, value, if (screen?.dynamicRangeMode == DynamicRangeMode.HLG) 3 else 0)
         }
 
     override var frameRate: Int
@@ -85,6 +86,8 @@ internal class PixelTransform(
         set(value) {
             fpsController.frameRate = value
         }
+
+    override var isEncoderOutput = false
 
     override var backgroundColor: Int = Color.BLACK
 
@@ -95,11 +98,9 @@ internal class PixelTransform(
             field = value
             field?.postFrameCallback(this)
         }
+
+    // ShaderLoader owns cached programs until the context is released.
     private var program: Program? = null
-        set(value) {
-            field?.dispose()
-            field = value
-        }
     private val shaderLoader by lazy {
         ShaderLoader(context)
     }
@@ -116,10 +117,10 @@ internal class PixelTransform(
         isRunning.set(true)
         video.videoGravity = videoGravity
         graphicsContext.apply {
-            open((screen as? com.haishinkit.gles.screen.ThreadScreen)?.graphicsContext)
-            makeCurrent(createWindowSurface(surface))
+            open((screen as? com.haishinkit.gles.screen.ThreadScreen)?.graphicsContext, screen!!.dynamicRangeMode)
+            makeCurrent(createWindowSurface(surface, isEncoderOutput))
         }
-        program = shaderLoader.getProgram(GLES20.GL_TEXTURE_2D, videoEffect)
+        program = shaderLoader.getProgram(GLES20.GL_TEXTURE_2D, videoEffect, if (screen?.dynamicRangeMode == DynamicRangeMode.HLG) 3 else 0)
         screen?.let {
             video.videoSize = Size(it.bounds.width(), it.bounds.height())
         }
@@ -140,6 +141,21 @@ internal class PixelTransform(
         shaderLoader.release()
         graphicsContext.close()
         isRunning.set(false)
+    }
+
+    internal fun handleRenderingFailure(cause: RuntimeException) {
+        Log.e(TAG, "Unable to attach or configure the output surface; waiting for a replacement", cause)
+        choreographer = null
+        program = null
+        try {
+            shaderLoader.release()
+        } finally {
+            try {
+                graphicsContext.close()
+            } finally {
+                isRunning.set(false)
+            }
+        }
     }
 
     override fun doFrame(frameTimeNanos: Long) {
@@ -175,12 +191,9 @@ internal class PixelTransform(
     }
 
     fun clearColor(color: Int) {
-        GLES20.glClearColor(
-            ((color shr 16) and 0xFF) / 255.0f,
-            ((color shr 8) and 0xFF) / 255.0f,
-            (color and 0xFF) / 255.0f,
-            ((color shr 24) and 0xFF) / 255.0f,
-        )
+        val rgb = floatArrayOf(((color shr 16) and 255) / 255f, ((color shr 8) and 255) / 255f, (color and 255) / 255f)
+        val output = if (screen?.dynamicRangeMode == DynamicRangeMode.HLG) HlgColor.encode(HlgColor.fromSrgb(rgb[0], rgb[1], rgb[2])) else rgb
+        GLES20.glClearColor(output[0], output[1], output[2], if (screen?.dynamicRangeMode == DynamicRangeMode.HLG) 1f else ((color shr 24) and 255) / 255f)
     }
 
     companion object {

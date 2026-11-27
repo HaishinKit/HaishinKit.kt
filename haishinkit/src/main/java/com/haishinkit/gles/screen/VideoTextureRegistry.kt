@@ -41,6 +41,11 @@ internal class VideoTextureRegistry : SurfaceTexture.OnFrameAvailableListener {
     override fun onFrameAvailable(surfaceTexture: SurfaceTexture?) {
         try {
             surfaceTexture?.updateTexImage()
+            textures.values.firstOrNull { it.texture === surfaceTexture }?.let { entry ->
+                if (entry.source.dynamicRangeMode == com.haishinkit.graphics.DynamicRangeMode.HLG) {
+                    entry.texture.getTransformMatrix(entry.transform)
+                }
+            }
         } catch (e: RuntimeException) {
             if (BuildConfig.DEBUG) {
                 Log.e(TAG, "", e)
@@ -53,7 +58,9 @@ internal class VideoTextureRegistry : SurfaceTexture.OnFrameAvailableListener {
         val texture: SurfaceTexture,
         val surface: Surface,
         val source: VideoSource,
-    )
+    ) {
+        val transform = FloatArray(16).apply { android.opengl.Matrix.setIdentityM(this, 0) }
+    }
 
     private companion object {
         private val TAG = VideoTextureRegistry::class.java.simpleName

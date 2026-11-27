@@ -145,9 +145,12 @@ internal class RtmpVideoMessage(
 
     override fun execute(connection: RtmpConnection): RtmpMessage {
         val stream = connection.streams[streamID] ?: return this
+        // HLG playback supports only the explicitly selected 10-bit codecs. Ignore all
+        // packets from other codecs before changing decoder state or queueing data.
+        if (stream.isHlgPlayback && (!isExHeader || (fourCC != RtmpMuxer.FLV_VIDEO_FOUR_CC_HVC1 && fourCC != RtmpMuxer.FLV_VIDEO_FOUR_CC_AV01))) return this
         if (isExHeader && packetType == RtmpMuxer.FLV_VIDEO_PACKET_TYPE_SEQUENCE_START) {
             val mime = RtmpMuxer.getTypeByVideoFourCC(fourCC)
-            if (mime != null && RtmpMuxer.isNonNalVideo(mime) && !stream.isVideoCodecSwitch(mime)) {
+            if (mime != null && stream.requiresSurfaceDecoder(mime) && !stream.isVideoCodecSwitch(mime)) {
                 stream.invalidateVideoConfiguration()
             }
         }
@@ -174,7 +177,7 @@ internal class RtmpVideoMessage(
                             return this
                         }
                     // AV1 CSD is submitted by configure/start; VP8/VP9 have no ISO CSD to queue.
-                    if (stream.configure(record) && !RtmpMuxer.isNonNalVideo(mime)) {
+                    if (stream.configure(record) && !stream.requiresSurfaceDecoder(mime)) {
                         timestamp = 0
                         stream.muxer.enqueueVideo(this)
                     }
@@ -187,8 +190,11 @@ internal class RtmpVideoMessage(
                     ) {
                         return this
                     }
-                    if (RtmpMuxer.isNonNalVideo(mime) &&
-                        (packetType != RtmpMuxer.FLV_VIDEO_PACKET_TYPE_CODED_FRAMES || !stream.canReceiveCodedVideo)
+                    if (mime == MediaFormat.MIMETYPE_VIDEO_AV1 && !stream.prepareAv1Frame(payload, frame == RtmpMuxer.FLV_FRAME_TYPE_KEY)) {
+                        return this
+                    }
+                    if (stream.requiresSurfaceDecoder(mime) &&
+                        ((packetType != RtmpMuxer.FLV_VIDEO_PACKET_TYPE_CODED_FRAMES && !((mime == MediaFormat.MIMETYPE_VIDEO_AV1 || mime == MediaFormat.MIMETYPE_VIDEO_HEVC) && packetType == RtmpMuxer.FLV_VIDEO_PACKET_TYPE_CODED_FRAMES_X)) || !stream.canReceiveCodedVideo)
                     ) {
                         return this
                     }
