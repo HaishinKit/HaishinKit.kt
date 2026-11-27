@@ -182,11 +182,7 @@ class VideoCodec(
                 setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, IFrameInterval)
                 setInteger(MediaFormat.KEY_COLOR_FORMAT, colorFormat)
                 setInteger(MediaFormat.KEY_PROFILE, profileLevel.profile)
-                if (Build.VERSION_CODES.M <= Build.VERSION.SDK_INT) {
-                    setInteger(MediaFormat.KEY_LEVEL, profileLevel.level)
-                } else {
-                    setInteger("level", profileLevel.level)
-                }
+                setInteger(MediaFormat.KEY_LEVEL, profileLevel.level)
             } else {
                 if (Build.VERSION_CODES.R <= Build.VERSION.SDK_INT) {
                     setInteger(MediaFormat.KEY_LOW_LATENCY, 1)

@@ -71,40 +71,28 @@ object MediaFormatUtil {
             "sampleRate=$sampleRate, channelCount=$channelCount, channelMask:$channelMask, bufferSize=$bufferSize",
         )
         try {
-            return if (Build.VERSION_CODES.M <= Build.VERSION.SDK_INT) {
-                AudioTrack
-                    .Builder()
-                    .setAudioAttributes(
-                        AudioAttributes
-                            .Builder()
-                            .setUsage(usage)
-                            .setContentType(if (usage == AudioAttributes.USAGE_VOICE_COMMUNICATION) AudioAttributes.CONTENT_TYPE_SPEECH else AudioAttributes.CONTENT_TYPE_MOVIE)
-                            .build(),
-                    ).setAudioFormat(
-                        AudioFormat
-                            .Builder()
-                            .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
-                            .setSampleRate(sampleRate)
-                            .setChannelMask(channelMask)
-                            .build(),
-                    ).setBufferSizeInBytes(bufferSize)
-                    .setTransferMode(AudioTrack.MODE_STREAM)
-                    .apply {
-                        if (Build.VERSION_CODES.O <= Build.VERSION.SDK_INT) {
-                            setPerformanceMode(AudioTrack.PERFORMANCE_MODE_LOW_LATENCY)
-                        }
-                    }.build()
-            } else {
-                @Suppress("DEPRECATION")
-                return AudioTrack(
-                    AudioManager.STREAM_MUSIC,
-                    sampleRate,
-                    channelMask,
-                    AudioFormat.ENCODING_PCM_16BIT,
-                    bufferSize,
-                    AudioTrack.MODE_STREAM,
-                )
-            }
+            return AudioTrack
+                .Builder()
+                .setAudioAttributes(
+                    AudioAttributes
+                        .Builder()
+                        .setUsage(usage)
+                        .setContentType(if (usage == AudioAttributes.USAGE_VOICE_COMMUNICATION) AudioAttributes.CONTENT_TYPE_SPEECH else AudioAttributes.CONTENT_TYPE_MOVIE)
+                        .build(),
+                ).setAudioFormat(
+                    AudioFormat
+                        .Builder()
+                        .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                        .setSampleRate(sampleRate)
+                        .setChannelMask(channelMask)
+                        .build(),
+                ).setBufferSizeInBytes(bufferSize)
+                .setTransferMode(AudioTrack.MODE_STREAM)
+                .apply {
+                    if (Build.VERSION_CODES.O <= Build.VERSION.SDK_INT) {
+                        setPerformanceMode(AudioTrack.PERFORMANCE_MODE_LOW_LATENCY)
+                    }
+                }.build()
         } catch (e: Exception) {
             @Suppress("DEPRECATION")
             return AudioTrack(
