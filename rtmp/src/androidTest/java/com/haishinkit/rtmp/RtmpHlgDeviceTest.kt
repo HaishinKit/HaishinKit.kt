@@ -36,7 +36,15 @@ class RtmpHlgDeviceTest {
             val context = InstrumentationRegistry.getInstrumentation().context
             val mixer = MediaMixer(context, dynamicRangeMode = DynamicRangeMode.HLG)
             mixer.screen.frame = Rect(0, 0, 320, 180)
-            val bitmap = Bitmap.createBitmap(320, 180, Bitmap.Config.ARGB_8888).apply { eraseColor(Color.WHITE) }
+            val bitmap =
+                Bitmap.createBitmap(320, 180, Bitmap.Config.ARGB_8888).apply {
+                    val canvas = android.graphics.Canvas(this)
+                    val paint = android.graphics.Paint()
+                    for ((rect, color) in listOf(Rect(0, 0, 160, 90) to Color.RED, Rect(160, 0, 320, 90) to Color.GREEN, Rect(0, 90, 160, 180) to Color.BLUE, Rect(160, 90, 320, 180) to Color.YELLOW, Rect(120, 60, 200, 120) to Color.WHITE)) {
+                        paint.color = color
+                        canvas.drawRect(rect, paint)
+                    }
+                }
             mixer.screen.addChild(
                 ImageScreenObject().apply {
                     this.bitmap = bitmap
@@ -102,10 +110,33 @@ class RtmpHlgDeviceTest {
                 // Decoder output precedes MediaLink presentation and composition.
                 var referenceWhite = FloatArray(4)
                 waitUntil {
-                    referenceWhite = readLinearCenter(player)
+                    referenceWhite = readLinearPixel(player.screen)
                     referenceWhite.take(3).any { it > 0.01f }
                 }
                 for (value in referenceWhite.take(3)) org.junit.Assert.assertEquals(0.203f, value, 0.035f)
+                if (external == null) {
+                    // Composition textures keep the bitmap's first row at GL y=0;
+                    // the output transform maps it to the displayed top edge.
+                    for ((point, color) in listOf((8 to 8) to Color.RED, (311 to 8) to Color.GREEN, (8 to 171) to Color.BLUE, (311 to 171) to Color.YELLOW)) {
+                        val pixel = readLinearPixel(player.screen, point.first, point.second)
+                        android.util.Log.i("RtmpHlgDeviceTest", "HLG_CORNER ${profile.mime} $point color=$color value=${pixel.toList()}")
+
+                        // These reference values are independent of the shader conversion.
+                        fun linear(v: Int): Float {
+                            val x = v / 255f
+                            return if (x <= 0.04045f) x / 12.92f else Math.pow(((x + 0.055f) / 1.055f).toDouble(), 2.4).toFloat()
+                        }
+                        val r = linear(Color.red(color))
+                        val g = linear(Color.green(color))
+                        val b = linear(Color.blue(color))
+                        val expected = floatArrayOf((0.627404f * r + 0.329283f * g + 0.043313f * b) * 0.203f, (0.069097f * r + 0.919540f * g + 0.011362f * b) * 0.203f, (0.016391f * r + 0.088013f * g + 0.895595f * b) * 0.203f)
+                        val sourcePixel = readLinearPixel(mixer.screen, point.first, point.second)
+                        for (channel in 0..2) {
+                            org.junit.Assert.assertEquals("source corner=$point channel=$channel", expected[channel], sourcePixel[channel], 0.002f)
+                            org.junit.Assert.assertEquals("${profile.mime} corner=$point channel=$channel", expected[channel], pixel[channel], 0.035f)
+                        }
+                    }
+                }
                 val actual = decoder.codec!!.outputFormat
                 org.junit.Assert.assertEquals(MediaFormat.COLOR_TRANSFER_HLG, actual.getInteger("color-transfer"))
                 org.junit.Assert.assertEquals(MediaFormat.COLOR_STANDARD_BT2020, actual.getInteger("color-standard"))
@@ -125,8 +156,11 @@ class RtmpHlgDeviceTest {
         }
     }
 
-    private fun readLinearCenter(stream: RtmpStream): FloatArray {
-        val screen = stream.screen
+    private fun readLinearPixel(
+        screen: com.haishinkit.screen.Screen,
+        x: Int = screen.frame.width() / 2,
+        y: Int = screen.frame.height() / 2,
+    ): FloatArray {
         val handler = screen.javaClass.getDeclaredMethod("getHandler").apply { isAccessible = true }.invoke(screen) as android.os.Handler
         val read =
             java.util.concurrent.FutureTask {
@@ -136,7 +170,7 @@ class RtmpHlgDeviceTest {
                     android.opengl.GLES20.glBindFramebuffer(android.opengl.GLES20.GL_FRAMEBUFFER, framebuffer[0])
                     android.opengl.GLES20.glFramebufferTexture2D(android.opengl.GLES20.GL_FRAMEBUFFER, android.opengl.GLES20.GL_COLOR_ATTACHMENT0, android.opengl.GLES20.GL_TEXTURE_2D, screen.textureId, 0)
                     val buffer = ByteBuffer.allocateDirect(16).order(java.nio.ByteOrder.nativeOrder()).asFloatBuffer()
-                    android.opengl.GLES20.glReadPixels(screen.frame.width() / 2, screen.frame.height() / 2, 1, 1, android.opengl.GLES20.GL_RGBA, android.opengl.GLES20.GL_FLOAT, buffer)
+                    android.opengl.GLES20.glReadPixels(x, y, 1, 1, android.opengl.GLES20.GL_RGBA, android.opengl.GLES20.GL_FLOAT, buffer)
                     org.junit.Assert.assertEquals(android.opengl.GLES20.GL_NO_ERROR, android.opengl.GLES20.glGetError())
                     FloatArray(4) { buffer[it] }
                 } finally {

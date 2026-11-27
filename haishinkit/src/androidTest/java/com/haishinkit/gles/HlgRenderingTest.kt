@@ -194,6 +194,76 @@ class HlgRenderingTest {
         }
     }
 
+    @Test fun hlgInputCropRetainsFourDistinctCornersAndDoesNotDoubleFlip() {
+        val graphics = GraphicsContext()
+        graphics.open(null, DynamicRangeMode.HLG)
+        graphics.makeCurrent(null)
+        val source = Framebuffer().apply { bounds = Rect(0, 0, 64, 64) }
+        val destination = Framebuffer(DynamicRangeMode.HLG).apply { bounds = Rect(0, 0, 16, 16) }
+        val loader = ShaderLoader(InstrumentationRegistry.getInstrumentation().targetContext)
+        val quad =
+            com.haishinkit.screen.VideoScreenObject(target = GLES20.GL_TEXTURE_2D).apply {
+                frame = Rect(0, 0, 16, 16)
+                videoSize = android.util.Size(16, 16)
+                textureId = source.textureId
+                layout(com.haishinkit.screen.NullRenderer.SHARED)
+                matrix[5] = -1f // The existing external-video geometry flip.
+            }
+        val crop =
+            FloatArray(16).apply {
+                android.opengl.Matrix.setIdentityM(this, 0)
+                this[0] = 0.5f
+                this[5] = -0.5f
+                this[12] = 0.25f
+                this[13] = 0.75f
+            }
+        try {
+            source.render {
+                GLES20.glClearColor(1f, 0f, 1f, 1f) // Padding must never reach the output.
+                GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT)
+                GLES20.glEnable(GLES20.GL_SCISSOR_TEST)
+                for ((rect, rgb) in listOf(
+                    Rect(16, 16, 32, 32) to floatArrayOf(1f, 0f, 0f),
+                    Rect(32, 16, 48, 32) to floatArrayOf(0f, 1f, 0f),
+                    Rect(16, 32, 32, 48) to floatArrayOf(0f, 0f, 1f),
+                    Rect(32, 32, 48, 48) to floatArrayOf(1f, 1f, 1f),
+                )) {
+                    GLES20.glScissor(rect.left, rect.top, rect.width(), rect.height())
+                    GLES20.glClearColor(rgb[0], rgb[1], rgb[2], 1f)
+                    GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT)
+                }
+                GLES20.glDisable(GLES20.GL_SCISSOR_TEST)
+            }
+            val program = loader.getProgram(GLES20.GL_TEXTURE_2D, DefaultVideoEffect.shared, 1)!!
+            destination.render {
+                GLES20.glViewport(0, 0, 16, 16)
+                program.use()
+                program.draw(quad, textureTransform = crop)
+                for ((point, rgb) in listOf(
+                    (1 to 1) to floatArrayOf(1f, 0f, 0f),
+                    (14 to 1) to floatArrayOf(0f, 1f, 0f),
+                    (1 to 14) to floatArrayOf(0f, 0f, 1f),
+                    (14 to 14) to floatArrayOf(1f, 1f, 1f),
+                )) {
+                    val actual = readFloatPixel(point.first, point.second)
+                    val expected = HlgColor.fromSrgb(rgb[0], rgb[1], rgb[2])
+                    for (channel in 0..2) org.junit.Assert.assertEquals("corner=$point channel=$channel", expected[channel], actual[channel], 0.002f)
+                }
+                // A cached program reused without a transform must restore the old UVs.
+                program.use()
+                program.draw(quad)
+                val padding = readFloatPixel(1, 1)
+                val expected = HlgColor.fromSrgb(1f, 0f, 1f)
+                for (channel in 0..2) org.junit.Assert.assertEquals(expected[channel], padding[channel], 0.002f)
+            }
+        } finally {
+            loader.release()
+            destination.release()
+            source.release()
+            graphics.close()
+        }
+    }
+
     @Test fun failedHlgFramebufferResizeDisablesDrawingAndRecovers() {
         val graphics = GraphicsContext()
         graphics.open(null, DynamicRangeMode.HLG)
@@ -382,9 +452,12 @@ class HlgRenderingTest {
         }
     }
 
-    private fun readFloatPixel(): FloatArray {
+    private fun readFloatPixel(
+        x: Int = 8,
+        y: Int = 8,
+    ): FloatArray {
         val buffer = java.nio.ByteBuffer.allocateDirect(16).order(java.nio.ByteOrder.nativeOrder()).asFloatBuffer()
-        GLES20.glReadPixels(8, 8, 1, 1, GLES20.GL_RGBA, GLES20.GL_FLOAT, buffer)
+        GLES20.glReadPixels(x, y, 1, 1, GLES20.GL_RGBA, GLES20.GL_FLOAT, buffer)
         org.junit.Assert.assertEquals(GLES20.GL_NO_ERROR, GLES20.glGetError())
         return FloatArray(4) { buffer[it] }
     }

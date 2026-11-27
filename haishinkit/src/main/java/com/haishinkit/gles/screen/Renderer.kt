@@ -16,6 +16,7 @@ internal class Renderer(
     context: Context,
     private val dynamicRangeMode: DynamicRangeMode = DynamicRangeMode.SDR,
     private val sourceRange: (Int) -> DynamicRangeMode? = { null },
+    private val sourceTextureTransform: (Int) -> FloatArray? = { null },
 ) : Renderer {
     private val warnedVideoEffects = mutableSetOf<String>()
     private val shaderLoader by lazy {
@@ -112,7 +113,15 @@ internal class Renderer(
         )
         program.use()
         program.bind(effect)
-        program.draw(screenObject, screenObject.getCornerClip())
+        val transform =
+            if (dynamicRangeMode == DynamicRangeMode.HLG && screenObject is VideoScreenObject &&
+                screenObject.target == android.opengl.GLES11Ext.GL_TEXTURE_EXTERNAL_OES && sourceRange(screenObject.track) == DynamicRangeMode.HLG
+            ) {
+                sourceTextureTransform(screenObject.track)
+            } else {
+                null
+            }
+        program.draw(screenObject, screenObject.getCornerClip(), transform)
     }
 
     fun release() {

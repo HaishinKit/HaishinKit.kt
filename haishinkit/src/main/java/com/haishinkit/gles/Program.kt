@@ -59,7 +59,21 @@ internal class Program(
     fun draw(
         screenObject: ScreenObject,
         cornerClip: IntArray? = null,
+        textureTransform: FloatArray? = null,
     ) {
+        for (vertex in 0 until 4) {
+            val u = TEX_COORDS_ROTATION_0[vertex * 2]
+            val v = TEX_COORDS_ROTATION_0[vertex * 2 + 1]
+            if (textureTransform == null) {
+                texCoordBuffer.put(vertex * 2, u)
+                texCoordBuffer.put(vertex * 2 + 1, v)
+            } else {
+                // External video geometry already flips vertically. Cancel that flip in
+                // the input coordinates before applying the producer's crop/transform.
+                texCoordBuffer.put(vertex * 2, textureTransform[0] * u + textureTransform[4] * (1f - v) + textureTransform[12])
+                texCoordBuffer.put(vertex * 2 + 1, textureTransform[1] * u + textureTransform[5] * (1f - v) + textureTransform[13])
+            }
+        }
         GLES20.glEnableVertexAttribArray(texCoordHandle)
         Utils.checkGlError("glEnableVertexAttribArray")
         GLES20.glVertexAttribPointer(

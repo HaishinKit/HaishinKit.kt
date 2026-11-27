@@ -42,7 +42,14 @@ internal class Screen(
     override val isRunning: AtomicBoolean = AtomicBoolean(false)
 
     private var textureIds = intArrayOf(0)
-    private val renderer: Renderer by lazy { Renderer(applicationContext, dynamicRangeMode) { track -> videoTextureRegistry.get(track)?.source?.dynamicRangeMode } }
+    private val renderer: Renderer by lazy {
+        Renderer(
+            applicationContext,
+            dynamicRangeMode,
+            sourceRange = { track -> videoTextureRegistry.get(track)?.source?.dynamicRangeMode },
+            sourceTextureTransform = { track -> videoTextureRegistry.get(track)?.transform },
+        )
+    }
     private val framebuffer: Framebuffer by lazy { Framebuffer(dynamicRangeMode) }
     private var choreographer: Choreographer? = null
         set(value) {
