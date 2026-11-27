@@ -7,7 +7,6 @@ import android.content.pm.PackageManager
 import android.media.AudioFormat
 import android.media.AudioRecord
 import android.media.MediaRecorder
-import android.os.Build
 import android.util.Log
 import androidx.core.app.ActivityCompat
 import com.haishinkit.media.MediaBuffer
@@ -130,6 +129,8 @@ class AudioRecordSource(
         const val DEFAULT_AUDIO_SOURCE = MediaRecorder.AudioSource.CAMCORDER
         const val DEFAULT_SAMPLE_COUNT = 1024
 
+        private val TAG = AudioRecordSource::class.java.simpleName
+
         @SuppressLint("MissingPermission")
         private fun createAudioRecord(
             audioSource: Int,
@@ -138,31 +139,21 @@ class AudioRecordSource(
             encoding: Int,
             minBufferSize: Int,
         ): AudioRecord {
-            if (Build.VERSION_CODES.M <= Build.VERSION.SDK_INT) {
-                return try {
-                    AudioRecord
-                        .Builder()
-                        .setAudioSource(audioSource)
-                        .setAudioFormat(
-                            AudioFormat
-                                .Builder()
-                                .setEncoding(encoding)
-                                .setSampleRate(sampleRate)
-                                .setChannelMask(channel)
-                                .build(),
-                        ).setBufferSizeInBytes(minBufferSize)
-                        .build()
-                } catch (_: Exception) {
-                    AudioRecord(
-                        audioSource,
-                        sampleRate,
-                        channel,
-                        encoding,
-                        minBufferSize,
-                    )
-                }
-            } else {
-                return AudioRecord(
+            return try {
+                AudioRecord
+                    .Builder()
+                    .setAudioSource(audioSource)
+                    .setAudioFormat(
+                        AudioFormat
+                            .Builder()
+                            .setEncoding(encoding)
+                            .setSampleRate(sampleRate)
+                            .setChannelMask(channel)
+                            .build(),
+                    ).setBufferSizeInBytes(minBufferSize)
+                    .build()
+            } catch (_: Exception) {
+                AudioRecord(
                     audioSource,
                     sampleRate,
                     channel,
@@ -171,7 +162,5 @@ class AudioRecordSource(
                 )
             }
         }
-
-        private val TAG = AudioRecordSource::class.java.simpleName
     }
 }

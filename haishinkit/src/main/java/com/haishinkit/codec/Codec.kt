@@ -2,7 +2,6 @@ package com.haishinkit.codec
 
 import android.media.MediaCodec
 import android.media.MediaFormat
-import android.os.Build
 import android.os.Handler
 import android.os.HandlerThread
 import android.util.Log
@@ -134,15 +133,11 @@ abstract class Codec :
             if (isRunning.get()) {
                 when (mode) {
                     MODE_ENCODE -> {
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                            value?.let { codec?.setInputSurface(it) }
-                        }
+                        value?.let { codec?.setInputSurface(it) }
                     }
 
                     MODE_DECODE -> {
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                            value?.let { codec?.setOutputSurface(it) }
-                        }
+                        value?.let { codec?.setOutputSurface(it) }
                     }
 
                     else -> {
@@ -253,11 +248,7 @@ abstract class Codec :
      * Installs callbacks and configures the codec with its media format, options, surface, and processing mode.
      */
     open fun configure(codec: MediaCodec) {
-        if (Build.VERSION_CODES.M <= Build.VERSION.SDK_INT) {
-            codec.setCallback(this, backgroundHandler)
-        } else {
-            codec.setCallback(this)
-        }
+        codec.setCallback(this, backgroundHandler)
         val format =
             createMediaFormat(
                 if (mode == MODE_ENCODE) {
