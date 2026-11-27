@@ -176,7 +176,7 @@ class CameraViewModel(
                     val liveVideos = mixer.screen.findByClass(VideoScreenObject::class.java).associateBy { it.track }
                     container.findByClass(VideoScreenObject::class.java).forEach { video ->
                         val previous = liveVideos[video.track]
-                        video.isRotatesWithContent = previous?.isRotatesWithContent ?: (video.track == 0)
+                        video.isRotatesWithContent = video.track == 0 || previous?.isRotatesWithContent == true
                         video.deviceOrientation = previous?.deviceOrientation ?: application.getSystemService(android.view.WindowManager::class.java).defaultDisplay.rotation
                         if (video.track == 0) currentVideoEffect?.let { video.videoEffect = it }
                     }
@@ -189,7 +189,7 @@ class CameraViewModel(
                     compositionSize = size
 
                     // The editor works on direct children; nested containers move/delete as groups.
-                    screenObjectDragController.replaceObjects(container.getChildren().filterNot { it is VideoScreenObject && it.track == 0 })
+                    screenObjectDragController.replaceObjects(sceneFiles.editableObjects(container))
                     sceneFiles.install(loaded)
                     installed = true
                 }

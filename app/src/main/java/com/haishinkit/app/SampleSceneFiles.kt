@@ -2,7 +2,12 @@ package com.haishinkit.app
 
 import android.content.Context
 import android.graphics.BitmapFactory
+import android.graphics.Paint
+import android.graphics.Typeface
 import android.net.Uri
+import android.text.Layout
+import android.text.StaticLayout
+import android.text.TextPaint
 import android.util.Base64
 import com.airbnb.lottie.LottieCompositionFactory
 import com.haishinkit.lottie.LottieScreen
@@ -10,6 +15,7 @@ import com.haishinkit.screen.Screen
 import com.haishinkit.screen.ScreenObject
 import com.haishinkit.screen.ScreenObjectContainer
 import com.haishinkit.screen.ScreenObjectFactory
+import com.haishinkit.screen.VideoScreenObject
 import com.haishinkit.screen.scene.SceneFile
 import com.haishinkit.screen.scene.ScreenObjectSnapshot
 import com.haishinkit.screen.scene.ScreenObjectSnapshotFactory
@@ -73,6 +79,7 @@ internal class SampleSceneFiles(private val context: Context) {
         val media = resources.toMutableMap()
 
         fun portable(node: ScreenObjectSnapshot): ScreenObjectSnapshot {
+            if (node.type != LottieScreen.TYPE && !supported(node)) return node
             val children = node.children.map(::portable)
             if (node.type != LottieScreen.TYPE) return node.copy(children = children)
             val animation =
@@ -94,7 +101,11 @@ internal class SampleSceneFiles(private val context: Context) {
             node.children.forEach(::collect)
         }
         collect(file.snapshot)
-        return SceneFile(file.snapshot, media.filterKeys { opaque || it in referenced }).write().also { require(it.size <= MAXIMUM_FILE_BYTES) { "Sample scene files must be 32 MiB or smaller." } }
+        val bytes = SceneFile(file.snapshot, media.filterKeys { opaque || it in referenced }).write()
+        require(bytes.size <= MAXIMUM_FILE_BYTES) { "Sample scene files must be 32 MiB or smaller." }
+        // Share import admission rules so a successful export can be opened by this sample.
+        decode(bytes).directory.deleteRecursively()
+        return bytes
     }
 
     fun write(
@@ -117,20 +128,7 @@ internal class SampleSceneFiles(private val context: Context) {
                 }
                 output.toByteArray()
             }
-        // Check expansion before the library reader allocates complete resource arrays.
-        ZipInputStream(bytes.inputStream()).use { zip ->
-            val buffer = ByteArray(8192)
-            var expanded = 0L
-            while (zip.nextEntry != null) {
-                while (true) {
-                    val count = zip.read(buffer)
-                    if (count < 0) break
-                    expanded += count
-                    require(expanded <= MAXIMUM_FILE_BYTES) { "Expanded sample scene exceeds 32 MiB." }
-                }
-            }
-        }
-        return prepare(SceneFile.read(bytes))
+        return decode(bytes)
     }
 
     internal fun prepare(file: SceneFile): Loaded {
@@ -151,21 +149,43 @@ internal class SampleSceneFiles(private val context: Context) {
                 depth: Int,
                 parentWidth: Long,
                 parentHeight: Long,
+                materialize: Boolean,
             ): ScreenObjectSnapshot {
                 require(depth <= 32 && ++count <= 256 && names.add(node.id)) { "Scene has duplicate IDs or too many objects." }
                 val width = if (node.size.width > 0) node.size.width.toLong() else (parentWidth - node.layoutMargin.left - node.layoutMargin.right + node.size.width).coerceAtLeast(0)
                 val height = if (node.size.height > 0) node.size.height.toLong() else (parentHeight - node.layoutMargin.top - node.layoutMargin.bottom + node.size.height).coerceAtLeast(0)
-                if (node.type == "text" || (node.type == "asset" && node.elements["format"] == "lottie")) {
-                    require(width in 1..4096 && height in 1..4096) { "Scene has unsupported bitmap layer dimensions." }
-                    renderedPixels += width * height
+                val drawable = materialize && supported(node)
+                if (drawable && (node.type == "text" || (node.type == "asset" && node.elements["format"] == "lottie"))) {
+                    var bitmapWidth = width
+                    var bitmapHeight = height
+                    if (node.type == "text") {
+                        require(parentWidth in 0..Int.MAX_VALUE.toLong() && parentHeight in 0..Int.MAX_VALUE.toLong())
+                        val font = node.elements["fontSize"]?.toFloatOrNull() ?: 32f
+                        require(font.isFinite() && font in 0f..4096f) { "Unsupported text size." }
+                        // Match TextScreenObject's glyph measurement, rather than counting its auto-sized parent area.
+                        val paint =
+                            TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
+                                typeface = Typeface.DEFAULT_BOLD
+                                textSize = font
+                            }
+                        val availableWidth = width.coerceIn(1, Int.MAX_VALUE.toLong()).toInt()
+
+                        @Suppress("DEPRECATION")
+                        val textLayout = StaticLayout(node.elements["value"].orEmpty(), paint, availableWidth, Layout.Alignment.ALIGN_NORMAL, 1f, 0f, false)
+                        val measuredWidth = (0 until textLayout.lineCount).maxOfOrNull { kotlin.math.ceil(textLayout.getLineWidth(it)).toLong() } ?: 0L
+                        bitmapWidth = minOf(measuredWidth, availableWidth.toLong()).coerceAtLeast(1)
+                        bitmapHeight = minOf(textLayout.height.toLong(), height).coerceAtLeast(1)
+                    }
+                    require(bitmapWidth in 1..4096 && bitmapHeight in 1..4096) { "Scene has unsupported bitmap layer dimensions." }
+                    renderedPixels += bitmapWidth * bitmapHeight
                     require(renderedPixels <= 8_388_608) { "Scene bitmap layers exceed the sample's supported size." }
                 }
-                if (node.type == "asset" && node.elements["format"] == "lottie") {
+                if (drawable && node.type == "asset" && node.elements["format"] == "lottie") {
                     val bytes = requireNotNull(file.resources[node.elements.getValue("source").removePrefix("media/")])
                     requireNotNull(LottieCompositionFactory.fromJsonStringSync(bytes.toString(Charsets.UTF_8), animationKey(bytes)).value) { "Scene contains an unreadable animation." }
                 }
                 var elements = node.elements
-                if (node.type == "image") {
+                if (drawable && node.type == "image") {
                     val source = node.elements["source"].orEmpty()
                     val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
                     if (source.startsWith("media/")) {
@@ -181,9 +201,9 @@ internal class SampleSceneFiles(private val context: Context) {
                     pixels += options.outWidth.toLong() * options.outHeight
                     require(pixels <= 16_777_216) { "Scene images exceed the sample's supported size." }
                 }
-                return node.copy(elements = elements, children = node.children.map { resolve(it, depth + 1, width, height) })
+                return node.copy(elements = elements, children = node.children.map { resolve(it, depth + 1, width, height, drawable) })
             }
-            return Loaded(file, resolve(root, 0, root.size.width.toLong(), root.size.height.toLong()), folder)
+            return Loaded(file, resolve(root, 0, root.size.width.toLong(), root.size.height.toLong(), true), folder)
         } catch (cause: Throwable) {
             folder.deleteRecursively()
             throw cause
@@ -205,6 +225,21 @@ internal class SampleSceneFiles(private val context: Context) {
             }
         }
         return factory.create(loaded.snapshot) as ScreenObjectContainer
+    }
+
+    fun editableObjects(container: ScreenObjectContainer): List<ScreenObject> {
+        fun fullCanvas(value: ScreenObject): Boolean =
+            value.frame.left == 0 && value.frame.top == 0 &&
+                value.frame.width() in listOf(0, container.frame.width()) && value.frame.height() in listOf(0, container.frame.height()) &&
+                value.layoutMargin == com.haishinkit.screen.EdgeInsets(0, 0, 0, 0)
+
+        fun cameraBackground(value: ScreenObject): Boolean =
+            when (value) {
+                is VideoScreenObject -> value.track == 0
+                is ScreenObjectContainer -> fullCanvas(value) && value.getChildren().singleOrNull()?.let { fullCanvas(it) && cameraBackground(it) } == true
+                else -> false
+            }
+        return container.getChildren().filterNot(::cameraBackground)
     }
 
     fun install(loaded: Loaded) {
@@ -229,6 +264,25 @@ internal class SampleSceneFiles(private val context: Context) {
     }
 
     internal data class Loaded(val file: SceneFile, val snapshot: ScreenObjectSnapshot, val directory: File)
+
+    private fun decode(bytes: ByteArray): Loaded {
+        // Check expansion before the library reader allocates complete resource arrays.
+        ZipInputStream(bytes.inputStream()).use { zip ->
+            val buffer = ByteArray(8192)
+            var expanded = 0L
+            while (zip.nextEntry != null) {
+                while (true) {
+                    val count = zip.read(buffer)
+                    if (count < 0) break
+                    expanded += count
+                    require(expanded <= MAXIMUM_FILE_BYTES) { "Expanded sample scene exceeds 32 MiB." }
+                }
+            }
+        }
+        return prepare(SceneFile.read(bytes))
+    }
+
+    private fun supported(node: ScreenObjectSnapshot): Boolean = node.type in setOf("screen", "container", "video", "image", "text") || (node.type == "asset" && node.elements["format"] == "lottie")
 
     private fun animationKey(bytes: ByteArray): String = "sample-scene-" + MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
 

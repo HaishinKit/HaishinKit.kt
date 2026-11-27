@@ -10,6 +10,7 @@ import com.haishinkit.screen.EdgeInsets
 import com.haishinkit.screen.ImageScreenObject
 import com.haishinkit.screen.ScreenObjectContainer
 import com.haishinkit.screen.TextScreenObject
+import com.haishinkit.screen.VideoScreenObject
 import com.haishinkit.screen.scene.SceneFile
 import com.haishinkit.screen.scene.ScreenObjectSnapshot
 import com.haishinkit.screen.scene.ScreenObjectSnapshotFactory
@@ -157,7 +158,7 @@ class SampleSceneFilesTest {
         val store = SampleSceneFiles(RuntimeEnvironment.getApplication())
         val animation = node("asset", "animation", mapOf("format" to "lottie", "source" to "media/a.json")).copy(size = ScreenObjectSnapshot.Size(8192, 8192))
         assertThrows(IllegalArgumentException::class.java) { store.prepare(SceneFile(root(listOf(animation)), mapOf("a.json" to byteArrayOf()))) }
-        val text = node("text", "large").copy(size = ScreenObjectSnapshot.Size(3000, 3000))
+        val text = node("text", "large", mapOf("value" to "Invalid", "fontSize" to "NaN"))
         assertThrows(IllegalArgumentException::class.java) { store.prepare(SceneFile(root(listOf(text)))) }
         store.close()
     }
@@ -171,6 +172,77 @@ class SampleSceneFilesTest {
         } finally {
             file.delete()
         }
+    }
+
+    @Test fun defaultCameraWrapperRemainsBackgroundAfterRestore() {
+        val video = VideoScreenObject().apply { track = 0 }
+        val background = ScreenObjectContainer().apply { addChild(video) }
+        val mixedGroup =
+            ScreenObjectContainer().apply {
+                addChild(VideoScreenObject())
+                addChild(TextScreenObject().apply { value = "Group label" })
+            }
+        val root =
+            ScreenObjectContainer().apply {
+                frame = Rect(0, 0, 1280, 720)
+                addChild(background)
+                addChild(mixedGroup)
+            }
+        val store = SampleSceneFiles(RuntimeEnvironment.getApplication())
+        val loaded = store.prepare(SceneFile.read(store.encode(store.capture(root))))
+        try {
+            val restored = store.create(loaded)
+            val editable = store.editableObjects(restored)
+            assertEquals(listOf(mixedGroup.id), editable.map { it.id })
+            restored.getChildren().first().bounds.set(0, 0, 1280, 720)
+            val controller = ScreenObjectDragController(restored, editable)
+            assertFalse(controller.begin(Offset(1000f, 600f), IntSize(1280, 720)))
+        } finally {
+            loaded.directory.deleteRecursively()
+            store.close()
+        }
+    }
+
+    @Test fun opaqueImageDescendantsRemainPortableAndUnchanged() {
+        val child = node("image", "hidden-image", mapOf("source" to "media/opaque.bin"))
+        val opaque = node("future", "future").copy(children = listOf(child))
+        val file = SceneFile(root(listOf(opaque)), mapOf("opaque.bin" to byteArrayOf(1, 2, 3)))
+        val store = SampleSceneFiles(RuntimeEnvironment.getApplication())
+        val loaded = store.prepare(SceneFile.read(file.write()))
+        try {
+            val restored = store.create(loaded)
+            store.install(loaded)
+            val saved = SceneFile.read(store.encode(store.capture(restored)))
+            assertEquals(opaque, saved.snapshot.children.single())
+            assertArrayEquals(byteArrayOf(1, 2, 3), saved.resources["opaque.bin"])
+        } finally {
+            store.close()
+        }
+    }
+
+    @Test fun multipleShortAutoSizedLabelsCanBeSavedAndOpened() {
+        val root = ScreenObjectContainer().apply { frame = Rect(0, 0, 1280, 720) }
+        repeat(20) { index ->
+            root.addChild(
+                TextScreenObject().apply {
+                    value = "Label $index"
+                    layoutMargin.set(20, 20 + index * 10, 0, 0)
+                },
+            )
+        }
+        val store = SampleSceneFiles(RuntimeEnvironment.getApplication())
+        val loaded = store.prepare(SceneFile.read(store.encode(store.capture(root))))
+        try {
+            assertEquals(20, store.create(loaded).getChildren().size)
+        } finally {
+            loaded.directory.deleteRecursively()
+            store.close()
+        }
+    }
+
+    @Test fun exportRejectsScenesThatTheSampleCannotReopen() {
+        val snapshot = root(List(256) { node("video", "video-$it") })
+        assertThrows(IllegalArgumentException::class.java) { SampleSceneFiles(RuntimeEnvironment.getApplication()).encode(snapshot) }
     }
 
     private fun root(children: List<ScreenObjectSnapshot>) = node("screen", "root").copy(size = ScreenObjectSnapshot.Size(1280, 720), children = children)
