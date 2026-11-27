@@ -23,15 +23,15 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 
+internal data class SceneFileActions(val pickerOpen: Boolean, val save: () -> Unit, val open: () -> Unit)
+
 @Suppress("ktlint:standard:function-naming")
 @Composable
-internal fun SceneFileControls(
-    enabled: Boolean,
-    busy: Boolean,
+internal fun rememberSceneFileActions(
     onSave: suspend (Uri) -> Result<Unit>,
     onOpen: suspend (Uri) -> Result<Unit>,
     onError: (String) -> Unit,
-) {
+): SceneFileActions {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var pickerOpen by remember { mutableStateOf(false) }
@@ -55,19 +55,32 @@ internal fun SceneFileControls(
                 }
             }
         }
+    return SceneFileActions(
+        pickerOpen,
+        save = {
+            pickerOpen = true
+            save.launch("HaishinKit.scene")
+        },
+        open = {
+            pickerOpen = true
+            open.launch(arrayOf("*/*"))
+        },
+    )
+}
+
+@Suppress("ktlint:standard:function-naming")
+@Composable
+internal fun SceneFileControls(
+    enabled: Boolean,
+    busy: Boolean,
+    actions: SceneFileActions,
+) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(stringResource(R.string.scene_title), style = MaterialTheme.typography.titleMedium)
         Text(stringResource(if (enabled) R.string.scene_file_help else R.string.scene_stop_first), style = MaterialTheme.typography.bodySmall)
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(modifier = Modifier.testTag("scene-save"), enabled = enabled && !busy && !pickerOpen, onClick = {
-                pickerOpen = true
-                save.launch("HaishinKit.scene")
-            }) { Text(stringResource(R.string.scene_save)) }
-            OutlinedButton(modifier = Modifier.testTag("scene-open"), enabled = enabled && !busy && !pickerOpen, onClick = {
-                pickerOpen = true
-                // .scene files have provider-dependent MIME types; the library validates contents.
-                open.launch(arrayOf("*/*"))
-            }) { Text(stringResource(R.string.scene_open)) }
+            OutlinedButton(modifier = Modifier.testTag("scene-save"), enabled = enabled && !busy && !actions.pickerOpen, onClick = actions.save) { Text(stringResource(R.string.scene_save)) }
+            OutlinedButton(modifier = Modifier.testTag("scene-open"), enabled = enabled && !busy && !actions.pickerOpen, onClick = actions.open) { Text(stringResource(R.string.scene_open)) }
         }
         if (busy) Text(stringResource(R.string.scene_file_working), style = MaterialTheme.typography.bodySmall)
     }

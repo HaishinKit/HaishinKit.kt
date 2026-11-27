@@ -136,6 +136,18 @@ fun CameraScreen(
         )
     }
 
+    // Keep picker registrations and in-flight operations outside the transient tools layout.
+    val sceneFileActions =
+        rememberSceneFileActions(
+            onSave = viewModel::saveSceneFile,
+            onOpen = { uri ->
+                editingText = null
+                insertionPosition = null
+                viewModel.restoreSceneFile(uri)
+            },
+            onError = { errorMessage = it },
+        )
+
     val currentSession = viewModel.session
     if (currentSession == null) {
         Box(modifier.fillMaxSize().safeDrawingPadding().padding(16.dp)) {
@@ -312,17 +324,7 @@ fun CameraScreen(
                         { showIngest = true }
                     },
                 settings = {
-                    SceneFileControls(
-                        enabled = !sessionActive && !recorderState.isRecording,
-                        busy = viewModel.sceneFileBusy,
-                        onSave = viewModel::saveSceneFile,
-                        onOpen = { uri ->
-                            editingText = null
-                            insertionPosition = null
-                            viewModel.restoreSceneFile(uri)
-                        },
-                        onError = { errorMessage = it },
-                    )
+                    SceneFileControls(enabled = !sessionActive && !recorderState.isRecording, busy = viewModel.sceneFileBusy, actions = sceneFileActions)
                     selectedIngest?.let { Text(stringResource(R.string.ingest_selected, it)) }
                     PublishEncodingControls(
                         settings = viewModel.encoding,

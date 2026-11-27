@@ -43,11 +43,9 @@ import com.haishinkit.screen.ScreenObject
 import com.haishinkit.screen.ScreenObjectContainer
 import com.haishinkit.screen.TextScreenObject
 import com.haishinkit.screen.VideoScreenObject
-import com.haishinkit.screen.scene.ScreenObjectSnapshotFactory
 import com.haishinkit.srt.SrtStream
 import com.haishinkit.stream.StreamSession
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -56,7 +54,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeout
 import java.io.ByteArrayOutputStream
 
 class CameraViewModel(
@@ -110,6 +107,7 @@ class CameraViewModel(
     private var frontCameraObject: VideoScreenObject? = null
     private var sessionSettings: Preference.SessionSettings? = null
 
+    private var currentVideoEffect: VideoEffect? = null
     private val sceneFiles = SampleSceneFiles(application.applicationContext)
 
     init {
@@ -157,23 +155,7 @@ class CameraViewModel(
 
     internal suspend fun saveSceneFile(uri: Uri): Result<Unit> =
         sceneOperation {
-            val snapshot = CompletableDeferred<com.haishinkit.screen.scene.ScreenObjectSnapshot>()
-            val captured = java.util.concurrent.atomic.AtomicBoolean()
-            val callback =
-                object : Screen.Callback() {
-                    override fun onEnterFrame() {
-                        if (!captured.compareAndSet(false, true)) return
-                        runCatching { ScreenObjectSnapshotFactory().create(mixer.screen) }
-                            .onSuccess { snapshot.complete(it) }.onFailure { snapshot.completeExceptionally(it) }
-                    }
-                }
-            mixer.screen.registerCallback(callback)
-            val state =
-                try {
-                    withTimeout(5000) { snapshot.await() }
-                } finally {
-                    mixer.screen.unregisterCallback(callback)
-                }
+            val state = sceneFiles.captureNextFrame(mixer.screen)
             withContext(Dispatchers.IO) { sceneFiles.write(uri, sceneFiles.encode(state)) }
         }
 
@@ -191,6 +173,13 @@ class CameraViewModel(
                     val restoredFront = container.findByClass(VideoScreenObject::class.java).firstOrNull { it.track == FRONT_CAMERA_TRACK }
                     if (hadFront && restoredFront == null) mixer.attachVideos(mapOf(FRONT_CAMERA_TRACK to null)).getOrThrow()
                     mixer.screen.findByClass(LottieScreen::class.java).forEach { it.cancelAnimation() }
+                    val liveVideos = mixer.screen.findByClass(VideoScreenObject::class.java).associateBy { it.track }
+                    container.findByClass(VideoScreenObject::class.java).forEach { video ->
+                        val previous = liveVideos[video.track]
+                        video.isRotatesWithContent = previous?.isRotatesWithContent ?: (video.track == 0)
+                        video.deviceOrientation = previous?.deviceOrientation ?: application.getSystemService(android.view.WindowManager::class.java).defaultDisplay.rotation
+                        if (video.track == 0) currentVideoEffect?.let { video.videoEffect = it }
+                    }
                     val size = Size(loaded.snapshot.size.width, loaded.snapshot.size.height)
                     mixer.screen.frame = Rect(0, 0, size.width, size.height)
                     mixer.screen.transition(container)
@@ -199,17 +188,8 @@ class CameraViewModel(
                     loadedSceneSize = size
                     compositionSize = size
 
-                    fun editable(root: ScreenObjectContainer): List<ScreenObject> =
-                        root.getChildren().flatMap { child ->
-                            if (child is ScreenObjectContainer) {
-                                editable(child)
-                            } else if (child is VideoScreenObject && child.track == 0) {
-                                emptyList()
-                            } else {
-                                listOf(child)
-                            }
-                        }
-                    screenObjectDragController.replaceObjects(editable(container))
+                    // The editor works on direct children; nested containers move/delete as groups.
+                    screenObjectDragController.replaceObjects(container.getChildren().filterNot { it is VideoScreenObject && it.track == 0 })
                     sceneFiles.install(loaded)
                     installed = true
                 }
@@ -324,22 +304,26 @@ class CameraViewModel(
 
     internal fun removeFocusedScreenObject() {
         val target = screenObjectDragController.focusedObject ?: return
-        if (target === frontCameraObject) {
+        val activeFront = frontCameraObject
+        if (activeFront != null && (target === activeFront || (target is ScreenObjectContainer && activeFront in target.findByClass(VideoScreenObject::class.java)))) {
             viewModelScope.launch {
                 cameraLock.withLock {
-                    if (target !== frontCameraObject) return@withLock
+                    if (activeFront !== frontCameraObject) return@withLock
                     val camera = _selectedCamera.value ?: return@withLock
                     val source = mainCameraSource.replacement(application.applicationContext, camera.id)
                     mixer.attachVideos(mapOf(0 to source, FRONT_CAMERA_TRACK to null)).onSuccess {
                         source.copyRequestedControlsFrom(mainCameraSource)
                         mainCameraSource = source
-                        removeFrontCameraObject()
+                        frontCameraObject = null
+                        cancelAnimations(target)
+                        mixer.screen.removeChild(target)
+                        screenObjectDragController.unregister(target)
                     }
                 }
             }
             return
         }
-        (target as? LottieScreen)?.cancelAnimation()
+        cancelAnimations(target)
         mixer.screen.removeChild(target)
         screenObjectDragController.unregister(target)
     }
@@ -354,6 +338,7 @@ class CameraViewModel(
     }
 
     fun setVideoEffect(videoEffect: VideoEffect) {
+        currentVideoEffect = videoEffect
         mixer.setVideoEffect(0, videoEffect)
     }
 
@@ -500,8 +485,9 @@ class CameraViewModel(
                     combinations.any { mainCamera.id in it && camera.id in it }
             } ?: return "This back camera cannot run at the same time as a front camera."
 
+        val restoredOverlay = mixer.screen.findByClass(VideoScreenObject::class.java).firstOrNull { it.track == FRONT_CAMERA_TRACK }
         val overlay =
-            VideoScreenObject().apply {
+            restoredOverlay ?: VideoScreenObject().apply {
                 cornerRadius = 22f
                 track = FRONT_CAMERA_TRACK
                 frame = Rect(0, 0, 240, 180)
@@ -520,16 +506,26 @@ class CameraViewModel(
         mainSource.copyRequestedControlsFrom(mainCameraSource)
         mainCameraSource = mainSource
         frontCameraObject = overlay
-        screenObjectDragController.register(overlay, position)
-        mixer.screen.addChild(overlay)
+        if (restoredOverlay == null) {
+            screenObjectDragController.register(overlay, position)
+            mixer.screen.addChild(overlay)
+        }
         return null
+    }
+
+    private fun cancelAnimations(target: ScreenObject) {
+        (target as? LottieScreen)?.cancelAnimation()
+        (target as? ScreenObjectContainer)?.findByClass(LottieScreen::class.java)?.forEach { it.cancelAnimation() }
     }
 
     private fun removeFrontCameraObject() {
         val overlay = frontCameraObject ?: return
         frontCameraObject = null
-        mixer.screen.removeChild(overlay)
-        screenObjectDragController.unregister(overlay)
+        // A nested placeholder belongs to its group; keep its saved layout when capture stops.
+        if (overlay in mixer.screen.getChildren()) {
+            mixer.screen.removeChild(overlay)
+            screenObjectDragController.unregister(overlay)
+        }
     }
 
     private companion object {

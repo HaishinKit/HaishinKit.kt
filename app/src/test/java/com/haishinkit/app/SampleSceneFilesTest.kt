@@ -2,9 +2,13 @@ package com.haishinkit.app
 
 import android.graphics.Bitmap
 import android.graphics.Rect
+import android.net.Uri
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.unit.IntSize
 import com.haishinkit.lottie.LottieScreen
 import com.haishinkit.screen.EdgeInsets
 import com.haishinkit.screen.ImageScreenObject
+import com.haishinkit.screen.ScreenObjectContainer
 import com.haishinkit.screen.TextScreenObject
 import com.haishinkit.screen.scene.SceneFile
 import com.haishinkit.screen.scene.ScreenObjectSnapshot
@@ -32,7 +36,7 @@ class SampleSceneFilesTest {
             recycle()
         }
         val image = node("image", "image", mapOf("source" to "media/logo.png"))
-        val text = node("text", "title", mapOf("value" to "My scene", "size" to "42.0"))
+        val text = node("text", "title", mapOf("value" to "My scene", "fontSize" to "42.0"))
         val original = SceneFile(root(listOf(image, text)), mapOf("logo.png" to pixels.toByteArray()))
         val store = SampleSceneFiles(context)
         val loaded = store.prepare(SceneFile.read(original.write()))
@@ -40,6 +44,7 @@ class SampleSceneFilesTest {
             val objects = store.create(loaded)
             assertEquals(listOf("image", "title"), objects.getChildren().map { it.id })
             assertEquals("My scene", (objects.getChildren()[1] as TextScreenObject).value)
+            assertEquals(42f, (objects.getChildren()[1] as TextScreenObject).size)
             assertEquals(8, (objects.getChildren()[0] as ImageScreenObject).bitmap!!.width)
             store.install(loaded)
             objects.frame = Rect(0, 0, 1280, 720)
@@ -97,9 +102,74 @@ class SampleSceneFilesTest {
         try {
             assertThrows(IllegalArgumentException::class.java) { store.prepare(SceneFile(root(listOf(node("text", "same"), node("text", "same"))))) }
             assertThrows(IllegalArgumentException::class.java) { store.prepare(SceneFile(root(emptyList()).copy(size = ScreenObjectSnapshot.Size(0, 0)))) }
-            assertArrayEquals(byteArrayOf(3), SceneFile.read(store.encode(root(emptyList()))).resources["keep.bin"])
+            assertArrayEquals(byteArrayOf(3), SceneFile.read(store.encode(root(listOf(node("future", "opaque"))))).resources["keep.bin"])
         } finally {
             store.close()
+        }
+    }
+
+    @Test fun draggedPositionSurvivesPortableSaveWithoutMutatingTheLiveObject() {
+        val root = ScreenObjectContainer().apply { frame = Rect(0, 0, 1000, 1000) }
+        val text =
+            TextScreenObject().apply {
+                value = "Moved"
+                frame = Rect(0, 0, 100, 60)
+                bounds.set(10, 20, 110, 80)
+            }
+        root.addChild(text)
+        val editor = ScreenObjectDragController(root, listOf(text))
+        editor.begin(Offset(30f, 40f), IntSize(1000, 1000))
+        editor.move(Offset(130f, 140f), IntSize(1000, 1000))
+        val before = Rect(text.frame)
+        val store = SampleSceneFiles(RuntimeEnvironment.getApplication())
+        val loaded = store.prepare(SceneFile.read(store.encode(store.capture(root))))
+        try {
+            val restored = store.create(loaded).getChildren().single()
+            assertEquals(110, restored.layoutMargin.left)
+            assertEquals(120, restored.layoutMargin.top)
+            assertEquals(before.width(), restored.frame.width())
+            assertEquals(before, text.frame)
+        } finally {
+            loaded.directory.deleteRecursively()
+            store.close()
+        }
+    }
+
+    @Test fun deletedPackagedImageIsNotIncludedInExport() {
+        val pixels = ByteArrayOutputStream()
+        Bitmap.createBitmap(8, 8, Bitmap.Config.ARGB_8888).apply {
+            compress(Bitmap.CompressFormat.PNG, 100, pixels)
+            recycle()
+        }
+        val store = SampleSceneFiles(RuntimeEnvironment.getApplication())
+        val loaded = store.prepare(SceneFile(root(listOf(node("image", "logo", mapOf("source" to "media/private.png")))), mapOf("private.png" to pixels.toByteArray())))
+        try {
+            val objects = store.create(loaded)
+            store.install(loaded)
+            objects.removeChild(objects.getChildren().single())
+            assertEquals(emptySet<String>(), SceneFile.read(store.encode(store.capture(objects))).resources.keys)
+        } finally {
+            store.close()
+        }
+    }
+
+    @Test fun oversizedAnimationAndAggregateBitmapLayersAreRejectedBeforeInstallation() {
+        val store = SampleSceneFiles(RuntimeEnvironment.getApplication())
+        val animation = node("asset", "animation", mapOf("format" to "lottie", "source" to "media/a.json")).copy(size = ScreenObjectSnapshot.Size(8192, 8192))
+        assertThrows(IllegalArgumentException::class.java) { store.prepare(SceneFile(root(listOf(animation)), mapOf("a.json" to byteArrayOf()))) }
+        val text = node("text", "large").copy(size = ScreenObjectSnapshot.Size(3000, 3000))
+        assertThrows(IllegalArgumentException::class.java) { store.prepare(SceneFile(root(listOf(text)))) }
+        store.close()
+    }
+
+    @Test fun compressedOversizedArchiveIsRejectedOnRead() {
+        val context = RuntimeEnvironment.getApplication()
+        val file = java.io.File(context.cacheDir, "oversized.scene")
+        file.writeBytes(SceneFile(root(emptyList()), mapOf("large.bin" to ByteArray(33 * 1024 * 1024))).write())
+        try {
+            assertThrows(IllegalArgumentException::class.java) { SampleSceneFiles(context).read(Uri.fromFile(file)) }
+        } finally {
+            file.delete()
         }
     }
 

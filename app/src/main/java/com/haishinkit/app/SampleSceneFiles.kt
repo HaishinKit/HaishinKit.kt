@@ -6,20 +6,68 @@ import android.net.Uri
 import android.util.Base64
 import com.airbnb.lottie.LottieCompositionFactory
 import com.haishinkit.lottie.LottieScreen
+import com.haishinkit.screen.Screen
+import com.haishinkit.screen.ScreenObject
 import com.haishinkit.screen.ScreenObjectContainer
 import com.haishinkit.screen.ScreenObjectFactory
 import com.haishinkit.screen.scene.SceneFile
 import com.haishinkit.screen.scene.ScreenObjectSnapshot
+import com.haishinkit.screen.scene.ScreenObjectSnapshotFactory
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.withTimeoutOrNull
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.security.MessageDigest
 import java.util.UUID
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.zip.ZipInputStream
 
 /** Sample integration of the library's portable .scene format. No capture or connection credentials. */
 internal class SampleSceneFiles(private val context: Context) {
     private var resources: Map<String, ByteArray> = emptyMap()
     private var animations: Map<String, ByteArray> = emptyMap()
     private var directory: File? = null
+
+    /** Store frame origins as margins because the portable format records frame size only. */
+    fun capture(root: ScreenObject): ScreenObjectSnapshot {
+        fun positions(
+            objectValue: ScreenObject,
+            node: ScreenObjectSnapshot,
+        ): ScreenObjectSnapshot {
+            val margin = node.layoutMargin.copy()
+            if (objectValue.horizontalAlignment == ScreenObject.HORIZONTAL_ALIGNMENT_LEFT) margin.left += objectValue.frame.left
+            if (objectValue.verticalAlignment == ScreenObject.VERTICAL_ALIGNMENT_TOP) margin.top += objectValue.frame.top
+            val children =
+                if (objectValue is ScreenObjectContainer) {
+                    objectValue.getChildren().zip(node.children) { child, snapshot -> positions(child, snapshot) }
+                } else {
+                    node.children
+                }
+            return node.copy(layoutMargin = margin, children = children)
+        }
+        return positions(root, ScreenObjectSnapshotFactory().create(root))
+    }
+
+    suspend fun captureNextFrame(
+        screen: Screen,
+        timeoutMillis: Long = 5000,
+    ): ScreenObjectSnapshot {
+        val result = CompletableDeferred<ScreenObjectSnapshot>()
+        val captured = AtomicBoolean()
+        val callback =
+            object : Screen.Callback() {
+                override fun onEnterFrame() {
+                    if (!captured.compareAndSet(false, true)) return
+                    runCatching { capture(screen) }.onSuccess { result.complete(it) }.onFailure { result.completeExceptionally(it) }
+                }
+            }
+        screen.registerCallback(callback)
+        try {
+            return withTimeoutOrNull(timeoutMillis) { result.await() } ?: error("The renderer did not provide a scene snapshot.")
+        } finally {
+            screen.unregisterCallback(callback)
+        }
+    }
 
     fun encode(snapshot: ScreenObjectSnapshot): ByteArray {
         val media = resources.toMutableMap()
@@ -36,7 +84,17 @@ internal class SampleSceneFiles(private val context: Context) {
             media[name] = animation
             return node.copy(type = "asset", elements = mapOf("source" to "media/$name", "format" to "lottie"), children = children)
         }
-        return SceneFile(portable(snapshot), media).write().also { require(it.size <= MAXIMUM_FILE_BYTES) { "Sample scene files must be 32 MiB or smaller." } }
+        val file = SceneFile(portable(snapshot), media)
+        val referenced = mutableSetOf<String>()
+        var opaque = false
+
+        fun collect(node: ScreenObjectSnapshot) {
+            if (node.type !in setOf("screen", "container", "video", "image", "text") && !(node.type == "asset" && node.elements["format"] == "lottie")) opaque = true
+            node.elements["source"]?.takeIf { it.startsWith("media/") }?.let { referenced.add(it.removePrefix("media/")) }
+            node.children.forEach(::collect)
+        }
+        collect(file.snapshot)
+        return SceneFile(file.snapshot, media.filterKeys { opaque || it in referenced }).write().also { require(it.size <= MAXIMUM_FILE_BYTES) { "Sample scene files must be 32 MiB or smaller." } }
     }
 
     fun write(
@@ -59,6 +117,19 @@ internal class SampleSceneFiles(private val context: Context) {
                 }
                 output.toByteArray()
             }
+        // Check expansion before the library reader allocates complete resource arrays.
+        ZipInputStream(bytes.inputStream()).use { zip ->
+            val buffer = ByteArray(8192)
+            var expanded = 0L
+            while (zip.nextEntry != null) {
+                while (true) {
+                    val count = zip.read(buffer)
+                    if (count < 0) break
+                    expanded += count
+                    require(expanded <= MAXIMUM_FILE_BYTES) { "Expanded sample scene exceeds 32 MiB." }
+                }
+            }
+        }
         return prepare(SceneFile.read(bytes))
     }
 
@@ -73,12 +144,22 @@ internal class SampleSceneFiles(private val context: Context) {
             val names = mutableSetOf<String>()
             var pixels = 0L
             var count = 0
+            var renderedPixels = 0L
 
             fun resolve(
                 node: ScreenObjectSnapshot,
                 depth: Int,
+                parentWidth: Long,
+                parentHeight: Long,
             ): ScreenObjectSnapshot {
                 require(depth <= 32 && ++count <= 256 && names.add(node.id)) { "Scene has duplicate IDs or too many objects." }
+                val width = if (node.size.width > 0) node.size.width.toLong() else (parentWidth - node.layoutMargin.left - node.layoutMargin.right + node.size.width).coerceAtLeast(0)
+                val height = if (node.size.height > 0) node.size.height.toLong() else (parentHeight - node.layoutMargin.top - node.layoutMargin.bottom + node.size.height).coerceAtLeast(0)
+                if (node.type == "text" || (node.type == "asset" && node.elements["format"] == "lottie")) {
+                    require(width in 1..4096 && height in 1..4096) { "Scene has unsupported bitmap layer dimensions." }
+                    renderedPixels += width * height
+                    require(renderedPixels <= 8_388_608) { "Scene bitmap layers exceed the sample's supported size." }
+                }
                 if (node.type == "asset" && node.elements["format"] == "lottie") {
                     val bytes = requireNotNull(file.resources[node.elements.getValue("source").removePrefix("media/")])
                     requireNotNull(LottieCompositionFactory.fromJsonStringSync(bytes.toString(Charsets.UTF_8), animationKey(bytes)).value) { "Scene contains an unreadable animation." }
@@ -100,9 +181,9 @@ internal class SampleSceneFiles(private val context: Context) {
                     pixels += options.outWidth.toLong() * options.outHeight
                     require(pixels <= 16_777_216) { "Scene images exceed the sample's supported size." }
                 }
-                return node.copy(elements = elements, children = node.children.map { resolve(it, depth + 1) })
+                return node.copy(elements = elements, children = node.children.map { resolve(it, depth + 1, width, height) })
             }
-            return Loaded(file, resolve(root, 0), folder)
+            return Loaded(file, resolve(root, 0, root.size.width.toLong(), root.size.height.toLong()), folder)
         } catch (cause: Throwable) {
             folder.deleteRecursively()
             throw cause

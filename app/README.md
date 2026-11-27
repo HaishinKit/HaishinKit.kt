@@ -53,13 +53,16 @@ In **Publish → Camera tools → Scene**, choose **Save scene** to export a por
 and recording first. Android's file picker lets you choose where to save or open.
 
 Files retain the canvas size, object placement, text, images and the sample's
-animation. Restored text and images remain editable, and the preview fits the
+animation. Restored top-level text and images remain editable; nested containers move and
+delete as groups. The preview fits the
 saved canvas. Camera objects use the current capture sources; files do not contain
 camera footage, permissions or streaming credentials. Unknown objects are retained
 when saving again but are not rendered by the sample.
 
-The sample accepts files and extracted resources up to 32 MiB, a canvas up to
-4096 pixels per side and 8 megapixels total, and images up to 16 megapixels total.
+The sample accepts archives and expanded contents up to 32 MiB, a canvas up to
+4096 pixels per side and 8 megapixels total, and images up to 16 megapixels total. Text and animation layers are limited to
+4096 pixels per side and 8 megapixels total. Deleted media is removed on save;
+files with unknown objects retain all resources to preserve those objects.
 
 ## 📡 Bonjour SRT publishing
 
