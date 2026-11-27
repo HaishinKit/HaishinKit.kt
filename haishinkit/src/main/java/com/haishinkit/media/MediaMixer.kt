@@ -11,6 +11,7 @@ import com.haishinkit.lang.Running
 import com.haishinkit.media.source.AudioSource
 import com.haishinkit.media.source.Camera2Source
 import com.haishinkit.media.source.VideoSource
+import com.haishinkit.screen.AssetScreenObject
 import com.haishinkit.screen.Screen
 import com.haishinkit.screen.ScreenObjectContainer
 import com.haishinkit.screen.VideoScreenObject
@@ -70,13 +71,9 @@ class MediaMixer(
         get() = audioSources.isNotEmpty()
 
     override val hasVideo: Boolean
-        get() = videoSources.isNotEmpty()
+        get() = videoSources.isNotEmpty() || (screenDelegate.isInitialized() && AssetScreenObject.hasReadingAssets(screen))
 
-    override val screen: Screen by lazy {
-        Screen.create(context, dynamicRangeMode).apply {
-            addChild(videoContainer)
-        }
-    }
+    override val screen: Screen get() = screenDelegate.value
 
     override val coroutineContext: CoroutineContext
         get() = Dispatchers.IO
@@ -85,6 +82,13 @@ class MediaMixer(
     val dynamicRangeMode: DynamicRangeMode get() = selectedDynamicRangeMode
 
     private var selectedDynamicRangeMode = DynamicRangeMode.SDR
+    private val screenDelegate =
+        lazy {
+            Screen.create(context, dynamicRangeMode).apply {
+                addChild(videoContainer)
+            }
+        }
+
     private val outputs = MediaOutputRegistry(this)
 
     @Volatile
@@ -205,7 +209,7 @@ class MediaMixer(
         videoEffect: VideoEffect,
     ) {
         screen.findByClass(VideoScreenObject::class.java).forEach {
-            if (it.track == track) {
+            if (it !is AssetScreenObject && it.track == track) {
                 it.videoEffect = videoEffect
             }
         }

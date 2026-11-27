@@ -9,6 +9,7 @@ import android.os.Message
 import com.haishinkit.gles.GraphicsContext
 import com.haishinkit.graphics.DynamicRangeMode
 import com.haishinkit.media.source.VideoSource
+import com.haishinkit.screen.AssetScreenObject
 import com.haishinkit.screen.Screen
 import com.haishinkit.screen.ScreenObject
 import com.haishinkit.screen.ScreenObjectContainer
@@ -161,6 +162,13 @@ internal class ThreadScreen(
         return handler.run {
             screen.findById(targetId)
         }
+    }
+
+    internal fun assetObjects(): List<AssetScreenObject> {
+        if (Looper.myLooper() == handler.looper) return AssetScreenObject.findAssets(screen)
+        val task = java.util.concurrent.FutureTask { AssetScreenObject.findAssets(screen) }
+        check(handler.post(task))
+        return task.get()
     }
 
     override fun dispose() {

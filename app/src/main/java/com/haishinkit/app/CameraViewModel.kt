@@ -37,6 +37,7 @@ import com.haishinkit.media.MediaRecorder
 import com.haishinkit.media.source.AudioRecordSource
 import com.haishinkit.media.source.Camera2Source
 import com.haishinkit.rtc.RtcStream
+import com.haishinkit.screen.AssetScreenObject
 import com.haishinkit.screen.ImageScreenObject
 import com.haishinkit.screen.Screen
 import com.haishinkit.screen.ScreenObject
@@ -47,7 +48,9 @@ import com.haishinkit.srt.SrtStream
 import com.haishinkit.stream.StreamSession
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
@@ -90,6 +93,7 @@ class CameraViewModel(
     internal var encoding by mutableStateOf(Preference.shared.encoding)
         private set
 
+    internal val assetErrors: SharedFlow<String> get() = _assetErrors
     internal val ingestDiscovery = BonjourIngestDiscovery(application.applicationContext)
     internal val screenObjectDragController: ScreenObjectDragController
 
@@ -107,6 +111,9 @@ class CameraViewModel(
     private var frontCameraObject: VideoScreenObject? = null
     private var sessionSettings: Preference.SessionSettings? = null
 
+    private val _assetErrors = MutableSharedFlow<String>(extraBufferCapacity = 1)
+    private var assetPlaybackEnabled = false
+    private val pausedAssets = mutableSetOf<AssetScreenObject>()
     private var currentVideoEffect: VideoEffect? = null
     private val sceneFiles = SampleSceneFiles(application.applicationContext)
 
@@ -163,14 +170,19 @@ class CameraViewModel(
         sceneOperation {
             var pending: SampleSceneFiles.Loaded? = null
             var installed = false
+            var preparedContainer: ScreenObjectContainer? = null
             try {
                 withContext(Dispatchers.IO) { pending = sceneFiles.read(uri) }
                 val loaded = checkNotNull(pending)
                 cameraLock.withLock {
                     check(!recorder.isRecording && (session?.readyState?.value ?: StreamSession.ReadyState.CLOSED) == StreamSession.ReadyState.CLOSED) { "Stop publishing and recording before restoring a scene." }
-                    val container = sceneFiles.create(loaded)
+                    val container =
+                        sceneFiles.create(loaded).also {
+                            preparedContainer = it
+                            AssetScreenObject.findAssets(it).forEach { asset -> asset.onError = ::reportAssetPlaybackError }
+                        }
                     val hadFront = frontCameraObject != null
-                    val restoredFront = container.findByClass(VideoScreenObject::class.java).firstOrNull { it.track == FRONT_CAMERA_TRACK }
+                    val restoredFront = container.findByClass(VideoScreenObject::class.java).filterNot { it is AssetScreenObject }.firstOrNull { it.track == FRONT_CAMERA_TRACK }
                     if (hadFront && restoredFront == null) {
                         val camera = checkNotNull(_selectedCamera.value)
                         val source = mainCameraSource.replacement(application.applicationContext, camera.id)
@@ -179,8 +191,16 @@ class CameraViewModel(
                         mainCameraSource = source
                     }
                     mixer.screen.findByClass(LottieScreen::class.java).forEach { it.cancelAnimation() }
-                    val liveVideos = mixer.screen.findByClass(VideoScreenObject::class.java).associateBy { it.track }
-                    container.findByClass(VideoScreenObject::class.java).forEach { video ->
+                    AssetScreenObject.findAssets(mixer.screen).forEach { it.close() }
+                    pausedAssets.clear()
+                    if (!assetPlaybackEnabled) {
+                        AssetScreenObject.findAssets(container).forEach { asset ->
+                            if (asset.isReading) pausedAssets.add(asset)
+                            asset.cancelReading()
+                        }
+                    }
+                    val liveVideos = mixer.screen.findByClass(VideoScreenObject::class.java).filterNot { it is AssetScreenObject }.associateBy { it.track }
+                    container.findByClass(VideoScreenObject::class.java).filterNot { it is AssetScreenObject }.forEach { video ->
                         val previous = liveVideos[video.track]
                         video.isRotatesWithContent = video.track == 0 || previous?.isRotatesWithContent == true
                         video.deviceOrientation = previous?.deviceOrientation ?: application.getSystemService(android.view.WindowManager::class.java).defaultDisplay.rotation
@@ -200,6 +220,7 @@ class CameraViewModel(
                     installed = true
                 }
             } finally {
+                if (!installed) preparedContainer?.let { AssetScreenObject.findAssets(it) }?.forEach { it.close() }
                 if (!installed) withContext(kotlinx.coroutines.NonCancellable + Dispatchers.IO) { pending?.directory?.deleteRecursively() }
             }
         }
@@ -297,6 +318,33 @@ class CameraViewModel(
                         playAnimation()
                     }
 
+                ExampleScreenObjectKind.VIDEO -> {
+                    viewModelScope.launch {
+                        runCatching {
+                            val file = withContext(Dispatchers.IO) { SampleVideo.file(application) }
+                            if (sceneFileBusy) return@launch
+                            if (AssetScreenObject.findAssets(mixer.screen).size >= 4) {
+                                onError(application.getString(R.string.asset_limit))
+                                return@launch
+                            }
+                            val asset =
+                                AssetScreenObject(application.applicationContext).apply {
+                                    frame = Rect(0, 0, 360, 240)
+                                    isLooping = true
+                                    this.onError = ::reportAssetPlaybackError
+                                    startReading(Uri.fromFile(file))
+                                }
+                            if (!assetPlaybackEnabled) {
+                                asset.cancelReading()
+                                pausedAssets.add(asset)
+                            }
+                            screenObjectDragController.register(asset, position)
+                            mixer.screen.addChild(asset)
+                        }.onFailure { if (it is CancellationException) throw it else onError(application.getString(R.string.asset_playback_error)) }
+                    }
+                    return
+                }
+
                 ExampleScreenObjectKind.FRONT_CAMERA -> {
                     viewModelScope.launch {
                         cameraLock.withLock { addFrontCamera(position) }?.let(onError)
@@ -354,7 +402,7 @@ class CameraViewModel(
     ) {
         viewModelScope.launch {
             cameraLock.withLock {
-                if (!retry && cameraDevice == _selectedCamera.value && mixer.hasVideo) return@withLock
+                if (!retry && cameraDevice == _selectedCamera.value && mainCameraSource != null) return@withLock
                 val context = application.applicationContext
                 val permissionGranted = context.checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
                 val source = if (permissionGranted) cameraDevice?.let { Camera2Source(context, it.id) } else null
@@ -400,6 +448,10 @@ class CameraViewModel(
     }
 
     fun startRunning() {
+        assetPlaybackEnabled = true
+        val current = AssetScreenObject.findAssets(mixer.screen).toSet()
+        pausedAssets.filter { it in current }.forEach { asset -> asset.sourceUri?.let { asset.startReading(it) } }
+        pausedAssets.clear()
         mixer.startRunning()
         DebugFrameCapture.attach(this, mixer.screen)
     }
@@ -409,6 +461,11 @@ class CameraViewModel(
     }
 
     fun stopRunning() {
+        assetPlaybackEnabled = false
+        AssetScreenObject.findAssets(mixer.screen).forEach { asset ->
+            if (asset.isReading) pausedAssets.add(asset)
+            asset.cancelReading()
+        }
         QualityCapture.stop("camera")
         DebugFrameCapture.detach(this)
         mixer.stopRunning()
@@ -423,6 +480,8 @@ class CameraViewModel(
     }
 
     override suspend fun stopForRendererChange() {
+        AssetScreenObject.findAssets(mixer.screen).forEach { it.close() }
+        pausedAssets.clear()
         QualityCapture.stop("camera")
         DebugFrameCapture.detach(this)
         if (recorder.isRecording) recorder.stopRecording()
@@ -444,8 +503,15 @@ class CameraViewModel(
         RendererPreference.unregister(this)
         super.onCleared()
         cameraDeviceManager.release()
+        AssetScreenObject.findAssets(mixer.screen).forEach { it.close() }
+        pausedAssets.clear()
         mixer.dispose()
         sceneFiles.close()
+    }
+
+    private fun reportAssetPlaybackError(cause: Throwable) {
+        android.util.Log.w("SampleAsset", "Video playback failed", cause)
+        _assetErrors.tryEmit(application.getString(R.string.asset_playback_error))
     }
 
     private suspend fun sceneOperation(block: suspend () -> Unit): Result<Unit> {
@@ -520,6 +586,14 @@ class CameraViewModel(
     }
 
     private fun cancelAnimations(target: ScreenObject) {
+        (target as? AssetScreenObject)?.let {
+            pausedAssets.remove(it)
+            it.close()
+        }
+        (target as? ScreenObjectContainer)?.findByClass(AssetScreenObject::class.java)?.forEach {
+            pausedAssets.remove(it)
+            it.close()
+        }
         (target as? LottieScreen)?.cancelAnimation()
         (target as? ScreenObjectContainer)?.findByClass(LottieScreen::class.java)?.forEach { it.cancelAnimation() }
     }

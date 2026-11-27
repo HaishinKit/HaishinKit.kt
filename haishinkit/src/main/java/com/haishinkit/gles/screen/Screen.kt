@@ -13,6 +13,7 @@ import com.haishinkit.gles.Utils
 import com.haishinkit.graphics.DynamicRangeMode
 import com.haishinkit.lang.Running
 import com.haishinkit.media.source.VideoSource
+import com.haishinkit.screen.AssetScreenObject
 import com.haishinkit.screen.ScreenObject
 import com.haishinkit.screen.VideoScreenObject
 import java.nio.ByteBuffer
@@ -48,6 +49,7 @@ internal class Screen(
             dynamicRangeMode,
             sourceRange = { track -> videoTextureRegistry.get(track)?.source?.dynamicRangeMode },
             sourceTextureTransform = { track -> videoTextureRegistry.get(track)?.transform },
+            assetTextureTransform = { asset -> assetTextures[asset]?.transform },
         )
     }
     private val framebuffer: Framebuffer by lazy { Framebuffer(dynamicRangeMode) }
@@ -59,8 +61,13 @@ internal class Screen(
         }
     private var videoTextureRegistry: VideoTextureRegistry = VideoTextureRegistry()
 
+    private val assetTextures = mutableMapOf<AssetScreenObject, AssetTexture?>()
+
     override fun bind(screenObject: ScreenObject) {
         when (screenObject) {
+            is AssetScreenObject -> {
+                screenObject.textureId = -1
+            }
             is VideoScreenObject -> {
                 val track = screenObject.track
                 val texture = videoTextureRegistry.get(track)
@@ -82,6 +89,10 @@ internal class Screen(
     override fun unbind(screenObject: ScreenObject) {
         clearCameraOrientation(screenObject)
         when (screenObject) {
+            is AssetScreenObject -> {
+                assetTextures.remove(screenObject)?.close()
+                screenObject.detachFromRenderer()
+            }
             is VideoScreenObject -> {
                 screenObject.textureId = 0
             }
@@ -100,13 +111,13 @@ internal class Screen(
     ) {
         if (video == null) {
             videoTextureRegistry.unregister(track)
-            findByClass(VideoScreenObject::class.java).filter { it.track == track }.forEach {
+            findByClass(VideoScreenObject::class.java).filter { it !is AssetScreenObject && it.track == track }.forEach {
                 it.textureId = 0
                 updateCameraOrientation(it, null)
             }
         } else {
             val texture = videoTextureRegistry.register(track, video)
-            findByClass(VideoScreenObject::class.java).filter { it.track == track }.forEach {
+            findByClass(VideoScreenObject::class.java).filter { it !is AssetScreenObject && it.track == track }.forEach {
                 it.textureId = texture.id
                 it.videoSize = video.videoSize
                 it.imageOrientation = video.imageOrientation
@@ -175,6 +186,11 @@ internal class Screen(
         choreographer = null
         framebuffer.release()
         renderer.release()
+        assetTextures.forEach { (asset, entry) ->
+            entry?.close()
+            asset.detachFromRenderer()
+        }
+        assetTextures.clear()
         graphicsContext.close()
     }
 
@@ -188,6 +204,7 @@ internal class Screen(
 
         if (!framebuffer.isEnabled) return
 
+        prepareAssets()
         layout(renderer)
         framebuffer.render {
             val rgb = floatArrayOf(Color.red(backgroundColor) / 255f, Color.green(backgroundColor) / 255f, Color.blue(backgroundColor) / 255f)
@@ -202,6 +219,35 @@ internal class Screen(
 
         GLES20.glFlush()
         Utils.checkGlError("glFlush")
+    }
+
+    private fun prepareAssets() {
+        val current = AssetScreenObject.findAssets(this).toSet()
+        assetTextures.keys.filter { it !in current }.forEach { asset ->
+            assetTextures.remove(asset)?.close()
+            asset.detachFromRenderer()
+        }
+        current.forEach { asset ->
+            val source = asset.sourceForRendering()
+            val previous = assetTextures[asset]
+            if (previous?.source !== source) {
+                previous?.close()
+                assetTextures[asset] =
+                    try {
+                        source?.let { video -> AssetTexture.create(video) { asset.failFromRenderer(it) } }
+                    } catch (cause: Exception) {
+                        asset.failFromRenderer(cause)
+                        null
+                    }
+                asset.textureId = assetTextures[asset]?.id ?: -1
+                asset.invalidateLayout()
+            } else if (asset !in assetTextures) {
+                assetTextures[asset] = null
+            }
+            if (source != null) {
+                asset.imageOrientation = source.imageOrientation
+            }
+        }
     }
 
     companion object {

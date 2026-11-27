@@ -88,6 +88,31 @@ internal class SampleSceneFiles(private val context: Context) {
             val liveAnimation = node.type == LottieScreen.TYPE && (node.id in capturedLottieIds || node.id in animations)
             if (!liveAnimation && !supported(node)) return node
             val children = node.children.map(::portable)
+            if (videoAsset(node)) {
+                val source = node.elements["source"].orEmpty()
+                if (source.startsWith("media/")) return node.copy(children = children)
+                val uri = Uri.parse(source)
+                val installedName = directory?.let { folder -> resources.keys.firstOrNull { uri == Uri.fromFile(File(folder, it)) } }
+                if (installedName != null) return node.copy(elements = node.elements + ("source" to "media/$installedName"), children = children)
+                require(uri.scheme in setOf("file", "content", "android.resource")) { "Use a local video source." }
+                val bytes =
+                    requireNotNull(context.contentResolver.openInputStream(uri)).use { input ->
+                        val output = ByteArrayOutputStream()
+                        val buffer = ByteArray(8192)
+                        while (true) {
+                            val count = input.read(buffer)
+                            if (count < 0) break
+                            require(output.size().toLong() + count <= MAXIMUM_FILE_BYTES) { "Video asset exceeds 32 MiB." }
+                            output.write(buffer, 0, count)
+                        }
+                        output.toByteArray()
+                    }
+                val extension = uri.lastPathSegment?.substringAfterLast('.', "bin")?.lowercase()?.takeIf { it.matches(Regex("[a-z0-9]{1,8}")) } ?: "bin"
+                val digest = MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
+                val name = "video-$digest.$extension"
+                media[name] = bytes
+                return node.copy(elements = node.elements + ("source" to "media/$name"), children = children)
+            }
             if (!liveAnimation) return node.copy(children = children)
             val animation =
                 animations[node.id] ?: context.resources.openRawResource(
@@ -103,7 +128,7 @@ internal class SampleSceneFiles(private val context: Context) {
         var opaque = false
 
         fun collect(node: ScreenObjectSnapshot) {
-            if (node.type !in setOf("screen", "container", "video", "image", "text") && !(node.type == "asset" && node.elements["format"] == "lottie")) opaque = true
+            if (!supported(node)) opaque = true
             node.elements["source"]?.takeIf { it.startsWith("media/") }?.let { referenced.add(it.removePrefix("media/")) }
             node.children.forEach(::collect)
         }
@@ -150,6 +175,7 @@ internal class SampleSceneFiles(private val context: Context) {
             var pixels = 0L
             var count = 0
             var renderedPixels = 0L
+            var videos = 0
 
             fun resolve(
                 node: ScreenObjectSnapshot,
@@ -191,7 +217,17 @@ internal class SampleSceneFiles(private val context: Context) {
                     val bytes = requireNotNull(file.resources[node.elements.getValue("source").removePrefix("media/")])
                     requireNotNull(LottieCompositionFactory.fromJsonStringSync(bytes.toString(Charsets.UTF_8), animationKey(bytes)).value) { "Scene contains an unreadable animation." }
                 }
+                if (drawable && videoAsset(node)) {
+                    require(++videos <= 4) { "The sample supports up to four video assets." }
+                }
                 var elements = node.elements
+                if (drawable && videoAsset(node)) {
+                    val source = node.elements["source"].orEmpty()
+                    require(source.startsWith("media/")) { "Package video files in the scene media directory." }
+                    val video = File(folder, source.removePrefix("media/"))
+                    require(video.isFile) { "Missing video resource." }
+                    elements = elements + ("source" to Uri.fromFile(video).toString())
+                }
                 if (drawable && node.type == "image") {
                     val source = node.elements["source"].orEmpty()
                     val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
@@ -218,8 +254,8 @@ internal class SampleSceneFiles(private val context: Context) {
     }
 
     fun create(loaded: Loaded): ScreenObjectContainer {
-        val fallback = ScreenObjectFactory()
-        val factory = ScreenObjectFactory()
+        val fallback = ScreenObjectFactory(context)
+        val factory = ScreenObjectFactory(context)
         factory.register("asset") { node ->
             if (node.elements["format"] != "lottie") {
                 fallback.create(node)
@@ -242,7 +278,7 @@ internal class SampleSceneFiles(private val context: Context) {
 
         fun cameraBackground(value: ScreenObject): Boolean =
             when (value) {
-                is VideoScreenObject -> value.track == 0 && fullCanvas(value)
+                is VideoScreenObject -> value !is com.haishinkit.screen.AssetScreenObject && value.track == 0 && fullCanvas(value)
                 is ScreenObjectContainer -> fullCanvas(value) && value.getChildren().singleOrNull()?.let { fullCanvas(it) && cameraBackground(it) } == true
                 else -> false
             }
@@ -290,7 +326,9 @@ internal class SampleSceneFiles(private val context: Context) {
         return prepare(SceneFile.read(bytes))
     }
 
-    private fun supported(node: ScreenObjectSnapshot): Boolean = node.type in setOf("screen", "container", "video", "image", "text") || (node.type == "asset" && node.elements["format"] == "lottie")
+    private fun supported(node: ScreenObjectSnapshot): Boolean = node.type in setOf("screen", "container", "video", "image", "text") || (node.type == "asset" && node.elements["format"] == "lottie") || videoAsset(node)
+
+    private fun videoAsset(node: ScreenObjectSnapshot): Boolean = node.type == "asset" && node.elements["format"] in listOf(null, "video")
 
     private fun animationKey(bytes: ByteArray): String = "sample-scene-" + MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
 

@@ -46,14 +46,23 @@ The first native build downloads the pinned transport dependencies. A WHIP/WHEP
 server and endpoints for the stream you want to send or receive are required for
 network testing. The sample does not run a streaming server.
 
+## 🎞️ Video objects
+
+Tap an empty part of the Publish preview, then choose **Sample video**. The clip
+loops without audio and can be moved, resized or deleted like other objects.
+It reuses the [Swift sample movie](https://github.com/HaishinKit/HaishinKit.swift/blob/main/Examples/macOS/SampleVideo_360x240_5mb.mp4).
+The sample accepts up to four video objects. Playback uses the device's OS decoder;
+unsupported videos report an error. Video pauses when leaving Publish and restarts
+when returning. No extra codec package or video-storage permission is needed.
+
 ## 💾 Scene files
 
 In **Publish → Camera tools → Scene**, choose **Save scene** to export a portable
 `.scene` file, or **Open scene** to replace the current composition. Stop streaming
 and recording first. Android's file picker lets you choose where to save or open.
 
-Files retain the canvas size, object placement, text, images and the sample's
-animation. Restored top-level text and images remain editable; nested containers move and
+Files retain the canvas size, object placement, text, images, local video files and
+the sample's animation. Video playback restarts from the beginning on restore. Restored top-level text and images remain editable; nested containers move and
 delete as groups. The preview fits the
 saved canvas. Camera objects use the current capture sources; files do not contain
 camera footage, permissions or streaming credentials. Unknown objects are retained
