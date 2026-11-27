@@ -24,7 +24,7 @@ internal class ScreenObjectDragController(
     var focusedObject: ScreenObject? by mutableStateOf(null)
         private set
 
-    private val editor = ScreenObjectEditor(screen, objects)
+    private var editor = ScreenObjectEditor(screen, objects)
     private var selected: ScreenObject? = null
     private var grabOffset = Offset.Zero
 
@@ -98,6 +98,11 @@ internal class ScreenObjectDragController(
     fun clearFocus() {
         end()
         focusedObject = null
+    }
+
+    fun replaceObjects(objects: List<ScreenObject>) {
+        clearFocus()
+        editor = ScreenObjectEditor(screen, objects)
     }
 
     fun register(

@@ -198,7 +198,7 @@ fun CameraScreen(
         modifier = modifier,
         pictureInPicture = pictureInPicture,
         preview = { expanded ->
-            StudioPreviewFrame(expanded, viewModel.compositionSize.width.toFloat() / viewModel.compositionSize.height) {
+            StudioPreviewFrame(expanded || viewModel.loadedSceneSize != null, viewModel.compositionSize.width.toFloat() / viewModel.compositionSize.height) {
                 Box(
                     modifier =
                         Modifier.fillMaxSize().pointerInput(viewModel, configuration.orientation) {
@@ -310,6 +310,17 @@ fun CameraScreen(
                         { showIngest = true }
                     },
                 settings = {
+                    SceneFileControls(
+                        enabled = !sessionActive && !recorderState.isRecording,
+                        busy = viewModel.sceneFileBusy,
+                        onSave = viewModel::saveSceneFile,
+                        onOpen = { uri ->
+                            editingText = null
+                            insertionPosition = null
+                            viewModel.restoreSceneFile(uri)
+                        },
+                        onError = { errorMessage = it },
+                    )
                     selectedIngest?.let { Text(stringResource(R.string.ingest_selected, it)) }
                     PublishEncodingControls(
                         settings = viewModel.encoding,

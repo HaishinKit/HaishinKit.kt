@@ -11,6 +11,7 @@ import android.graphics.BitmapFactory
 import android.graphics.Rect
 import android.hardware.camera2.CameraAccessException
 import android.hardware.camera2.CameraManager
+import android.net.Uri
 import android.os.Build
 import android.provider.MediaStore
 import android.util.Size
@@ -39,17 +40,23 @@ import com.haishinkit.rtc.RtcStream
 import com.haishinkit.screen.ImageScreenObject
 import com.haishinkit.screen.Screen
 import com.haishinkit.screen.ScreenObject
+import com.haishinkit.screen.ScreenObjectContainer
 import com.haishinkit.screen.TextScreenObject
 import com.haishinkit.screen.VideoScreenObject
-import com.haishinkit.screen.scene.SceneManager
+import com.haishinkit.screen.scene.ScreenObjectSnapshotFactory
 import com.haishinkit.srt.SrtStream
 import com.haishinkit.stream.StreamSession
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 import java.io.ByteArrayOutputStream
 
 class CameraViewModel(
@@ -89,6 +96,11 @@ class CameraViewModel(
     internal val ingestDiscovery = BonjourIngestDiscovery(application.applicationContext)
     internal val screenObjectDragController: ScreenObjectDragController
 
+    internal var sceneFileBusy by mutableStateOf(false)
+        private set
+    internal var loadedSceneSize: Size? by mutableStateOf(null)
+        private set
+
     private var cameraDeviceManager: CameraDeviceManager =
         CameraDeviceManager(context = application.applicationContext)
     private var mixer: MediaMixer = MediaMixer(application.applicationContext)
@@ -98,13 +110,7 @@ class CameraViewModel(
     private var frontCameraObject: VideoScreenObject? = null
     private var sessionSettings: Preference.SessionSettings? = null
 
-    private val sceneManager: SceneManager by lazy {
-        val manager = SceneManager(mixer.screen)
-        manager.register(LottieScreen.TYPE) { data ->
-            LottieScreen(application.applicationContext)
-        }
-        manager
-    }
+    private val sceneFiles = SampleSceneFiles(application.applicationContext)
 
     init {
         val _videoEffectItems = mutableListOf<VideoEffectItem>()
@@ -148,6 +154,67 @@ class CameraViewModel(
         mixer.registerOutput(recorder)
         RendererPreference.register(this)
     }
+
+    internal suspend fun saveSceneFile(uri: Uri): Result<Unit> =
+        sceneOperation {
+            val snapshot = CompletableDeferred<com.haishinkit.screen.scene.ScreenObjectSnapshot>()
+            val captured = java.util.concurrent.atomic.AtomicBoolean()
+            val callback =
+                object : Screen.Callback() {
+                    override fun onEnterFrame() {
+                        if (!captured.compareAndSet(false, true)) return
+                        runCatching { ScreenObjectSnapshotFactory().create(mixer.screen) }
+                            .onSuccess { snapshot.complete(it) }.onFailure { snapshot.completeExceptionally(it) }
+                    }
+                }
+            mixer.screen.registerCallback(callback)
+            val state =
+                try {
+                    withTimeout(5000) { snapshot.await() }
+                } finally {
+                    mixer.screen.unregisterCallback(callback)
+                }
+            withContext(Dispatchers.IO) { sceneFiles.write(uri, sceneFiles.encode(state)) }
+        }
+
+    internal suspend fun restoreSceneFile(uri: Uri): Result<Unit> =
+        sceneOperation {
+            var pending: SampleSceneFiles.Loaded? = null
+            var installed = false
+            try {
+                withContext(Dispatchers.IO) { pending = sceneFiles.read(uri) }
+                val loaded = checkNotNull(pending)
+                val container = sceneFiles.create(loaded)
+                cameraLock.withLock {
+                    val hadFront = frontCameraObject != null
+                    val restoredFront = container.findByClass(VideoScreenObject::class.java).firstOrNull { it.track == FRONT_CAMERA_TRACK }
+                    if (hadFront && restoredFront == null) mixer.attachVideos(mapOf(FRONT_CAMERA_TRACK to null)).getOrThrow()
+                    mixer.screen.findByClass(LottieScreen::class.java).forEach { it.cancelAnimation() }
+                    val size = Size(loaded.snapshot.size.width, loaded.snapshot.size.height)
+                    mixer.screen.frame = Rect(0, 0, size.width, size.height)
+                    mixer.screen.transition(container)
+                    frontCameraObject = if (hadFront) restoredFront else null
+                    loadedSceneSize = size
+                    compositionSize = size
+
+                    fun editable(root: ScreenObjectContainer): List<ScreenObject> =
+                        root.getChildren().flatMap { child ->
+                            if (child is ScreenObjectContainer) {
+                                editable(child)
+                            } else if (child is VideoScreenObject && child.track == 0) {
+                                emptyList()
+                            } else {
+                                listOf(child)
+                            }
+                        }
+                    screenObjectDragController.replaceObjects(editable(container))
+                    sceneFiles.install(loaded)
+                    installed = true
+                }
+            } finally {
+                if (!installed) withContext(kotlinx.coroutines.NonCancellable + Dispatchers.IO) { pending?.directory?.deleteRecursively() }
+            }
+        }
 
     internal suspend fun selectIngest(endpoint: IngestEndpoint): Result<Unit> {
         if (session != null && session?.readyState?.value != StreamSession.ReadyState.CLOSED) {
@@ -308,7 +375,7 @@ class CameraViewModel(
 
     fun onConfigurationChanged(configuration: Configuration) {
         val composition =
-            when (configuration.orientation) {
+            loadedSceneSize ?: when (configuration.orientation) {
                 Configuration.ORIENTATION_PORTRAIT -> Size(Screen.DEFAULT_HEIGHT, Screen.DEFAULT_WIDTH)
                 Configuration.ORIENTATION_LANDSCAPE -> Size(Screen.DEFAULT_WIDTH, Screen.DEFAULT_HEIGHT)
                 else -> return
@@ -384,6 +451,25 @@ class CameraViewModel(
         super.onCleared()
         cameraDeviceManager.release()
         mixer.dispose()
+        sceneFiles.close()
+    }
+
+    private suspend fun sceneOperation(block: suspend () -> Unit): Result<Unit> {
+        if (sceneFileBusy) return Result.failure(IllegalStateException("A scene file operation is already running."))
+        if (recorder.isRecording || session?.readyState?.value?.let { it != StreamSession.ReadyState.CLOSED } == true) {
+            return Result.failure(IllegalStateException("Stop publishing and recording before changing scene files."))
+        }
+        sceneFileBusy = true
+        return try {
+            block()
+            Result.success(Unit)
+        } catch (cause: CancellationException) {
+            throw cause
+        } catch (cause: Exception) {
+            Result.failure(cause)
+        } finally {
+            sceneFileBusy = false
+        }
     }
 
     private suspend fun addFrontCamera(position: Offset): String? {
