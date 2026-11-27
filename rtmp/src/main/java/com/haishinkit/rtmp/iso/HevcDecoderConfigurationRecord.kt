@@ -110,7 +110,7 @@ internal data class HevcDecoderConfigurationRecord(
                 buffer.put(IsoTypeBufferUtils.START_CODE)
                 buffer.put((unit.type.toUInt() shl 1).toByte())
                 buffer.put(unit.temporalIdPlusOne.toByte())
-                buffer.put(unit.payload)
+                buffer.put(unit.payload.duplicate())
             }
         }
         buffer.flip()

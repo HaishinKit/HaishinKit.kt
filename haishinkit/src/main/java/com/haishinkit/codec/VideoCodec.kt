@@ -8,6 +8,7 @@ import android.media.MediaFormat
 import android.os.Build
 import android.os.Bundle
 import android.util.Size
+import com.haishinkit.graphics.DynamicRangeMode
 import com.haishinkit.graphics.PixelTransform
 import com.haishinkit.graphics.VideoGravity
 import com.haishinkit.util.FeatureUtil
@@ -140,6 +141,9 @@ class VideoCodec(
      */
     var profileLevel: VideoCodecProfileLevel = DEFAULT_PROFILE_LEVEL
 
+    /** Explicit HLG playback selection; decoding color metadata remains authoritative. */
+    var dynamicRangeMode = DynamicRangeMode.SDR
+
     /**
      * The pixel transform instance.
      */
@@ -171,9 +175,46 @@ class VideoCodec(
      */
     private var colorFormat = DEFAULT_COLOR_FORMAT
 
+    private val isHlgEncoding: Boolean
+        get() = pixelTransform.screen?.dynamicRangeMode == DynamicRangeMode.HLG
+
+    override fun createMediaCodec(): MediaCodec {
+        if (mode == MODE_DECODE && dynamicRangeMode == DynamicRangeMode.HLG) {
+            val name = android.media.MediaCodecList(android.media.MediaCodecList.REGULAR_CODECS).findDecoderForFormat(createMediaFormat(inputMimeType))
+            requireNotNull(name) { "No decoder supports the requested 10-bit HLG format" }
+            return MediaCodec.createByCodecName(name)
+        }
+        if (!isHlgEncoding) return super.createMediaCodec()
+        require(Build.VERSION.SDK_INT >= 33) { "HLG encoding requires Android 13 or later" }
+        require(pixelTransform is com.haishinkit.gles.ThreadPixelTransform) { "HLG encoding requires the OpenGL pixel transform" }
+        return MediaCodec.createByCodecName(requireNotNull(findHlgEncoder()) { "No encoder supports the requested 10-bit HLG format" })
+    }
+
+    /** Rejects unsupported HLG settings before a publication request is sent. */
+    fun validateEncodingSettings() {
+        if (pixelTransform.screen?.dynamicRangeMode == DynamicRangeMode.HLG) {
+            require(Build.VERSION.SDK_INT >= 33) { "HLG encoding requires Android 13 or later" }
+            require(pixelTransform is com.haishinkit.gles.ThreadPixelTransform) { "HLG encoding requires the OpenGL pixel transform" }
+            requireNotNull(findHlgEncoder()) { "No encoder supports the requested 10-bit HLG format" }
+        }
+    }
+
     override fun createMediaFormat(mime: String): MediaFormat =
         MediaFormat.createVideoFormat(mime, width, height).apply {
             if (mode == MODE_ENCODE) {
+                if (isHlgEncoding) {
+                    require(Build.VERSION.SDK_INT >= 33) { "HLG encoding requires Android 13 or later" }
+                    val main10 =
+                        when (mime) {
+                            MediaFormat.MIMETYPE_VIDEO_HEVC -> MediaCodecInfo.CodecProfileLevel.HEVCProfileMain10
+                            MediaFormat.MIMETYPE_VIDEO_AV1 -> MediaCodecInfo.CodecProfileLevel.AV1ProfileMain10
+                            else -> throw IllegalArgumentException("HLG encoding supports HEVC and AV1 only")
+                        }
+                    require(profileLevel.profile == main10) { "Select a Main10 profile for HLG encoding" }
+                    setInteger(MediaFormat.KEY_COLOR_STANDARD, MediaFormat.COLOR_STANDARD_BT2020)
+                    setInteger(MediaFormat.KEY_COLOR_TRANSFER, MediaFormat.COLOR_TRANSFER_HLG)
+                    setInteger(MediaFormat.KEY_COLOR_RANGE, MediaFormat.COLOR_RANGE_LIMITED)
+                }
                 setInteger(MediaFormat.KEY_BIT_RATE, bitRate)
                 setInteger(MediaFormat.KEY_FRAME_RATE, frameRate)
                 setInteger(MediaFormat.KEY_CAPTURE_RATE, frameRate)
@@ -188,7 +229,19 @@ class VideoCodec(
                     setInteger("level", profileLevel.level)
                 }
             } else {
-                if (Build.VERSION_CODES.R <= Build.VERSION.SDK_INT) {
+                if (dynamicRangeMode == DynamicRangeMode.HLG) {
+                    val profile =
+                        when (mime) {
+                            MediaFormat.MIMETYPE_VIDEO_HEVC -> MediaCodecInfo.CodecProfileLevel.HEVCProfileMain10
+                            MediaFormat.MIMETYPE_VIDEO_AV1 -> MediaCodecInfo.CodecProfileLevel.AV1ProfileMain10
+                            else -> throw IllegalArgumentException("HLG decoding supports HEVC and AV1 only")
+                        }
+                    setInteger(MediaFormat.KEY_PROFILE, profile)
+                    setInteger(MediaFormat.KEY_COLOR_STANDARD, MediaFormat.COLOR_STANDARD_BT2020)
+                    setInteger(MediaFormat.KEY_COLOR_TRANSFER, MediaFormat.COLOR_TRANSFER_HLG)
+                    setInteger(MediaFormat.KEY_COLOR_RANGE, MediaFormat.COLOR_RANGE_LIMITED)
+                }
+                if (Build.VERSION_CODES.R <= Build.VERSION.SDK_INT && dynamicRangeMode == DynamicRangeMode.SDR) {
                     setInteger(MediaFormat.KEY_LOW_LATENCY, 1)
                 }
             }
@@ -197,9 +250,22 @@ class VideoCodec(
     override fun configure(codec: MediaCodec) {
         super.configure(codec)
         if (mode == MODE_ENCODE) {
+            if (isHlgEncoding) pixelTransform.isEncoderOutput = true
             pixelTransform.imageExtent = Size(width, height)
             pixelTransform.surface = codec.createInputSurface()
         }
+    }
+
+    private fun findHlgEncoder(): String? {
+        val format = createMediaFormat(outputMimeType)
+        val name =
+            android.media.MediaCodecList(android.media.MediaCodecList.REGULAR_CODECS).codecInfos.firstOrNull { info ->
+                info.isEncoder && info.supportedTypes.contains(outputMimeType) &&
+                    info.getCapabilitiesForType(outputMimeType).let { caps ->
+                        (caps.isFeatureSupported("hdr-editing") || caps.isFeatureSupported("hlg-editing")) && caps.isFormatSupported(format)
+                    }
+            }?.name
+        return name
     }
 
     companion object {

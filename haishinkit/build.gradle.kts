@@ -7,6 +7,11 @@ plugins {
 }
 
 android {
+    testOptions {
+        targetSdk = 37
+        // Large scene fixtures and multiple Robolectric platform sandboxes exceed 512 MiB.
+        unitTests.all { it.maxHeapSize = "1g" }
+    }
     namespace = "com.haishinkit"
     compileSdk = 37
 

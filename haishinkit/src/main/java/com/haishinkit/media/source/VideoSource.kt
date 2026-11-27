@@ -3,6 +3,7 @@ package com.haishinkit.media.source
 import android.graphics.Rect
 import android.util.Size
 import android.view.Surface
+import com.haishinkit.graphics.DynamicRangeMode
 import com.haishinkit.graphics.ImageOrientation
 
 /**
@@ -19,6 +20,10 @@ interface VideoSource : Source {
      * or has already been released.
      */
     var surface: Surface?
+
+    /** Transfer function of produced frames. HDR sources must provide 10-bit BT.2020 HLG. */
+    val dynamicRangeMode: DynamicRangeMode
+        get() = DynamicRangeMode.SDR
 
     /**
      * The resolution of the video frames produced by this source.

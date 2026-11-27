@@ -8,6 +8,7 @@ import android.util.Size
 import android.view.Choreographer
 import android.view.Surface
 import com.haishinkit.BuildConfig
+import com.haishinkit.graphics.DynamicRangeMode
 import com.haishinkit.graphics.FpsController
 import com.haishinkit.graphics.PixelTransform
 import com.haishinkit.graphics.ScheduledFpsController
@@ -86,6 +87,8 @@ internal class PixelTransform(
             fpsController.frameRate = value
         }
 
+    override var isEncoderOutput = false
+
     override var backgroundColor: Int = Color.BLACK
 
     private val graphicsContext: GraphicsContext by lazy { GraphicsContext() }
@@ -116,10 +119,10 @@ internal class PixelTransform(
         isRunning.set(true)
         video.videoGravity = videoGravity
         graphicsContext.apply {
-            open((screen as? com.haishinkit.gles.screen.ThreadScreen)?.graphicsContext)
-            makeCurrent(createWindowSurface(surface))
+            open((screen as? com.haishinkit.gles.screen.ThreadScreen)?.graphicsContext, screen!!.dynamicRangeMode)
+            makeCurrent(createWindowSurface(surface, isEncoderOutput))
         }
-        program = shaderLoader.getProgram(GLES20.GL_TEXTURE_2D, videoEffect)
+        program = shaderLoader.getProgram(GLES20.GL_TEXTURE_2D, videoEffect, if (screen?.dynamicRangeMode == DynamicRangeMode.HLG) 3 else 0)
         screen?.let {
             video.videoSize = Size(it.bounds.width(), it.bounds.height())
         }
@@ -175,12 +178,9 @@ internal class PixelTransform(
     }
 
     fun clearColor(color: Int) {
-        GLES20.glClearColor(
-            ((color shr 16) and 0xFF) / 255.0f,
-            ((color shr 8) and 0xFF) / 255.0f,
-            (color and 0xFF) / 255.0f,
-            ((color shr 24) and 0xFF) / 255.0f,
-        )
+        val rgb = floatArrayOf(((color shr 16) and 255) / 255f, ((color shr 8) and 255) / 255f, (color and 255) / 255f)
+        val output = if (screen?.dynamicRangeMode == DynamicRangeMode.HLG) HlgColor.encode(HlgColor.fromSrgb(rgb[0], rgb[1], rgb[2])) else rgb
+        GLES20.glClearColor(output[0], output[1], output[2], ((color shr 24) and 255) / 255f)
     }
 
     companion object {

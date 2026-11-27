@@ -110,6 +110,40 @@ class Av1PlaybackTest {
         }
     }
 
+    @Test fun mediaMtxCodedFramesXPreservesAv1PayloadAndTimestamp() {
+        ShadowMediaCodecList.reset()
+        val capabilities =
+            MediaCodecInfoBuilder.CodecCapabilitiesBuilder.newBuilder()
+                .setMediaFormat(MediaFormat.createVideoFormat(MediaFormat.MIMETYPE_VIDEO_AV1, 320, 180)).setIsEncoder(false).setColorFormats(intArrayOf(MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420Flexible)).setProfileLevels(emptyArray()).build()
+        ShadowMediaCodecList.addCodec(MediaCodecInfoBuilder.newBuilder().setName("test.av1.decoder").setIsEncoder(false).setCapabilities(capabilities).build())
+        try {
+            withStream { stream, codec, _ ->
+                codec.inputMimeType = MediaFormat.MIMETYPE_VIDEO_AV1
+                codec.isRunning.set(true)
+                stream.connection.streams[1] = stream
+                RtmpStream::class.java.getDeclaredField("videoConfigurationAccepted").apply { isAccessible = true }.setBoolean(stream, true)
+                val wire = byteArrayOf(0x93.toByte(), 0x61, 0x76, 0x30, 0x31, 0x12, 0, 0x32, 1, 0)
+                val input =
+                    RtmpVideoMessage().apply {
+                        length = wire.size
+                        streamID = 1
+                        timestamp = 42
+                    }
+                input.decode(ByteBuffer.wrap(wire)).execute(stream.connection)
+                val controller = RtmpMuxer::class.java.getDeclaredMethod("getVideoBufferController").apply { isAccessible = true }.invoke(stream.muxer)
+                val queue = BufferController::class.java.getDeclaredField("messages").apply { isAccessible = true }.get(controller) as LinkedBlockingDeque<*>
+                assertEquals(1, queue.size)
+                val received = queue.first as RtmpVideoMessage
+                assertEquals(ByteBuffer.wrap(wire.copyOfRange(5, wire.size)), received.data)
+                assertEquals(42, received.timestamp)
+                assertEquals(0, received.compositeTime)
+                codec.isRunning.set(false)
+            }
+        } finally {
+            ShadowMediaCodecList.reset()
+        }
+    }
+
     private fun message(
         packet: Int,
         bytes: ByteArray,

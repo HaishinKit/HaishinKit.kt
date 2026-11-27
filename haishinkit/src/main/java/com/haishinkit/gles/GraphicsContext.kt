@@ -9,17 +9,22 @@ import android.opengl.EGLSurface
 import android.opengl.GLES20
 import android.util.Log
 import android.view.Surface
+import com.haishinkit.graphics.DynamicRangeMode
 import java.nio.ByteBuffer
 
 internal class GraphicsContext {
     var version: Int = 0
         private set
+    private var isHlg = false
     private var config: EGLConfig? = null
     private var context: EGLContext = EGL14.EGL_NO_CONTEXT
     private var display: EGLDisplay = EGL14.EGL_NO_DISPLAY
     private var surface: EGLSurface = EGL14.EGL_NO_SURFACE
 
-    fun open(shareGraphicsContext: GraphicsContext?) {
+    fun open(
+        shareGraphicsContext: GraphicsContext?,
+        dynamicRangeMode: DynamicRangeMode = DynamicRangeMode.SDR,
+    ) {
         display = EGL14.eglGetDisplay(EGL14.EGL_DEFAULT_DISPLAY)
 
         if (display === EGL14.EGL_NO_DISPLAY) {
@@ -31,6 +36,11 @@ internal class GraphicsContext {
             throw RuntimeException("unable to initialize EGL14")
         }
 
+        isHlg = dynamicRangeMode == DynamicRangeMode.HLG
+        if (isHlg) {
+            val extensions = EGL14.eglQueryString(display, EGL14.EGL_EXTENSIONS).orEmpty().split(" ")
+            require("EGL_EXT_gl_colorspace_bt2020_hlg" in extensions) { "HLG requires EGL_EXT_gl_colorspace_bt2020_hlg" }
+        }
         config = chooseConfig(3)
         if (config != null) {
             val context =
@@ -41,11 +51,13 @@ internal class GraphicsContext {
                     intArrayOf(EGL14.EGL_CONTEXT_CLIENT_VERSION, 3, EGL14.EGL_NONE),
                     0,
                 )
-            if (EGL14.eglGetError() == EGL14.EGL_SUCCESS) {
+            if (context != EGL14.EGL_NO_CONTEXT && EGL14.eglGetError() == EGL14.EGL_SUCCESS) {
                 this.context = context
                 this.version = 3
             }
         }
+
+        check(!isHlg || context != EGL14.EGL_NO_CONTEXT) { "HLG requires OpenGL ES 3 and a 10-bit EGL config" }
 
         // fall back to 2.0
         if (context == EGL14.EGL_NO_CONTEXT) {
@@ -84,7 +96,10 @@ internal class GraphicsContext {
 
     fun setPresentationTime(timestamp: Long): Boolean = EGLExt.eglPresentationTimeANDROID(display, surface, timestamp)
 
-    fun createWindowSurface(surface: Surface?): EGLSurface? {
+    fun createWindowSurface(
+        surface: Surface?,
+        isEncoderOutput: Boolean = false,
+    ): EGLSurface? {
         if (surface == null) {
             return null
         }
@@ -92,9 +107,9 @@ internal class GraphicsContext {
             display,
             config,
             surface,
-            SURFACE_ATTRIBUTES,
+            if (isHlg && !isEncoderOutput) intArrayOf(EGL_GL_COLORSPACE_KHR, EGL_GL_COLORSPACE_BT2020_HLG_EXT, EGL14.EGL_NONE) else SURFACE_ATTRIBUTES,
             0,
-        )
+        ).also { check(it != EGL14.EGL_NO_SURFACE) { "Unable to create EGL surface: ${EGL14.eglGetError()}" } }
     }
 
     fun readPixels(
@@ -149,7 +164,15 @@ internal class GraphicsContext {
             renderableType = renderableType or EGLExt.EGL_OPENGL_ES3_BIT_KHR
         }
 
-        val attributes = CONFIG_ATTRIBUTES_WITH_CONTEXT
+        // Some 10-bit EGL configs do not advertise EGL_RECORDABLE_ANDROID; encoder input
+        // compatibility is checked when its window surface is created.
+        val attributes = if (isHlg) CONFIG_ATTRIBUTES_WITH_CONTEXT.copyOf(11).apply { this[10] = EGL14.EGL_NONE } else CONFIG_ATTRIBUTES_WITH_CONTEXT.copyOf()
+        if (isHlg) {
+            attributes[1] = 10
+            attributes[3] = 10
+            attributes[5] = 10
+            attributes[7] = 2
+        }
         attributes[9] = renderableType
 
         val configs: Array<EGLConfig?> = arrayOfNulls(1)
@@ -173,6 +196,8 @@ internal class GraphicsContext {
 
     companion object {
         private val TAG = GraphicsContext::class.java.toString()
+        private const val EGL_GL_COLORSPACE_KHR = 0x309D
+        private const val EGL_GL_COLORSPACE_BT2020_HLG_EXT = 0x3540
         private const val EGL_RECORDABLE_ANDROID: Int = 0x3142
         private val SURFACE_ATTRIBUTES = intArrayOf(EGL14.EGL_NONE)
         private val CONFIG_ATTRIBUTES_WITH_CONTEXT =

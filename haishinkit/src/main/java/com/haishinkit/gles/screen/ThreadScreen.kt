@@ -7,6 +7,7 @@ import android.os.HandlerThread
 import android.os.Looper
 import android.os.Message
 import com.haishinkit.gles.GraphicsContext
+import com.haishinkit.graphics.DynamicRangeMode
 import com.haishinkit.media.source.VideoSource
 import com.haishinkit.screen.Screen
 import com.haishinkit.screen.ScreenObject
@@ -15,7 +16,8 @@ import java.lang.ref.WeakReference
 
 internal class ThreadScreen(
     applicationContext: Context,
-) : Screen(applicationContext) {
+    dynamicRangeMode: DynamicRangeMode = DynamicRangeMode.SDR,
+) : Screen(applicationContext, dynamicRangeMode) {
     val graphicsContext: GraphicsContext
         get() {
             return screen.graphicsContext
@@ -45,6 +47,7 @@ internal class ThreadScreen(
     private val screen: com.haishinkit.gles.screen.Screen by lazy {
         com.haishinkit.gles.screen.Screen(
             applicationContext,
+            dynamicRangeMode,
         )
     }
 
@@ -56,8 +59,18 @@ internal class ThreadScreen(
 
     init {
         screen.parent = this
-        handler.apply {
-            sendMessage(obtainMessage(MSG_START_RUNNING))
+        if (dynamicRangeMode == DynamicRangeMode.HLG) {
+            val start = java.util.concurrent.FutureTask { screen.startRunning() }
+            handler.post(start)
+            try {
+                start.get()
+            } catch (cause: Exception) {
+                handler.post { screen.stopRunning() }
+                handler.looper.quitSafely()
+                throw IllegalArgumentException("HLG rendering is not supported", cause.cause ?: cause)
+            }
+        } else {
+            handler.apply { sendMessage(obtainMessage(MSG_START_RUNNING)) }
         }
     }
 

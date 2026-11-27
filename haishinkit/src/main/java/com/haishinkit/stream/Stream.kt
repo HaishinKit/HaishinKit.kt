@@ -7,6 +7,7 @@ import com.haishinkit.BuildConfig
 import com.haishinkit.codec.AudioCodec
 import com.haishinkit.codec.Codec
 import com.haishinkit.codec.VideoCodec
+import com.haishinkit.graphics.DynamicRangeMode
 import com.haishinkit.media.CodecOutputBuffer
 import com.haishinkit.media.MediaBuffer
 import com.haishinkit.media.MediaLink
@@ -26,6 +27,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 @Suppress("UNUSED")
 abstract class Stream(
     private var context: Context,
+    playbackDynamicRangeMode: DynamicRangeMode,
 ) : MediaOutput,
     MediaOutputDataSource {
     /**
@@ -67,7 +69,7 @@ abstract class Stream(
             return field
         }
 
-    override val screen: Screen = Screen.create(context)
+    override val screen: Screen = Screen.create(context, playbackDynamicRangeMode)
         get() {
             if (dataSource != null) {
                 return dataSource?.get()?.screen ?: field
@@ -84,7 +86,7 @@ abstract class Stream(
 
     protected val audioCodec by lazy { AudioCodec() }
 
-    protected val videoCodec by lazy { VideoCodec(context) }
+    protected val videoCodec by lazy { VideoCodec(context).apply { dynamicRangeMode = playbackDynamicRangeMode } }
 
     protected var mode = Codec.MODE_ENCODE
         set(value) {
@@ -105,6 +107,9 @@ abstract class Stream(
     private val outputs = MediaOutputRegistry(this)
     private var audioBufferPool = Pools.SynchronizedPool<MediaBuffer>(BUFFER_POOL_COUNTS)
     private var videoBufferPool = Pools.SynchronizedPool<MediaBuffer>(BUFFER_POOL_COUNTS)
+
+    /** Creates the default SDR pipeline. */
+    constructor(context: Context) : this(context, DynamicRangeMode.SDR)
 
     override fun registerOutput(output: MediaOutput) = outputs.register(output)
 

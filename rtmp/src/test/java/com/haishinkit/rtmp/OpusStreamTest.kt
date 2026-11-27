@@ -110,6 +110,7 @@ class OpusStreamTest {
             listOf(
                 VideoCodecProfileLevel.H264_BASELINE_3_1 to 7,
                 VideoCodecProfileLevel.HEVC_MAIN_3_1 to 0x68766331,
+                VideoCodecProfileLevel.AV1_MAIN8_3_1 to 0x61763031,
                 VideoCodecProfileLevel.VP8_MAIN to 0x76703038,
                 VideoCodecProfileLevel.VP9_PROFILE0_31 to 0x76703039,
             )

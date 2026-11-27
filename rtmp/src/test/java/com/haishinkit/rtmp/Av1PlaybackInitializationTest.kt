@@ -246,6 +246,64 @@ class Av1PlaybackInitializationTest {
         }
     }
 
+    @Test fun hlgStartupUsesTheFirstSyncSequenceInsteadOfTheServerPlaceholder() {
+        stream.readyState = RtmpStream.ReadyState.PLAY
+        codec.dynamicRangeMode = com.haishinkit.graphics.DynamicRangeMode.HLG
+        codec.listener = null
+        val configured = AtomicReference<MediaFormat>()
+        val configuredCsd = AtomicReference<ByteBuffer>()
+        ShadowMediaCodec.addDecoder(
+            MediaFormat.MIMETYPE_VIDEO_AV1,
+            ShadowMediaCodec.CodecConfig(
+                4096,
+                4096,
+                object : ShadowMediaCodec.CodecConfig.Codec {
+                    override fun onConfigured(
+                        format: MediaFormat,
+                        surface: Surface?,
+                        crypto: MediaCrypto?,
+                        flags: Int,
+                    ) {
+                        configured.set(format)
+                        configuredCsd.set(format.getByteBuffer("csd-0")!!.duplicate())
+                        format.setString(MediaFormat.KEY_MIME, MediaFormat.MIMETYPE_VIDEO_RAW)
+                    }
+
+                    override fun process(
+                        input: ByteBuffer,
+                        output: ByteBuffer,
+                    ) {}
+                },
+            ),
+        )
+        codec.codec = android.media.MediaCodec.createDecoderByType(MediaFormat.MIMETYPE_VIDEO_AV1)
+        assertTrue(stream.configure(record())) // A valid but stale SDR placeholder must not start HLG decoding.
+        assertNull(configured.get())
+        assertFalse(stream.canReceiveAv1)
+        val header = javaClass.getResourceAsStream("/hdr/pixel8-hlg-sequence.obu")!!.readBytes()
+        assertFalse(stream.prepareAv1Frame(ByteBuffer.wrap(header), false))
+        val executor = Executors.newSingleThreadExecutor()
+        val texture = SurfaceTexture(false)
+        val surface = Surface(texture)
+        try {
+            val configuring = executor.submit<Boolean> { stream.prepareAv1Frame(ByteBuffer.wrap(byteArrayOf(0x12, 0) + header), true) }
+            val source = screen.sources.poll(2, TimeUnit.SECONDS)!!
+            source.surface = surface
+            assertTrue(configuring.get(2, TimeUnit.SECONDS))
+            val format = configured.get()
+            assertEquals(320, format.getInteger(MediaFormat.KEY_WIDTH))
+            assertEquals(180, format.getInteger(MediaFormat.KEY_HEIGHT))
+            assertEquals(2, format.getInteger(MediaFormat.KEY_PROFILE))
+            val expected = byteArrayOf(0x81.toByte(), 0, 0x4c, 0) + header
+            assertEquals(ByteBuffer.wrap(expected), configuredCsd.get())
+            assertTrue(stream.canReceiveAv1)
+        } finally {
+            executor.shutdownNow()
+            surface.release()
+            texture.release()
+        }
+    }
+
     private fun record() = Av1DecoderConfigurationRecord.decode(ByteBuffer.wrap(fixture))
 
     private class TestScreen(context: Context) : Screen(context) {

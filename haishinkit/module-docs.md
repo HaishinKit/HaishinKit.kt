@@ -106,3 +106,18 @@ property retains the requested value. Before opening, capabilities report no tor
 Android 11+ uses zoom-ratio control where available; other cameras use a centered sensor crop.
 The legacy `MediaMixer.isToucheEnabled` setter updates currently attached cameras together;
 attaching a source preserves that source's own torch setting.
+
+## HLG video composition
+
+Create `MediaMixer(context, dynamicRangeMode = DynamicRangeMode.HLG)` before attaching
+sources to opt into a 10-bit BT.2020 HLG pipeline. The default remains SDR. The OpenGL
+renderer uses floating-point linear-light composition, converts SDR assets into that
+space, and renders HLG to 10-bit encoder or display surfaces. Use `HkSurfaceView` for
+preview; `HkTextureView`, Vulkan, HDR bitmap export and HDR-to-SDR tone mapping are
+not supported by this path.
+
+HLG requires Android 13 or later and compatible graphics, display and codec hardware.
+`Camera2Source(context, dynamicRangeMode = DynamicRangeMode.HLG)` requests HLG10
+capture and rejects unsupported cameras. Encoding requires an HDR/HLG-editing capable
+Main10 HEVC or AV1 encoder. Configure a new mixer or playback stream to change range.
+See the RTMP module's Enhanced RTMP guide for publishing/playback configuration.

@@ -19,6 +19,22 @@ class Av1DecoderConfigurationRecordTest {
     // SVT-AV1 encoded 320x180 testsrc2, extracted from the MP4 av1C box.
     private val fixture = "81000c000a0b0200000521e7f66017c002".chunked(2).map { it.toInt(16).toByte() }.toByteArray()
 
+    @Test fun buildsPublishingConfigurationFromRawEncoderObus() {
+        val raw = ByteBuffer.wrap(fixture.copyOfRange(4, fixture.size))
+        val format = android.media.MediaFormat.createVideoFormat("video/av01", 320, 180).apply { setByteBuffer("csd-0", raw) }
+        val record = DecoderConfigurationRecord.create("video/av01", format)!!
+        assertEquals(Size(320, 180), record.videoSize)
+        assertEquals(0, raw.position())
+        assertArrayEquals(fixture, ByteArray(record.capacity).also { record.toByteBuffer().get(it) })
+    }
+
+    @Test fun preservesEncoderAv1cAndRejectsTruncatedRawObus() {
+        val format = android.media.MediaFormat.createVideoFormat("video/av01", 320, 180).apply { setByteBuffer("csd-0", ByteBuffer.wrap(fixture)) }
+        assertEquals(ByteBuffer.wrap(fixture), DecoderConfigurationRecord.create("video/av01", format)!!.toByteBuffer())
+        format.setByteBuffer("csd-0", ByteBuffer.wrap(byteArrayOf(0x0a, 5, 1)))
+        assertThrows(IllegalArgumentException::class.java) { DecoderConfigurationRecord.create("video/av01", format) }
+    }
+
     @Test
     fun acceptsMediaMtxConfiguration() {
         // Captured from a local MediaMTX v1.21.4 RTMP reader connection.

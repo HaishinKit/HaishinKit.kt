@@ -5,6 +5,7 @@ import android.content.Context
 import android.util.Range
 import android.util.Size
 import android.view.Surface
+import com.haishinkit.graphics.DynamicRangeMode
 import com.haishinkit.graphics.ImageOrientation
 import com.haishinkit.media.MediaMixer
 
@@ -66,12 +67,20 @@ class Camera2Source(
     internal val isBackFacing: Boolean
         get() = output?.isBackFacing == true
 
+    override val dynamicRangeMode: DynamicRangeMode get() = selectedDynamicRangeMode
+
+    private var selectedDynamicRangeMode = DynamicRangeMode.SDR
     private var output: Camera2Output? = null
         set(value) {
             if (field == value) return
             field?.close()
             field = value
         }
+
+    /** Selects SDR or HLG10 before opening the camera. */
+    constructor(context: Context, cameraId: String = DEFAULT_CAMERA_ID, dynamicRangeMode: DynamicRangeMode) : this(context, cameraId) {
+        selectedDynamicRangeMode = dynamicRangeMode
+    }
 
     /**
      * Opens the camera and selects a capture size using the mixer screen dimensions.
@@ -82,6 +91,7 @@ class Camera2Source(
      */
     @SuppressLint("MissingPermission")
     override suspend fun open(mixer: MediaMixer): Result<Unit> {
+        if (dynamicRangeMode == DynamicRangeMode.HLG && mixer.dynamicRangeMode != dynamicRangeMode) return Result.failure(IllegalArgumentException("HLG camera requires an HLG mixer"))
         val output = Camera2Output(context, this, cameraId)
         this.output = output
         return output.open().mapCatching {

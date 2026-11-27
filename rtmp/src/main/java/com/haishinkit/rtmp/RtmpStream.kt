@@ -10,6 +10,7 @@ import android.util.Size
 import com.haishinkit.codec.Codec
 import com.haishinkit.codec.CodecCapabilities
 import com.haishinkit.codec.CodecOption
+import com.haishinkit.graphics.DynamicRangeMode
 import com.haishinkit.media.MediaType
 import com.haishinkit.media.source.VideoCodecSource
 import com.haishinkit.rtmp.amf.AmfEcmaArray
@@ -19,6 +20,7 @@ import com.haishinkit.rtmp.event.EventUtils
 import com.haishinkit.rtmp.event.IEventDispatcher
 import com.haishinkit.rtmp.event.IEventListener
 import com.haishinkit.rtmp.iso.AudioSpecificConfig
+import com.haishinkit.rtmp.iso.Av1DecoderConfigurationRecord
 import com.haishinkit.rtmp.iso.DecoderConfigurationRecord
 import com.haishinkit.rtmp.iso.OpusConfiguration
 import com.haishinkit.rtmp.iso.VpDecoderConfigurationRecord
@@ -44,7 +46,8 @@ import java.util.concurrent.atomic.AtomicInteger
 class RtmpStream(
     context: Context,
     internal var connection: RtmpConnection,
-) : Stream(context),
+    playbackDynamicRangeMode: DynamicRangeMode,
+) : Stream(context, playbackDynamicRangeMode),
     IEventDispatcher {
     /**
      * Information about the publishing resource.
@@ -329,6 +332,7 @@ class RtmpStream(
 
     @Volatile
     private var audioConfigurationAccepted = false
+    private var pendingAv1Configuration: Av1DecoderConfigurationRecord? = null
     private var pendingVpConfiguration: VpDecoderConfigurationRecord? = null
 
     @Volatile
@@ -347,6 +351,9 @@ class RtmpStream(
         audioCodec.listener = muxer
         videoCodec.listener = muxer
     }
+
+    /** Creates the default SDR pipeline. */
+    constructor(context: Context, connection: RtmpConnection) : this(context, connection, DynamicRangeMode.SDR)
 
     /**
      * Requests publishing to the server. The request is queued until the server stream is created.
@@ -382,6 +389,7 @@ class RtmpStream(
                 "No Opus encoder is available on this device"
             }
         }
+        if (hasVideo) videoCodec.validateEncodingSettings()
         info.resourceName = name
 
         val arguments = mutableListOf<Any?>()
@@ -545,6 +553,7 @@ class RtmpStream(
         }
         videoConfiguration = null
         pendingVpConfiguration = null
+        pendingAv1Configuration = null
         videoConfigurationAccepted = false
         audioCodec.listener = muxer
         videoCodec.listener = muxer
@@ -557,6 +566,7 @@ class RtmpStream(
         audioConfigurationAccepted = false
         audioCodec.options = audioSetting.options
         pendingVpConfiguration = null
+        pendingAv1Configuration = null
         videoCodec.options = videoSetting.options
     }
 
@@ -651,6 +661,7 @@ class RtmpStream(
     internal fun invalidateVideoConfiguration() {
         videoConfigurationAccepted = false
         pendingVpConfiguration = null
+        pendingAv1Configuration = null
     }
 
     internal fun prepareVpFrame(
@@ -663,13 +674,41 @@ class RtmpStream(
         return try {
             val sizedRecord = record.withKeyFrameSize(frame)
             pendingVpConfiguration = null
+            pendingAv1Configuration = null
             configure(sizedRecord)
         } catch (cause: IllegalArgumentException) {
             false // A mid-GOP join waits for a complete keyframe.
         }
     }
 
+    internal fun prepareAv1Frame(
+        frame: ByteBuffer,
+        keyframe: Boolean,
+    ): Boolean {
+        if (canReceiveAv1) return true
+        val pending = pendingAv1Configuration ?: return false
+        if (!keyframe) return false
+        return try {
+            val actual = pending.withSequenceHeader(frame) ?: pending.takeIf { it.isHlg } ?: return false
+            if (!actual.isHlg) return false
+            pendingAv1Configuration = null
+            configureVideoDecoder(actual)
+        } catch (cause: IllegalArgumentException) {
+            false
+        }
+    }
+
     internal fun configure(decoderConfigurationRecord: DecoderConfigurationRecord): Boolean {
+        if (decoderConfigurationRecord is Av1DecoderConfigurationRecord && videoCodec.dynamicRangeMode == DynamicRangeMode.HLG && !videoCodec.isRunning.get()) {
+            if (mode != Codec.MODE_DECODE || !isRunning.get()) return false
+            pendingAv1Configuration = decoderConfigurationRecord
+            videoConfigurationAccepted = false
+            return true
+        }
+        return configureVideoDecoder(decoderConfigurationRecord)
+    }
+
+    private fun configureVideoDecoder(decoderConfigurationRecord: DecoderConfigurationRecord): Boolean {
         val nonNal = RtmpMuxer.isNonNalVideo(decoderConfigurationRecord.mime)
         if (isVideoCodecSwitch(decoderConfigurationRecord.mime)) {
             Log.w(TAG, "Close playback before changing to a different video codec")
@@ -692,7 +731,9 @@ class RtmpStream(
         // Reject an unsupported VP format before changing options or attaching a renderer.
         val vpDecoderName =
             if (decoderConfigurationRecord is VpDecoderConfigurationRecord) {
-                val size = decoderConfigurationRecord.videoSize ?: return false
+                val size =
+                    decoderConfigurationRecord.videoSize
+                        ?: return false
                 val format = MediaFormat.createVideoFormat(decoderConfigurationRecord.mime, size.width, size.height)
                 format.setInteger(MediaFormat.KEY_PROFILE, 1 shl decoderConfigurationRecord.profile)
                 try {
@@ -705,6 +746,10 @@ class RtmpStream(
             }
         if (decoderConfigurationRecord.configure(videoCodec)) {
             val size = decoderConfigurationRecord.videoSize
+            if (nonNal && size != null) {
+                videoCodec.width = size.width
+                videoCodec.height = size.height
+            }
             if (size != null || nonNal) {
                 val initialSize = size ?: Size(videoCodec.width, videoCodec.height)
                 playbackVideoSource = VideoCodecSource(videoCodec).apply { videoSize = initialSize }
@@ -797,7 +842,7 @@ class RtmpStream(
                 MediaFormat.MIMETYPE_VIDEO_HEVC ->
                     metadata["videocodecid"] = RtmpMuxer.FLV_VIDEO_FOUR_CC_HVC1
 
-                MediaFormat.MIMETYPE_VIDEO_VP8, MediaFormat.MIMETYPE_VIDEO_VP9 ->
+                MediaFormat.MIMETYPE_VIDEO_VP8, MediaFormat.MIMETYPE_VIDEO_VP9, MediaFormat.MIMETYPE_VIDEO_AV1 ->
                     metadata["videocodecid"] = RtmpMuxer.getVideoFourCCByType(videoCodec.profileLevel.mime)
 
                 MediaFormat.MIMETYPE_VIDEO_AVC -> {

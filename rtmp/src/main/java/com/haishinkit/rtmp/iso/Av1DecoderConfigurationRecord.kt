@@ -15,6 +15,16 @@ internal class Av1DecoderConfigurationRecord private constructor(
     override val videoSize: Size?
         get() = sequenceHeader()?.let(::readVideoSize)
 
+    val isHlg: Boolean get() = sequenceHeader()?.let(Av1SequenceHeader::parse)?.let { it.bitDepth == 10 && it.colorPrimaries == 9 && it.transfer == 18 && it.matrix == 9 } == true
+
+    val hasSequenceHeader: Boolean get() = sequenceHeader() != null
+
+    fun withSequenceHeader(frame: ByteBuffer): Av1DecoderConfigurationRecord? {
+        val obu = sequenceHeader(frame.duplicate(), true) ?: return null
+        val encoded = ByteArray(obu.remaining()).also { obu.get(it) }
+        return fromObus(encoded)
+    }
+
     override fun encode(buffer: ByteBuffer): Av1DecoderConfigurationRecord {
         buffer.put(bytes)
         return this
@@ -23,9 +33,12 @@ internal class Av1DecoderConfigurationRecord private constructor(
     override fun toCodecSpecificData(options: List<CodecOption>): List<CodecOption> =
         options.filter { it.key != CSD0 && it.key != "csd-1" } + CodecOption(CSD0, toByteBuffer())
 
-    private fun sequenceHeader(): ByteBuffer? {
-        val buffer = ByteBuffer.wrap(bytes, 4, bytes.size - 4).slice()
+    private fun sequenceHeader(
+        buffer: ByteBuffer = ByteBuffer.wrap(bytes, 4, bytes.size - 4).slice(),
+        includeHeader: Boolean = false,
+    ): ByteBuffer? {
         while (buffer.hasRemaining()) {
+            val start = buffer.position()
             val header = buffer.get().toInt() and 0xFF
             require(header and 0x81 == 0) { "Invalid AV1 OBU header" }
             require(header and 2 != 0) { "AV1 configuration OBUs must have a size field" }
@@ -46,7 +59,16 @@ internal class Av1DecoderConfigurationRecord private constructor(
             }
             require(complete && size <= buffer.remaining()) { "Invalid AV1 OBU size" }
             val payload = buffer.slice().apply { limit(size.toInt()) }
-            if (header shr 3 and 0x0F == 1) return payload
+            if (header shr 3 and 0x0F == 1) {
+                return if (includeHeader) {
+                    buffer.duplicate().apply {
+                        limit(buffer.position() + size.toInt())
+                        position(start)
+                    }.slice()
+                } else {
+                    payload
+                }
+            }
             buffer.position(buffer.position() + size.toInt())
         }
         return null
@@ -54,6 +76,25 @@ internal class Av1DecoderConfigurationRecord private constructor(
 
     companion object {
         private const val CSD0 = "csd-0"
+
+        fun create(format: MediaFormat): Av1DecoderConfigurationRecord? {
+            val csd = format.getByteBuffer(CSD0)?.duplicate() ?: return null
+            if (!csd.hasRemaining()) return null
+            if (csd.get(csd.position()).toInt() and 255 == 0x81) return decode(csd)
+            val obus = ByteArray(csd.remaining()).also { csd.get(it) }
+            return fromObus(obus)
+        }
+
+        private fun fromObus(obus: ByteArray): Av1DecoderConfigurationRecord? {
+            val provisional = Av1DecoderConfigurationRecord(byteArrayOf(0x81.toByte(), 0, 0, 0) + obus)
+            val payload = provisional.sequenceHeader() ?: return null
+            val info = Av1SequenceHeader.parse(payload)
+            val flags =
+                (info.tier shl 7) or (if (info.bitDepth > 8) 0x40 else 0) or
+                    (if (info.bitDepth == 12) 0x20 else 0) or (info.monochrome shl 4) or
+                    (info.subsamplingX shl 3) or (info.subsamplingY shl 2) or info.chromaPosition
+            return decode(ByteBuffer.wrap(byteArrayOf(0x81.toByte(), ((info.profile shl 5) or info.level).toByte(), flags.toByte(), 0) + obus))
+        }
 
         fun decode(buffer: ByteBuffer): Av1DecoderConfigurationRecord {
             require(buffer.remaining() >= 4) { "Truncated AV1 configuration record" }

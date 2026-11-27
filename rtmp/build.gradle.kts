@@ -6,6 +6,9 @@ plugins {
 }
 
 android {
+    testOptions {
+        targetSdk = 37
+    }
     namespace = "com.haishinkit.rtmp"
     compileSdk = 37
     defaultConfig {
@@ -64,6 +67,7 @@ dependencies {
     testImplementation(libs.junit)
     testImplementation(libs.robolectric)
     androidTestImplementation(libs.androidx.junit)
+    androidTestImplementation(libs.androidx.test.runner)
 }
 
 dokka {

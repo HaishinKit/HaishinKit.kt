@@ -17,7 +17,7 @@ internal sealed class NalUnit(
         fun encode(buffer: IsoTypeBuffer) {
             buffer.putUByte(type.toUInt() shl 1)
             buffer.putUByte(temporalIdPlusOne)
-            buffer.putBytes(payload)
+            buffer.putBytes(payload.duplicate())
         }
 
         companion object {

@@ -19,6 +19,7 @@ import android.util.Range
 import android.util.Size
 import android.view.Surface
 import com.haishinkit.BuildConfig
+import com.haishinkit.graphics.DynamicRangeMode
 import com.haishinkit.graphics.ImageOrientation
 import kotlinx.coroutines.CancellableContinuation
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -87,6 +88,13 @@ internal class Camera2Output(
         suspendCancellableCoroutine { continuation ->
             this.continuation = continuation
             characteristics = manager.getCameraCharacteristics(cameraId)
+            if (source.dynamicRangeMode == DynamicRangeMode.HLG) {
+                if (Build.VERSION.SDK_INT < 33 || characteristics?.get(CameraCharacteristics.REQUEST_AVAILABLE_DYNAMIC_RANGE_PROFILES)?.supportedProfiles?.contains(android.hardware.camera2.params.DynamicRangeProfiles.HLG10) != true) {
+                    this.continuation = null
+                    continuation.resume(Result.failure(IllegalArgumentException("Camera does not support HLG10 capture")))
+                    return@suspendCancellableCoroutine
+                }
+            }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                 manager.openCamera(cameraId, executor, this)
             } else {
@@ -136,7 +144,7 @@ internal class Camera2Output(
             session = null
             previewRequestBuilder =
                 device
-                    .createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW)
+                    .createCaptureRequest(if (source.dynamicRangeMode == DynamicRangeMode.HLG) CameraDevice.TEMPLATE_RECORD else CameraDevice.TEMPLATE_PREVIEW)
                     .apply {
                         addTarget(surface)
                     }
@@ -144,7 +152,13 @@ internal class Camera2Output(
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                 val outputList =
                     buildList {
-                        add(OutputConfiguration(surface))
+                        add(
+                            OutputConfiguration(surface).apply {
+                                if (Build.VERSION.SDK_INT >= 33 && source.dynamicRangeMode == DynamicRangeMode.HLG) {
+                                    dynamicRangeProfile = android.hardware.camera2.params.DynamicRangeProfiles.HLG10
+                                }
+                            },
+                        )
                     }
                 device.createCaptureSession(
                     SessionConfiguration(

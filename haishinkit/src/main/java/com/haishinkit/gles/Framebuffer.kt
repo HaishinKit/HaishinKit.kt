@@ -2,9 +2,11 @@ package com.haishinkit.gles
 
 import android.graphics.Rect
 import android.opengl.GLES20
+import android.opengl.GLES30
 import android.util.Log
+import com.haishinkit.graphics.DynamicRangeMode
 
-internal class Framebuffer {
+internal class Framebuffer(private val dynamicRangeMode: DynamicRangeMode = DynamicRangeMode.SDR) {
     val isEnabled: Boolean
         get() {
             return bounds.width() != 0 && bounds.height() != 0
@@ -16,6 +18,7 @@ internal class Framebuffer {
         set(value) {
             if (field == value) return
             field = value
+            release()
             try {
                 // framebuffers.
                 GLES20.glGenFramebuffers(1, framebufferIds, 0)
@@ -44,12 +47,12 @@ internal class Framebuffer {
                 GLES20.glTexImage2D(
                     GLES20.GL_TEXTURE_2D,
                     0,
-                    GLES20.GL_RGBA,
+                    if (dynamicRangeMode == DynamicRangeMode.HLG) GLES30.GL_RGBA16F else GLES20.GL_RGBA,
                     bounds.width(),
                     bounds.height(),
                     0,
                     GLES20.GL_RGBA,
-                    GLES20.GL_UNSIGNED_BYTE,
+                    if (dynamicRangeMode == DynamicRangeMode.HLG) GLES30.GL_HALF_FLOAT else GLES20.GL_UNSIGNED_BYTE,
                     null,
                 )
                 GLES20.glTexParameteri(
@@ -79,14 +82,18 @@ internal class Framebuffer {
                     throw RuntimeException("" + status)
                 }
             } catch (e: RuntimeException) {
+                if (dynamicRangeMode == DynamicRangeMode.HLG) {
+                    release()
+                    throw e
+                }
                 Log.w(TAG, "", e)
                 release()
             }
         }
 
-    private var textureIds = intArrayOf(1)
-    private var framebufferIds = intArrayOf(1)
-    private var renderBufferIds = intArrayOf(1)
+    private var textureIds = intArrayOf(0)
+    private var framebufferIds = intArrayOf(0)
+    private var renderBufferIds = intArrayOf(0)
 
     fun render(lambda: () -> Unit) {
         GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, framebufferIds[0])

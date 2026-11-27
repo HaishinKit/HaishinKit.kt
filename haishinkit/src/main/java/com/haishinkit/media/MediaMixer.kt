@@ -5,6 +5,7 @@ import android.hardware.SensorManager
 import android.view.OrientationEventListener
 import android.view.WindowManager
 import androidx.lifecycle.DefaultLifecycleObserver
+import com.haishinkit.graphics.DynamicRangeMode
 import com.haishinkit.graphics.effect.VideoEffect
 import com.haishinkit.lang.Running
 import com.haishinkit.media.source.AudioSource
@@ -72,7 +73,7 @@ class MediaMixer(
         get() = videoSources.isNotEmpty()
 
     override val screen: Screen by lazy {
-        Screen.create(context).apply {
+        Screen.create(context, dynamicRangeMode).apply {
             addChild(videoContainer)
         }
     }
@@ -80,6 +81,10 @@ class MediaMixer(
     override val coroutineContext: CoroutineContext
         get() = Dispatchers.IO
 
+    /** Color pipeline fixed for this mixer's lifetime. */
+    val dynamicRangeMode: DynamicRangeMode get() = selectedDynamicRangeMode
+
+    private var selectedDynamicRangeMode = DynamicRangeMode.SDR
     private val outputs = MediaOutputRegistry(this)
 
     @Volatile
@@ -108,6 +113,11 @@ class MediaMixer(
                 updateDeviceOrientation()
             }
         }
+    }
+
+    /** Creates a mixer with an immutable color pipeline. */
+    constructor(context: Context, dynamicRangeMode: DynamicRangeMode) : this(context) {
+        selectedDynamicRangeMode = dynamicRangeMode
     }
 
     /**

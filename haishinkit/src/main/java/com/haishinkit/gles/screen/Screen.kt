@@ -10,6 +10,7 @@ import androidx.core.graphics.createBitmap
 import com.haishinkit.gles.Framebuffer
 import com.haishinkit.gles.GraphicsContext
 import com.haishinkit.gles.Utils
+import com.haishinkit.graphics.DynamicRangeMode
 import com.haishinkit.lang.Running
 import com.haishinkit.media.source.VideoSource
 import com.haishinkit.screen.ScreenObject
@@ -20,12 +21,11 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 internal class Screen(
     applicationContext: Context,
-) : com.haishinkit.screen.Screen(applicationContext),
+    dynamicRangeMode: DynamicRangeMode = DynamicRangeMode.SDR,
+) : com.haishinkit.screen.Screen(applicationContext, dynamicRangeMode),
     Running,
     Choreographer.FrameCallback {
     val graphicsContext: GraphicsContext by lazy { GraphicsContext() }
-
-    private var textureIds = intArrayOf(0)
 
     override var textureId: Int
         get() = framebuffer.textureId
@@ -41,8 +41,9 @@ internal class Screen(
 
     override val isRunning: AtomicBoolean = AtomicBoolean(false)
 
-    private val renderer: Renderer by lazy { Renderer(applicationContext) }
-    private val framebuffer: Framebuffer by lazy { Framebuffer() }
+    private var textureIds = intArrayOf(0)
+    private val renderer: Renderer by lazy { Renderer(applicationContext, dynamicRangeMode) { track -> videoTextureRegistry.get(track)?.source?.dynamicRangeMode } }
+    private val framebuffer: Framebuffer by lazy { Framebuffer(dynamicRangeMode) }
     private var choreographer: Choreographer? = null
         set(value) {
             field?.removeFrameCallback(this)
@@ -109,6 +110,10 @@ internal class Screen(
     }
 
     override fun readPixels(lambda: (bitmap: Bitmap?) -> Unit) {
+        if (dynamicRangeMode == DynamicRangeMode.HLG) {
+            lambda(null)
+            return
+        }
         val bitmap =
             createBitmap(frame.width(), frame.height())
         val byteBuffer =
@@ -140,8 +145,19 @@ internal class Screen(
     override fun startRunning() {
         if (isRunning.get()) return
         isRunning.set(true)
-        graphicsContext.open(null)
+        graphicsContext.open(null, dynamicRangeMode)
         graphicsContext.makeCurrent(null)
+        if (dynamicRangeMode == DynamicRangeMode.HLG) {
+            val extensions = GLES20.glGetString(GLES20.GL_EXTENSIONS).orEmpty().split(" ")
+            require("GL_EXT_YUV_target" in extensions) { "HLG sources require GL_EXT_YUV_target" }
+            require("GL_EXT_color_buffer_half_float" in extensions || "GL_EXT_color_buffer_float" in extensions) { "HLG composition requires floating-point color buffers" }
+            val probe = Framebuffer(DynamicRangeMode.HLG)
+            try {
+                probe.bounds = Rect(0, 0, 4, 4)
+            } finally {
+                probe.release()
+            }
+        }
         choreographer = Choreographer.getInstance()
     }
 
@@ -166,12 +182,9 @@ internal class Screen(
 
         layout(renderer)
         framebuffer.render {
-            GLES20.glClearColor(
-                (Color.red(backgroundColor) / 255).toFloat(),
-                (Color.green(backgroundColor) / 255).toFloat(),
-                (Color.blue(backgroundColor) / 255).toFloat(),
-                0f,
-            )
+            val rgb = floatArrayOf(Color.red(backgroundColor) / 255f, Color.green(backgroundColor) / 255f, Color.blue(backgroundColor) / 255f)
+            val working = if (dynamicRangeMode == DynamicRangeMode.HLG) com.haishinkit.gles.HlgColor.fromSrgb(rgb[0], rgb[1], rgb[2]) else rgb
+            GLES20.glClearColor(working[0], working[1], working[2], 0f)
             GLES20.glEnable(GLES20.GL_BLEND)
             GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT)
             GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA, GLES20.GL_ONE_MINUS_SRC_ALPHA)

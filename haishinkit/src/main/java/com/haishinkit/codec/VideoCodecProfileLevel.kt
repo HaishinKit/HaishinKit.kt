@@ -252,6 +252,21 @@ enum class VideoCodecProfileLevel(
         MediaCodecInfo.CodecProfileLevel.HEVCMainTierLevel62,
     ),
 
+/** HEVC Main10 for HLG surface encoding. */
+    HEVC_MAIN10_4_1(
+        "HEVC_Main10_4_1",
+        MediaFormat.MIMETYPE_VIDEO_HEVC,
+        MediaCodecInfo.CodecProfileLevel.HEVCProfileMain10,
+        MediaCodecInfo.CodecProfileLevel.HEVCMainTierLevel41,
+    ),
+
+/** AV1 Main10 for HLG surface encoding. */
+    AV1_MAIN10_4_1(
+        "AV1_Main10_4_1",
+        MediaFormat.MIMETYPE_VIDEO_AV1,
+        MediaCodecInfo.CodecProfileLevel.AV1ProfileMain10,
+        MediaCodecInfo.CodecProfileLevel.AV1Level41,
+    ),
     VP8_MAIN(
         "VP8_Main",
         MediaFormat.MIMETYPE_VIDEO_VP8,

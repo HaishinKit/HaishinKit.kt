@@ -5,6 +5,7 @@ import android.opengl.GLES20
 import android.opengl.GLUtils
 import com.haishinkit.gles.ShaderLoader
 import com.haishinkit.gles.Utils
+import com.haishinkit.graphics.DynamicRangeMode
 import com.haishinkit.screen.ImageScreenObject
 import com.haishinkit.screen.Renderer
 import com.haishinkit.screen.ScreenObject
@@ -13,6 +14,8 @@ import javax.microedition.khronos.opengles.GL10
 
 internal class Renderer(
     context: Context,
+    private val dynamicRangeMode: DynamicRangeMode = DynamicRangeMode.SDR,
+    private val sourceRange: (Int) -> DynamicRangeMode? = { null },
 ) : Renderer {
     private val shaderLoader by lazy {
         ShaderLoader(context)
@@ -79,7 +82,19 @@ internal class Renderer(
     override fun draw(screenObject: ScreenObject) {
         if (screenObject is VideoScreenObject && screenObject.textureId <= 0) return
         val program =
-            shaderLoader.getProgram(screenObject.target, screenObject.videoEffect) ?: return
+            shaderLoader.getProgram(
+                screenObject.target, screenObject.videoEffect,
+                if (dynamicRangeMode == DynamicRangeMode.HLG) {
+                    if (screenObject is VideoScreenObject) {
+                        require(screenObject.videoEffect is com.haishinkit.graphics.effect.DefaultVideoEffect) { "HLG source composition currently requires the default effect" }
+                        if (sourceRange(screenObject.track) == DynamicRangeMode.HLG) 2 else 4
+                    } else {
+                        1
+                    }
+                } else {
+                    0
+                },
+            ) ?: return
         GLES20.glViewport(
             screenObject.bounds.left,
             screenObject.bounds.top,

@@ -16,8 +16,9 @@ internal class ThreadPixelTransform(
     override val context: Context,
 ) : PixelTransform {
     override var screen: Screen?
-        get() = pixelTransform.screen
+        get() = selectedScreen
         set(value) {
+            selectedScreen = value
             handler.apply {
                 sendMessage(obtainMessage(MSG_SET_SCREEN, value))
             }
@@ -28,6 +29,11 @@ internal class ThreadPixelTransform(
             handler.apply {
                 sendMessage(obtainMessage(MSG_SET_OUTPUT_SURFACE, value))
             }
+        }
+    override var isEncoderOutput: Boolean
+        get() = pixelTransform.isEncoderOutput
+        set(value) {
+            handler.post { pixelTransform.isEncoderOutput = value }
         }
     override var videoGravity: VideoGravity
         get() = pixelTransform.videoGravity
@@ -65,6 +71,9 @@ internal class ThreadPixelTransform(
                 sendMessage(obtainMessage(MSG_SET_BACKGROUND_COLOR, value))
             }
         }
+
+    @Volatile
+    private var selectedScreen: Screen? = null
 
     private val handler: Handler by lazy {
         val thread = HandlerThread(TAG)
