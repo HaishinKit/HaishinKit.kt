@@ -311,6 +311,16 @@ fun CameraScreen(
                     },
                 settings = {
                     selectedIngest?.let { Text(stringResource(R.string.ingest_selected, it)) }
+                    PublishEncodingControls(
+                        settings = viewModel.encoding,
+                        protocol = viewModel.publishingProtocol,
+                        publishing = sessionActive,
+                        onUpdate = { settings ->
+                            viewModel.updateEncoding(settings).also { result ->
+                                if (result.isSuccess) errorMessage = null
+                            }
+                        },
+                    )
                     CameraDeviceControllerView(
                         camera = selectedCamera,
                         cameras = cameraList,
@@ -385,6 +395,9 @@ fun CameraScreen(
                                         errorMessage = it
                                         return@launch
                                     }
+                                    viewModel.preparePublishing().onFailure {
+                                        errorMessage = it.message ?: context.getString(R.string.studio_encoding_error)
+                                    }.getOrElse { return@launch }
                                     sessionState.connect().onFailure {
                                         errorMessage = it.message ?: context.getString(R.string.studio_connection_error)
                                     }

@@ -35,12 +35,14 @@ import com.haishinkit.media.MediaMixer
 import com.haishinkit.media.MediaRecorder
 import com.haishinkit.media.source.AudioRecordSource
 import com.haishinkit.media.source.Camera2Source
+import com.haishinkit.rtc.RTCStream
 import com.haishinkit.screen.ImageScreenObject
 import com.haishinkit.screen.Screen
 import com.haishinkit.screen.ScreenObject
 import com.haishinkit.screen.TextScreenObject
 import com.haishinkit.screen.VideoScreenObject
 import com.haishinkit.screen.scene.SceneManager
+import com.haishinkit.srt.SrtStream
 import com.haishinkit.stream.StreamSession
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -71,6 +73,17 @@ class CameraViewModel(
     var videoEffectItems: List<VideoEffectItem>
 
     internal var compositionSize by mutableStateOf(Size(Screen.DEFAULT_WIDTH, Screen.DEFAULT_HEIGHT))
+        private set
+
+    internal val publishingProtocol: PublishingProtocol
+        get() =
+            when (session?.stream) {
+                is SrtStream -> PublishingProtocol.SRT
+                is RTCStream -> PublishingProtocol.WEBRTC
+                else -> PublishingProtocol.RTMP
+            }
+
+    internal var encoding by mutableStateOf(Preference.shared.encoding)
         private set
 
     internal val ingestDiscovery = BonjourIngestDiscovery(application.applicationContext)
@@ -165,6 +178,7 @@ class CameraViewModel(
             }
             mixer.registerOutput(candidate.stream)
             session = candidate
+            encoding = checkNotNull(settings.encoding)
             sessionSettings = settings
             replacement = null
             sessionError = null
@@ -178,6 +192,30 @@ class CameraViewModel(
             replacement?.stream?.dispose()
         }
     }
+
+    internal fun preparePublishing(): Result<Unit> =
+        runCatching {
+            val current = checkNotNull(session) { "The stream is not ready." }
+            check(current.readyState.value == StreamSession.ReadyState.CLOSED) { "The stream is already connecting or publishing." }
+            encoding.applyTo(current.stream, publishingProtocol, videoEnabled = current.stream.hasVideo, audioEnabled = current.stream.hasAudio)
+        }
+
+    internal fun updateEncoding(settings: PublishEncodingSettings): Result<Unit> =
+        runCatching {
+            val current = checkNotNull(session) { "The stream is not ready." }
+            val codecChanged = settings.videoCodec != encoding.videoCodec || settings.audioCodec != encoding.audioCodec
+            check(!codecChanged || current.readyState.value == StreamSession.ReadyState.CLOSED) { "Stop publishing before changing codecs." }
+            val previous = encoding
+            try {
+                settings.applyTo(current.stream, publishingProtocol, validateFormat = current.readyState.value == StreamSession.ReadyState.CLOSED)
+            } catch (cause: Exception) {
+                runCatching { previous.applyTo(current.stream, publishingProtocol, validateFormat = current.readyState.value == StreamSession.ReadyState.CLOSED) }
+                throw cause
+            }
+            Preference.shared.encoding = Preference.shared.encoding.mergingChanges(previous, settings)
+            encoding = settings
+            sessionSettings = sessionSettings?.copy(encoding = settings)
+        }
 
     internal fun addScreenObject(
         kind: ExampleScreenObjectKind,

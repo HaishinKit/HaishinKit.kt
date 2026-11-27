@@ -13,9 +13,15 @@ data class Preference(
     var whepURL: String = "",
     var bearerToken: String = "",
     var iceServers: String = "",
+    var encoding: PublishEncodingSettings = PublishEncodingSettings(),
 ) {
     /** An immutable snapshot, so changing authentication or ICE settings rebuilds a session. */
-    data class SessionSettings(val uri: Uri, val mode: StreamSession.Mode, val rtc: RTCConfiguration?) {
+    data class SessionSettings(
+        val uri: Uri,
+        val mode: StreamSession.Mode,
+        val rtc: RTCConfiguration?,
+        val encoding: PublishEncodingSettings? = null,
+    ) {
         fun create(context: Context): StreamSession =
             if (rtc != null) RTCSession(context, uri, mode, rtc) else StreamSession.Builder(context, uri).setMode(mode).build()
     }
@@ -45,6 +51,7 @@ data class Preference(
             } else {
                 null
             },
+            encoding.forProtocol(PublishingProtocol.fromUrl(streamURL)).takeIf { mode == StreamSession.Mode.PUBLISH },
         )
 
     companion object {

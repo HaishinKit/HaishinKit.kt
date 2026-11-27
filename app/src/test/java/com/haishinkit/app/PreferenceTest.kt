@@ -3,6 +3,7 @@ package com.haishinkit.app
 import com.haishinkit.stream.StreamSession
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -60,4 +61,36 @@ class PreferenceTest {
         preference.whepURL = "https:///missing-host"
         assertThrows(IllegalArgumentException::class.java) { preference.toStreamUri(StreamSession.Mode.PLAYBACK) }
     }
+
+    @Test
+    fun encodingSnapshotRetainsSelectionAndConformsToTransportWithoutChangingPlayback() {
+        val preference = Preference("rtmps://example.com/live", "test")
+        val original = preference.sessionSettings()
+        val selected = PublishEncodingSettings(PublishVideoCodec.VP9, PublishAudioCodec.OPUS, 2_500_000)
+        preference.encoding = selected
+        val next = preference.sessionSettings()
+        assertNotEquals(original, next)
+        assertEquals(PublishEncodingSettings(), original.encoding)
+        assertEquals(selected, next.encoding)
+        assertEquals(selected, preference.copy(streamURL = "rtmp://example.net/live").sessionSettings().encoding)
+        assertNull(preference.sessionSettings(StreamSession.Mode.PLAYBACK).encoding)
+        assertEquals(PublishVideoCodec.H265, selected.copy(videoCodec = PublishVideoCodec.H265).forProtocol(PublishingProtocol.SRT).videoCodec)
+        assertEquals(PublishVideoCodec.H264, preference.copy(streamURL = "srt://example.com:9710").sessionSettings().encoding!!.videoCodec)
+        assertEquals(PublishAudioCodec.AAC, preference.copy(streamURL = "srt://example.com:9710").sessionSettings().encoding!!.audioCodec)
+        assertEquals(PublishAudioCodec.OPUS, preference.copy(streamURL = "https://example.com/whip").sessionSettings().encoding!!.audioCodec)
+    }
+
+    @Test
+    fun unsupportedEncodingDoesNotPreventSessionCreationForPreviewOrSharing() =
+        kotlinx.coroutines.runBlocking {
+            org.robolectric.shadows.ShadowMediaCodecList.reset()
+            StreamSession.Builder.registerFactory(com.haishinkit.rtmp.RtmpStreamSessionFactory)
+            val settings = Preference("rtmp://example.com/live", "test", encoding = PublishEncodingSettings(videoCodec = PublishVideoCodec.AV1, videoBitRate = -1)).sessionSettings()
+            val session = settings.create(org.robolectric.RuntimeEnvironment.getApplication())
+            try {
+                assertEquals(StreamSession.ReadyState.CLOSED, session.readyState.value)
+            } finally {
+                session.close()
+            }
+        }
 }
