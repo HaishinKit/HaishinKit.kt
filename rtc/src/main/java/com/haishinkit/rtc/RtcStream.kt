@@ -106,11 +106,12 @@ class RtcStream internal constructor(context: Context, private val stop: () -> U
         peer: NativePeer,
         videoConfiguration: List<ByteArray>,
         videoType: RtcVideoCodec = RtcVideoCodec.H264,
+        videoLimits: VpLimits? = null,
         ready: () -> Unit,
     ): Unit =
         coroutineScope {
             check(current == null && !disposed)
-            val run = Run(publishing, tracks, videoConfiguration, videoType)
+            val run = Run(publishing, tracks, videoConfiguration, videoType, videoLimits)
             current = run
             try {
                 mode = if (publishing) Codec.MODE_ENCODE else Codec.MODE_DECODE
@@ -174,12 +175,12 @@ class RtcStream internal constructor(context: Context, private val stop: () -> U
                     super@RtcStream.startRunning()
                     if ("audio" in tracks) launch { decodeAudio(run) }
                     if ("video" in tracks) {
-                        launch { if (videoType == RtcVideoCodec.H264) decodeVideo(run, peer) else decodeVpVideo(run, peer) }
+                        launch { if (videoType == RtcVideoCodec.H264) decodeVideo(run, peer) else decodeVpVideo(run) }
                         launch {
                             while (true) {
-                                peer.requestKeyframe()
+                                if (videoType == RtcVideoCodec.H264 || !run.hasVideoKeyframe) peer.requestKeyframe()
                                 delay(2000)
-                                if (run.hasVideoKeyframe) break
+                                if (videoType == RtcVideoCodec.H264 && run.hasVideoKeyframe) break
                             }
                         }
                     }
@@ -297,10 +298,7 @@ class RtcStream internal constructor(context: Context, private val stop: () -> U
         }
     }
 
-    private suspend fun decodeVpVideo(
-        run: Run,
-        peer: NativePeer,
-    ) {
+    private suspend fun decodeVpVideo(run: Run) {
         var dimensions: Pair<Int, Int>? = null
         var lastRtpTime = Long.MIN_VALUE
         var lastInputTime = Long.MIN_VALUE
@@ -313,9 +311,11 @@ class RtcStream internal constructor(context: Context, private val stop: () -> U
             val (key, next) =
                 try {
                     val key = VpVideo.keyframe(run.videoType, sample.data)
-                    key to if (key) VpVideo.dimensions(run.videoType, sample.data) else null
+                    val size = if (key) VpVideo.dimensions(run.videoType, sample.data) else null
+                    size?.let { run.videoLimits?.validateDimensions(it.first, it.second) }
+                    key to size
                 } catch (_: IllegalArgumentException) {
-                    if (!recoveryRequested) peer.requestKeyframe()
+                    run.hasVideoKeyframe = false
                     recoveryRequested = true
                     continue
                 }
@@ -330,7 +330,7 @@ class RtcStream internal constructor(context: Context, private val stop: () -> U
                 while (run.keyframes.size > 64) run.keyframes.pollFirst()
             }
             if (dimensions == null || recoveryRequested) {
-                if (!recoveryRequested) peer.requestKeyframe()
+                run.hasVideoKeyframe = false
                 recoveryRequested = true
                 continue
             }
@@ -481,7 +481,7 @@ class RtcStream internal constructor(context: Context, private val stop: () -> U
 
     private data class Sample(val audio: Boolean, val data: ByteArray, val timeUs: Long)
 
-    private class Run(val publishing: Boolean, val tracks: Set<String>, val videoConfiguration: List<ByteArray>, val videoType: RtcVideoCodec) {
+    private class Run(val publishing: Boolean, val tracks: Set<String>, val videoConfiguration: List<ByteArray>, val videoType: RtcVideoCodec, val videoLimits: VpLimits?) {
         val epochUs = System.nanoTime() / 1000
         val audioClock = RtpClock(48_000)
         val videoClock = RtpClock(90_000)

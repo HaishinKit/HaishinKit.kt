@@ -84,9 +84,47 @@ static void vpMidFrameJoin() {
     }
 }
 
+static void vpLongGapAndProbing() {
+    for (bool vp9 : {false, true}) {
+        auto key = [vp9](uint16_t seq, uint32_t time) {
+            auto message = packet(seq, time, true, 2);
+            (*message)[sizeof(rtc::RtpHeader)] = vp9 ? rtc::byte{0x0c} : rtc::byte{0x10};
+            message->back() = vp9 ? rtc::byte{0x82} : rtc::byte{0x10};
+            return message;
+        };
+        VpRtpDepacketizer receiver(vp9);
+        auto original = key(100, 100);
+        rtc::message_vector messages{original};
+        receiver.incoming(messages, [](rtc::message_ptr) {});
+        require(messages.size() == 1, "Initial picture missing");
+        messages = {key(40000, 200)};
+        receiver.incoming(messages, [](rtc::message_ptr) {});
+        require(messages.size() == 1, "Large sequence gap blocked a new keyframe");
+        messages = {original};
+        receiver.incoming(messages, [](rtc::message_ptr) {});
+        require(messages.empty(), "Consumed old picture replayed after a large gap");
+        VpRtpDepacketizer probing(vp9);
+        messages = {key(10, 100)};
+        probing.incoming(messages, [](rtc::message_ptr) {});
+        // Probe 11 was lost, but the active SRTP transport continues receiving probes.
+        for (unsigned seq = 12; seq < 40014; ++seq) {
+            auto probe = packet(uint16_t(seq), 200, false, 4);
+            reinterpret_cast<rtc::RtpHeader *>(probe->data())->_first |= 0x20;
+            probe->back() = rtc::byte{4};
+            messages = {probe};
+            probing.incoming(messages, [](rtc::message_ptr) {});
+            require(messages.empty(), "Probe produced a picture");
+        }
+        messages = {key(40014, 300)};
+        probing.incoming(messages, [](rtc::message_ptr) {});
+        require(messages.size() == 1, "Missing first probe poisoned later video");
+    }
+}
+
 static void vpTests() {
     vpSharedTimeAndPadding();
     vpMidFrameJoin();
+    vpLongGapAndProbing();
     for (bool vp9 : {false, true}) {
         auto config = std::make_shared<rtc::RtpPacketizationConfig>(42, "test", 96, 90000);
         config->sequenceNumber = 65534;

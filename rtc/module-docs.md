@@ -66,3 +66,7 @@ VP9 hidden reference pictures may share a timestamp with a displayed picture, or
 carry a later sampling time. Decoder input timestamps are made unique while output
 is restored to its original RTP presentation time; the first displayed output after
 a validated keyframe can start rendering even when that keyframe was hidden.
+
+During VP recovery, keyframe requests repeat at two-second intervals until a valid
+keyframe arrives. Dimensions outside the advertised receive envelope are rejected
+before replacing the working decoder or its output surface, preserving audio.

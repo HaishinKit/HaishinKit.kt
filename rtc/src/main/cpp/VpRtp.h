@@ -2,6 +2,9 @@
 
 #include <rtc/rtc.hpp>
 #include <algorithm>
+#include <array>
+#include <deque>
+#include <set>
 #include <optional>
 #include <stdexcept>
 
@@ -65,12 +68,23 @@ public:
                 if (padding == 0 || padding > end - start) continue;
                 end -= padding;
             }
+            // Exact bounded replay suppression permits a fresh sequence origin or a
+            // large forward gap. Half-range comparisons cannot distinguish those
+            // from old packets after a muted/probing interval.
+            const std::array<uint32_t, 3> identity{header->ssrc(), header->timestamp(), header->seqNumber()};
+            if (!mRecentPackets.insert(identity).second) continue;
+            mRecentPacketOrder.push_back(identity);
+            if (mRecentPacketOrder.size() > 4096) {
+                mRecentPackets.erase(mRecentPacketOrder.front());
+                mRecentPacketOrder.pop_front();
+            }
             // Padding probes advance sequence between complete pictures too.
             if (end == start) {
-                if (mHaveSequence && header->seqNumber() == mNextSequence) ++mNextSequence;
+                if (mStarted && header->seqNumber() != mNextSequence) discard(send, header->seqNumber());
+                mNextSequence = uint16_t(header->seqNumber() + 1);
+                mHaveSequence = true;
                 continue;
             }
-            if (mHaveSequence && uint16_t(header->seqNumber() - mNextSequence) >= 0x8000) continue;
             const auto timestamp = header->timestamp();
             if (!mTimestamp || *mTimestamp != timestamp) {
                 if (mHaveSequence && (mStarted || header->seqNumber() != mNextSequence)) requestKeyframe(send);
@@ -191,6 +205,8 @@ private:
     const size_t mMaxBytes;
     const size_t mMaxPackets;
     rtc::binary mData;
+    std::set<std::array<uint32_t, 3>> mRecentPackets;
+    std::deque<std::array<uint32_t, 3>> mRecentPacketOrder;
     std::optional<uint32_t> mTimestamp;
     uint16_t mNextSequence = 0;
     bool mHaveSequence = false;

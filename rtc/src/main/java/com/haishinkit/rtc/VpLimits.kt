@@ -9,6 +9,17 @@ internal data class VpLimits(val maxFs: Int, val maxFr: Int) {
         require(maxFs > 0 && maxFr > 0)
     }
 
+    fun validateDimensions(
+        width: Int,
+        height: Int,
+    ) {
+        require(width > 0 && height > 0)
+        val columns = (width.toLong() + 15) / 16
+        val rows = (height.toLong() + 15) / 16
+        val side = sqrt(maxFs * 8.0).toLong()
+        require(columns * rows <= maxFs && columns < side && rows < side) { "Video dimensions exceed VP receive limits" }
+    }
+
     companion object {
         fun forDecoder(codec: RtcVideoCodec): VpLimits {
             val decoder = MediaCodec.createDecoderByType(codec.mime)

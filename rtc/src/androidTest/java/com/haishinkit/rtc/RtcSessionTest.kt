@@ -152,6 +152,7 @@ class RtcSessionTest {
                 val first = java.util.concurrent.atomic.AtomicBoolean(true)
                 val headers = CompletableDeferred<Unit>()
                 val deleted = AtomicInteger()
+                val keyframeRequests = AtomicInteger()
                 http.createContext("/whip") { request ->
                     if (first.getAndSet(false)) {
                         request.sendDrippingSDP("/resource") { headers.complete(Unit) }
@@ -207,6 +208,8 @@ class RtcSessionTest {
 
     @Test fun vp9HiddenFutureReferenceStartsEarlierVisiblePlayback() = videoRoundTrip(RtcVideoCodec.VP9, 100_000L)
 
+    @Test fun vp8RecoveryRetriesAndRejectsOversizedHeadersBeforeReplacingDecoder() = videoRoundTrip(RtcVideoCodec.VP8, recovery = true)
+
     @Test fun corruptVpHeadersDoNotStopOpusPlayback() =
         runBlocking {
             val context = InstrumentationRegistry.getInstrumentation().context
@@ -225,6 +228,21 @@ class RtcSessionTest {
                             delay(20)
                         }
                     }
+                    val before = receiver.stream.mediaLink.audioTrack!!.playbackHeadPosition
+                    val frame = Rect(receiver.stream.screen.frame)
+                    endpoint.peer!!.send(false, oversizedVpHeader(codec), 1_000_000)
+                    withTimeout(5000) {
+                        var timestamp = 1_000_000L
+                        while (receiver.stream.mediaLink.audioTrack!!.playbackHeadPosition <= before) {
+                            assertTrue(receiver.isConnected)
+                            endpoint.peer!!.send(true, byteArrayOf(0xf8.toByte(), 0xff.toByte(), 0xfe.toByte()), timestamp)
+                            timestamp += 20_000
+                            delay(20)
+                        }
+                    }
+                    delay(200)
+                    assertTrue("Oversized VP header stopped audio: ${receiver.failure.value}", receiver.isConnected)
+                    assertEquals(frame, receiver.stream.screen.frame)
                 } finally {
                     receiver.close()
                     receiver.stream.dispose()
@@ -236,6 +254,7 @@ class RtcSessionTest {
     private fun videoRoundTrip(
         codec: RtcVideoCodec,
         hiddenOffsetUs: Long? = null,
+        recovery: Boolean = false,
     ) =
         runBlocking {
             assumeTrue("OS encoder and decoder required for ${codec.rtpName}", CodecCapabilities.isCodecSupportedByType(Codec.MODE_ENCODE, codec.mime) && CodecCapabilities.isCodecSupportedByType(Codec.MODE_DECODE, codec.mime))
@@ -277,6 +296,7 @@ class RtcSessionTest {
                     // Surface encoders may emit the initial blank buffer before the mixer
                     // submits the test signal. Capture a fresh keyframe after warm-up.
                     delay(300)
+                    awaitGreen(mixer.screen, "encoder source")
                     whip.frames.clear()
                     publisher.stream.requestKeyframe()
                     val frame =
@@ -297,14 +317,31 @@ class RtcSessionTest {
                 val receiver = RtcSession(context, whep.uri, StreamSession.Mode.PLAYBACK, RtcConfiguration(playbackVideoCodec = codec))
                 playback = receiver
                 receiver.connect().getOrThrow()
+                val connectedAt = System.nanoTime()
                 if (codec != RtcVideoCodec.H264) {
                     whep.peer!!.send(false, byteArrayOf(if (codec == RtcVideoCodec.VP9) 0x82.toByte() else 0), 0)
                     delay(200)
                     assertTrue("Corrupt VP header closed WHEP: ${receiver.failure.value}", receiver.isConnected)
                 }
+                var videoBase = 100_000L
+                if (recovery) {
+                    whep.peer!!.send(false, keyframe, videoBase)
+                    // Wait until the startup PLI loop would have exited in the old code.
+                    delay(2300)
+                    assertEquals(128, receiver.stream.screen.frame.width())
+                    val requests = whep.keyframeRequests.get()
+                    whep.peer!!.send(false, oversizedVpHeader(codec), 2_400_000L)
+                    // Ignore the first recovery request; no keyframe is sent yet.
+                    withTimeout(6000) {
+                        while (whep.keyframeRequests.get() < requests + 2) delay(20)
+                    }
+                    assertTrue("Oversized header closed WHEP: ${receiver.failure.value}", receiver.isConnected)
+                    assertEquals("Oversized header replaced the working decoder", 128, receiver.stream.screen.frame.width())
+                    videoBase = (System.nanoTime() - connectedAt) / 1000 + 100_000
+                }
                 if (hiddenOffsetUs == null) {
                     repeat(48) {
-                        whep.peer!!.send(false, if (it / 8 % 2 == 0) keyframe else resizedKeyframe, (it + 1) * 100_000L)
+                        whep.peer!!.send(false, if (it / 8 % 2 == 0) keyframe else resizedKeyframe, videoBase + it * 100_000L)
                         delay(100)
                     }
                 } else {
@@ -320,17 +357,7 @@ class RtcSessionTest {
                 assertTrue("WHEP failed: ${receiver.failure.value}", receiver.isConnected)
                 assertEquals(if (hiddenOffsetUs == null) 256 else 128, receiver.stream.screen.frame.width())
                 assertEquals(if (hiddenOffsetUs == null) 144 else 96, receiver.stream.screen.frame.height())
-                val pixel = CompletableDeferred<Int>()
-                receiver.stream.screen.readPixels { bitmap ->
-                    if (bitmap == null) {
-                        pixel.completeExceptionally(AssertionError("No decoded screen"))
-                    } else {
-                        pixel.complete(bitmap.getPixel(bitmap.width / 2, bitmap.height / 2))
-                        bitmap.recycle()
-                    }
-                }
-                val color = withTimeout(5000) { pixel.await() }
-                assertTrue("Decoded pixel is not green: $color", Color.green(color) > 180 && Color.red(color) < 80 && Color.blue(color) < 80)
+                awaitGreen(receiver.stream.screen, "decoded ${codec.rtpName}")
                 receiver.close().getOrThrow()
                 if (codec == RtcVideoCodec.H264) assertMissingSurfaceFailure(context, whep, keyframe)
             } finally {
@@ -381,6 +408,35 @@ class RtcSessionTest {
         }
     }
 
+    private suspend fun awaitGreen(
+        screen: Screen,
+        label: String,
+    ) {
+        var last: Int? = null
+        try {
+            withTimeout(5000) {
+                while (true) {
+                    val pixel = CompletableDeferred<Int?>()
+                    screen.readPixels { bitmap ->
+                        pixel.complete(bitmap?.getPixel(bitmap.width / 2, bitmap.height / 2))
+                        bitmap?.recycle()
+                    }
+                    last = pixel.await()
+                    if (last != null && Color.green(last!!) > 180 && Color.red(last!!) < 80 && Color.blue(last!!) < 80) break
+                    delay(20)
+                }
+            }
+        } catch (cause: kotlinx.coroutines.TimeoutCancellationException) {
+            throw AssertionError("$label did not display the green signal (last pixel $last)", cause)
+        }
+    }
+
+    private fun oversizedVpHeader(codec: RtcVideoCodec): ByteArray {
+        if (codec == RtcVideoCodec.VP8) return byteArrayOf(0x10, 0, 0, 0x9d.toByte(), 1, 0x2a, 0, 8, 0, 8)
+        val bits = "10000010" + "010010011000001101000010" + "0000" + 2047.toString(2).padStart(16, '0').repeat(2)
+        return bits.padEnd((bits.length + 7) / 8 * 8, '0').chunked(8).map { it.toInt(2).toByte() }.toByteArray()
+    }
+
     private class Endpoint(
         private val publishing: Boolean,
         private val audio: Boolean = true,
@@ -391,6 +447,7 @@ class RtcSessionTest {
             get() = Uri.parse("http://127.0.0.1:${http.address.port}/endpoint")
         val frames = LinkedBlockingQueue<ByteArray>(64)
         val deleted = AtomicInteger()
+        val keyframeRequests = AtomicInteger()
 
         @Volatile var peer: NativePeer? = null
         private val http = TestHttpServer()
@@ -401,6 +458,7 @@ class RtcSessionTest {
                 val created =
                     NativePeer(publishing, audio, video, emptyArray(), { kind, _, text ->
                         if (kind == NativePeer.SDP) answer.offer(text)
+                        if (kind == NativePeer.KEYFRAME) keyframeRequests.incrementAndGet()
                     }, { _, frame, _ -> frames.offer(frame) }, videoCodec = videoCodec)
                 peer = created
                 created.acceptOffer(request.requestBody.bufferedReader().readText())

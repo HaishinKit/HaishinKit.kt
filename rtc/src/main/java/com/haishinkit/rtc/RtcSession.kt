@@ -155,7 +155,7 @@ class RtcSession(
                         opened.first { it.containsAll(selected) }
                         selected
                     }
-                stream.execute(publishing, tracks, native, videoConfiguration, videoCodec) {
+                stream.execute(publishing, tracks, native, videoConfiguration, videoCodec, videoLimits) {
                     synchronized(guard) {
                         if (current !== run || state.value != StreamSession.ReadyState.CONNECTING || !run.job.isActive) throw CancellationException("Session was closed")
                         state.value = StreamSession.ReadyState.OPEN

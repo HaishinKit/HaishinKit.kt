@@ -20,7 +20,7 @@ existing minimum Android versions.
 This is an initial transport implementation. It does not implement trickle ICE/PATCH,
 ICE restart, automatic ICE-server discovery from HTTP Link headers, simulcast, RTX,
 TWCC/GCC bandwidth estimation, or adaptive jitter buffering/packet-loss concealment.
-WHEP uses libdatachannel's depacketizers and the existing MediaLink playback scheduler.
+WHEP uses codec-specific bounded RTP reassembly and the existing MediaLink playback scheduler.
 RTP timestamps are extended across wraparound and initially anchored to arrival time;
 RTCP sender-report timestamps are not yet used to refine audio/video synchronization.
 Configure TURN explicitly when required. Validate interoperability and network-loss

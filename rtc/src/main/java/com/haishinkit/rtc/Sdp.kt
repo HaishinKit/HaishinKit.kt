@@ -113,12 +113,7 @@ internal object Sdp {
                 requireNotNull(it.toLongOrNull()?.takeIf { value -> value in 1..Int.MAX_VALUE.toLong() }) { "Invalid VP $key" }
             }
         limit("max-fr")?.let { require(frameRate <= it) { "Video frame rate exceeds the server's VP max-fr" } }
-        limit("max-fs")?.let {
-            val columns = (width.toLong() + 15) / 16
-            val rows = (height.toLong() + 15) / 16
-            val side = kotlin.math.sqrt(it * 8.0).toLong()
-            require(columns * rows <= it && columns < side && rows < side) { "Video dimensions exceed the server's VP max-fs" }
-        }
+        limit("max-fs")?.let { VpLimits(it.toInt(), frameRate).validateDimensions(width, height) }
     }
 
     fun validateAnswer(
