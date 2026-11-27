@@ -330,6 +330,7 @@ fun CameraScreen(
                     selectedIngest?.let { Text(stringResource(R.string.ingest_selected, it)) }
                     PublishEncodingControls(
                         settings = viewModel.encoding,
+                        dynamicRange = viewModel.dynamicRangeMode,
                         protocol = viewModel.publishingProtocol,
                         publishing = sessionActive,
                         onUpdate = { settings ->
@@ -396,6 +397,7 @@ fun CameraScreen(
                     CameraControllerView(
                         isRecording = recorderState.isRecording,
                         controlsEnabled = !viewModel.sceneFileBusy,
+                        mediaToolsEnabled = viewModel.dynamicRangeMode == com.haishinkit.graphics.DynamicRangeMode.SDR,
                         isConnected = sessionActive,
                         readyState = sessionReadyState,
                         canCancelConnection = sessionState.stream is SrtStream || sessionState.stream is RtcStream,

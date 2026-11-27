@@ -120,6 +120,7 @@ fun PlaybackScreen(
         controls = { expanded ->
             PlaybackControls(
                 expanded = expanded,
+                dynamicRange = currentSession.stream.screen.dynamicRangeMode,
                 readyState = readyState,
                 errorMessage = errorMessage,
                 onOpenSettings = onOpenSettings,
@@ -139,6 +140,7 @@ internal fun PlaybackControls(
     onOpenSettings: () -> Unit,
     onToggleConnection: () -> Unit,
     canCancelConnection: Boolean = false,
+    dynamicRange: com.haishinkit.graphics.DynamicRangeMode = com.haishinkit.graphics.DynamicRangeMode.SDR,
 ) {
     Column(
         Modifier.fillMaxSize()
@@ -154,6 +156,7 @@ internal fun PlaybackControls(
         ) {
             Surface(shape = MaterialTheme.shapes.large, modifier = Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(stringResource(if (dynamicRange == com.haishinkit.graphics.DynamicRangeMode.HLG) R.string.studio_hdr_playback else R.string.studio_sdr_playback), style = MaterialTheme.typography.labelLarge)
                     if (expanded) {
                         Text(stringResource(R.string.studio_playback), style = MaterialTheme.typography.headlineSmall)
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {

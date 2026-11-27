@@ -23,7 +23,14 @@ data class Preference(
         val encoding: PublishEncodingSettings? = null,
     ) {
         fun create(context: Context): StreamSession =
-            if (rtc != null) RtcSession(context, uri, mode, rtc) else StreamSession.Builder(context, uri).setMode(mode).build()
+            if (mode == StreamSession.Mode.PLAYBACK && HdrPreference.selected(context).playback == com.haishinkit.graphics.DynamicRangeMode.HLG) {
+                require(uri.scheme in setOf("rtmp", "rtmps")) { context.getString(R.string.studio_hdr_rtmp_only) }
+                com.haishinkit.rtmp.RtmpStreamSessionFactory.create(context, uri, mode, com.haishinkit.graphics.DynamicRangeMode.HLG)
+            } else if (rtc != null) {
+                RtcSession(context, uri, mode, rtc)
+            } else {
+                StreamSession.Builder(context, uri).setMode(mode).build()
+            }
     }
 
     val isRTC: Boolean

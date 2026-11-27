@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="studio_hdr_title">HDR / HLG</string>
+    <string name="studio_hdr_apply">HDR設定を適用</string>
+    <string name="studio_hdr_publish_label">カメラ配信</string>
+    <string name="studio_hdr_help">RTMPでHEVC／AV1の10bit BT.2020 HLGを検証します。画面共有はSDRです。</string>
+    <string name="studio_hdr_restart">適用すると接続を停止し、OpenGLでプレビューを再生成し、シーンを初期化します。SDRのカメラ映像や画像をHLGに変換します。HLG配信時は録画とスナップショットを利用できません。</string>
+    <string name="studio_hdr_android">HLGにはAndroid 13以降が必要です。</string>
+    <string name="studio_hdr_rtmp_only">HLGの検証先にはRTMPまたはRTMPSを指定してください。SRT／WHIP・WHEPではSDRを選択してください。</string>
+    <string name="studio_hdr_opengl">HLGはOpenGLを利用します。Vulkanに切り替える前に配信・視聴ともSDRにしてください。</string>
+    <string name="studio_hdr_encoding">HLG · 10bit Main10 · BT.2020</string>
+    <string name="studio_sdr_encoding">SDR · 8bit</string>
+    <string name="studio_hdr_playback">HLG視聴 · HEVC / AV1</string>
+    <string name="studio_sdr_playback">SDR視聴</string>
+</resources>

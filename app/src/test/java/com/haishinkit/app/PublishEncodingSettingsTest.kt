@@ -16,6 +16,42 @@ import org.robolectric.shadows.ShadowMediaCodecList
 @RunWith(RobolectricTestRunner::class)
 @Config(manifest = Config.NONE, sdk = [29])
 class PublishEncodingSettingsTest {
+    @Test fun hlgUsesMain10Bt2020LimitedRangeForBothCodecs() {
+        for (codec in listOf(PublishVideoCodec.H265, PublishVideoCodec.AV1)) {
+            val settings = PublishEncodingSettings(videoCodec = codec)
+            val format = settings.createVideoFormat(VideoCodec.Setting(), PublishingProtocol.RTMP, com.haishinkit.graphics.DynamicRangeMode.HLG)
+            assertEquals(codec.profile.mime, format.getString(MediaFormat.KEY_MIME))
+            assertEquals(2, format.getInteger(MediaFormat.KEY_PROFILE))
+            assertEquals(MediaFormat.COLOR_STANDARD_BT2020, format.getInteger(MediaFormat.KEY_COLOR_STANDARD))
+            assertEquals(MediaFormat.COLOR_TRANSFER_HLG, format.getInteger(MediaFormat.KEY_COLOR_TRANSFER))
+            assertEquals(MediaFormat.COLOR_RANGE_LIMITED, format.getInteger(MediaFormat.KEY_COLOR_RANGE))
+            val sdr = settings.createVideoFormat(VideoCodec.Setting(), PublishingProtocol.RTMP)
+            org.junit.Assert.assertFalse(sdr.containsKey(MediaFormat.KEY_COLOR_TRANSFER))
+        }
+    }
+
+    @Test fun hlgRejectsOtherCodecsAndTransportsBeforeApplyingSettings() {
+        for (codec in listOf(PublishVideoCodec.H264, PublishVideoCodec.VP8, PublishVideoCodec.VP9)) {
+            assertThrows(IllegalArgumentException::class.java) {
+                PublishEncodingSettings(videoCodec = codec).createVideoFormat(VideoCodec.Setting(), PublishingProtocol.RTMP, com.haishinkit.graphics.DynamicRangeMode.HLG)
+            }
+        }
+        for (protocol in listOf(PublishingProtocol.SRT, PublishingProtocol.WEBRTC)) {
+            assertThrows(IllegalArgumentException::class.java) {
+                PublishEncodingSettings(videoCodec = PublishVideoCodec.H265).createVideoFormat(VideoCodec.Setting(), protocol, com.haishinkit.graphics.DynamicRangeMode.HLG)
+            }
+        }
+    }
+
+    @Test fun hlgDefaultChangesOnlyAnIncompatibleVideoCodec() {
+        val original = PublishEncodingSettings(audioCodec = PublishAudioCodec.OPUS, videoBitRate = 1_500_000)
+        val hlg = original.forDynamicRange(com.haishinkit.graphics.DynamicRangeMode.HLG)
+        assertEquals(original.copy(videoCodec = PublishVideoCodec.H265), hlg)
+        val av1 = original.copy(videoCodec = PublishVideoCodec.AV1)
+        assertEquals(av1, av1.forDynamicRange(com.haishinkit.graphics.DynamicRangeMode.HLG))
+        assertEquals(original, original.forDynamicRange(com.haishinkit.graphics.DynamicRangeMode.SDR))
+    }
+
     @Test
     fun bitrateUpdateKeepsRunningAacAndOpusEncodersUntouched() {
         for (choice in PublishAudioCodec.entries) {

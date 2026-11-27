@@ -30,6 +30,7 @@ internal fun PublishEncodingControls(
     protocol: PublishingProtocol,
     publishing: Boolean,
     onUpdate: (PublishEncodingSettings) -> Result<Unit>,
+    dynamicRange: com.haishinkit.graphics.DynamicRangeMode = com.haishinkit.graphics.DynamicRangeMode.SDR,
 ) {
     var editError by remember(protocol) { mutableStateOf<String?>(null) }
     var errorField by remember(protocol) { mutableStateOf<String?>(null) }
@@ -52,6 +53,7 @@ internal fun PublishEncodingControls(
     }
     val available = encoders?.getOrNull().orEmpty()
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(stringResource(if (dynamicRange == com.haishinkit.graphics.DynamicRangeMode.HLG) R.string.studio_hdr_encoding else R.string.studio_sdr_encoding), style = MaterialTheme.typography.labelLarge)
         Text(stringResource(R.string.studio_encoding_title), style = MaterialTheme.typography.titleMedium)
         Text(stringResource(if (protocol == PublishingProtocol.RTMP) R.string.studio_encoding_help else R.string.studio_encoding_transport_help), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         if (publishing) Text(stringResource(R.string.studio_encoding_locked), style = MaterialTheme.typography.bodySmall)
@@ -59,7 +61,7 @@ internal fun PublishEncodingControls(
         if (encoders?.isFailure == true) Text(stringResource(R.string.studio_encoding_error), color = MaterialTheme.colorScheme.error)
         Text(stringResource(R.string.studio_encoding_video), style = MaterialTheme.typography.labelLarge)
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            PublishVideoCodec.entries.filter { codec -> protocol == PublishingProtocol.RTMP || codec == PublishVideoCodec.H264 || (protocol == PublishingProtocol.SRT && codec == PublishVideoCodec.H265) || (protocol == PublishingProtocol.WEBRTC && codec in listOf(PublishVideoCodec.VP8, PublishVideoCodec.VP9)) }.forEach { codec ->
+            PublishVideoCodec.entries.filter { codec -> dynamicRange != com.haishinkit.graphics.DynamicRangeMode.HLG || codec in listOf(PublishVideoCodec.H265, PublishVideoCodec.AV1) }.filter { codec -> protocol == PublishingProtocol.RTMP || codec == PublishVideoCodec.H264 || (protocol == PublishingProtocol.SRT && codec == PublishVideoCodec.H265) || (protocol == PublishingProtocol.WEBRTC && codec in listOf(PublishVideoCodec.VP8, PublishVideoCodec.VP9)) }.forEach { codec ->
                 val supported = codec.profile.mime in available
                 FilterChip(
                     selected = settings.videoCodec == codec,

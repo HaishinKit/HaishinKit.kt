@@ -35,7 +35,7 @@ object RendererPreference {
     }
 
     fun configure(context: Context) {
-        val useVulkan = selected(context) == Renderer.VULKAN && isVulkanAvailable()
+        val useVulkan = selected(context) == Renderer.VULKAN && isVulkanAvailable() && !HdrPreference.selected(context).enabled
         Screen.factory =
             if (useVulkan) {
                 VkScreen::create

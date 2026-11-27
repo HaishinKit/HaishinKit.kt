@@ -8,6 +8,7 @@ import com.haishinkit.codec.Codec
 import com.haishinkit.codec.CodecCapabilities
 import com.haishinkit.codec.VideoCodec
 import com.haishinkit.codec.VideoCodecProfileLevel
+import com.haishinkit.graphics.DynamicRangeMode
 import com.haishinkit.stream.Stream
 
 enum class PublishingProtocol(val label: String) {
@@ -51,6 +52,26 @@ data class PublishEncodingSettings(
             PublishingProtocol.WEBRTC -> copy(videoCodec = videoCodec.takeIf { it in listOf(PublishVideoCodec.H264, PublishVideoCodec.VP8, PublishVideoCodec.VP9) } ?: PublishVideoCodec.H264, audioCodec = PublishAudioCodec.OPUS)
         }
 
+    fun forDynamicRange(range: DynamicRangeMode): PublishEncodingSettings =
+        if (range == DynamicRangeMode.HLG && videoCodec !in listOf(PublishVideoCodec.H265, PublishVideoCodec.AV1)) copy(videoCodec = PublishVideoCodec.H265) else this
+
+    internal fun videoProfile(
+        protocol: PublishingProtocol,
+        range: DynamicRangeMode,
+    ): VideoCodecProfileLevel =
+        if (range == DynamicRangeMode.HLG) {
+            require(protocol == PublishingProtocol.RTMP) { "HLG publishing requires RTMP." }
+            when (videoCodec) {
+                PublishVideoCodec.H265 -> VideoCodecProfileLevel.HEVC_MAIN10_4_1
+                PublishVideoCodec.AV1 -> VideoCodecProfileLevel.AV1_MAIN10_4_1
+                else -> throw IllegalArgumentException("Select HEVC or AV1 for HLG publishing.")
+            }
+        } else if (protocol == PublishingProtocol.WEBRTC && videoCodec == PublishVideoCodec.H264) {
+            VideoCodecProfileLevel.H264_BASELINE_3_1
+        } else {
+            videoCodec.profile
+        }
+
     fun applyTo(
         stream: Stream,
         protocol: PublishingProtocol,
@@ -58,7 +79,7 @@ data class PublishEncodingSettings(
         videoEnabled: Boolean = true,
         audioEnabled: Boolean = true,
     ) {
-        validateAndApply(stream.videoSetting, stream.audioSetting, protocol, validateFormat, videoEnabled, audioEnabled)
+        validateAndApply(stream.videoSetting, stream.audioSetting, protocol, validateFormat, videoEnabled, audioEnabled, stream.screen.dynamicRangeMode)
     }
 
     internal fun validateAndApply(
@@ -68,24 +89,38 @@ data class PublishEncodingSettings(
         validateFormat: Boolean = true,
         videoEnabled: Boolean = true,
         audioEnabled: Boolean = true,
+        range: DynamicRangeMode = DynamicRangeMode.SDR,
     ) {
         require(this == forProtocol(protocol)) { "The selected codecs are not supported by ${protocol.label}." }
-        val profile = if (protocol == PublishingProtocol.WEBRTC && videoCodec == PublishVideoCodec.H264) VideoCodecProfileLevel.H264_BASELINE_3_1 else videoCodec.profile
+        val profile = videoProfile(protocol, range)
         if (videoEnabled) {
             require(videoBitRate in MIN_VIDEO_BIT_RATE..MAX_VIDEO_BIT_RATE)
             require(CodecCapabilities.isCodecSupportedByType(Codec.MODE_ENCODE, profile.mime)) { "No ${videoCodec.label} encoder is available on this device." }
         }
         if (audioEnabled) require(CodecCapabilities.isCodecSupportedByType(Codec.MODE_ENCODE, audioCodec.mime)) { "No ${audioCodec.label} encoder is available on this device." }
         if (videoEnabled && validateFormat) {
-            val format = createVideoFormat(video, protocol)
-            // Match createEncoderByType used by the library, rather than accepting a different implementation.
-            val encoder = MediaCodec.createEncoderByType(profile.mime)
-            try {
-                require(encoder.codecInfo.getCapabilitiesForType(profile.mime).isFormatSupported(format)) {
-                    "The preferred ${videoCodec.label} encoder does not support this resolution, frame rate and bitrate. Try another codec or a lower bitrate."
+            val format = createVideoFormat(video, protocol, range)
+            if (range == DynamicRangeMode.HLG) {
+                require(android.os.Build.VERSION.SDK_INT >= 33) { "HLG requires Android 13 or later." }
+                require(
+                    android.media.MediaCodecList(android.media.MediaCodecList.REGULAR_CODECS).codecInfos.any { info ->
+                        info.isEncoder && profile.mime in info.supportedTypes &&
+                            info.getCapabilitiesForType(profile.mime).let { caps ->
+                                (caps.isFeatureSupported("hdr-editing") || caps.isFeatureSupported("hlg-editing")) && caps.isFormatSupported(format)
+                            }
+                    },
+                ) { "No encoder supports these 10-bit HLG settings. Select HEVC/AV1 or reduce the resolution/bitrate." }
+            } else {
+                // Match createEncoderByType used by the SDR library, rather than accepting a different implementation.
+
+                val encoder = MediaCodec.createEncoderByType(profile.mime)
+                try {
+                    require(encoder.codecInfo.getCapabilitiesForType(profile.mime).isFormatSupported(format)) {
+                        "The preferred ${videoCodec.label} encoder does not support this resolution, frame rate and bitrate. Try another codec or a lower bitrate."
+                    }
+                } finally {
+                    encoder.release()
                 }
-            } finally {
-                encoder.release()
             }
         }
         applyCodecSettings(video, audio, profile, videoEnabled, audioEnabled)
@@ -94,14 +129,20 @@ data class PublishEncodingSettings(
     internal fun createVideoFormat(
         video: VideoCodec.Setting,
         protocol: PublishingProtocol,
+        range: DynamicRangeMode = DynamicRangeMode.SDR,
     ): MediaFormat {
-        val profile = if (protocol == PublishingProtocol.WEBRTC && videoCodec == PublishVideoCodec.H264) VideoCodecProfileLevel.H264_BASELINE_3_1 else videoCodec.profile
+        val profile = videoProfile(protocol, range)
         return MediaFormat.createVideoFormat(profile.mime, video.width, video.height).apply {
             setInteger(MediaFormat.KEY_BIT_RATE, videoBitRate)
             setInteger(MediaFormat.KEY_FRAME_RATE, video.frameRate)
             setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface)
             setInteger(MediaFormat.KEY_PROFILE, if (protocol == PublishingProtocol.WEBRTC && videoCodec == PublishVideoCodec.H264) MediaCodecInfo.CodecProfileLevel.AVCProfileConstrainedBaseline else profile.profile)
             setInteger(MediaFormat.KEY_LEVEL, profile.level)
+            if (range == DynamicRangeMode.HLG) {
+                setInteger(MediaFormat.KEY_COLOR_STANDARD, MediaFormat.COLOR_STANDARD_BT2020)
+                setInteger(MediaFormat.KEY_COLOR_TRANSFER, MediaFormat.COLOR_TRANSFER_HLG)
+                setInteger(MediaFormat.KEY_COLOR_RANGE, MediaFormat.COLOR_RANGE_LIMITED)
+            }
         }
     }
 
