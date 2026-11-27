@@ -37,7 +37,7 @@ initialized = rpc.call(1, 'initialize', {
   capabilities: {},
   clientInfo: { name: 'haishinkit-smoke', version: '1.0.0' }
 })
-raise "Unexpected server: #{initialized}" unless initialized.dig('serverInfo', 'name') == 'haishinkit-android-sample'
+raise "Unexpected server: #{initialized}" unless initialized.dig('serverInfo', 'name') == 'haishinkit-android'
 
 protocol_version = initialized.fetch('protocolVersion')
 notification = post.call({ jsonrpc: '2.0', method: 'notifications/initialized' })

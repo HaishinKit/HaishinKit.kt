@@ -30,6 +30,7 @@ rootProject.name = "HaishinKit"
 include(":app")
 include(":compose")
 include(":haishinkit")
+include(":mcp")
 include(":lottie")
 include(":rtmp")
 include(":srt")

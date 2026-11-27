@@ -1,4 +1,4 @@
-package com.haishinkit.app
+package com.haishinkit.mcp
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -23,7 +23,9 @@ import org.robolectric.annotation.GraphicsMode
 @RunWith(RobolectricTestRunner::class)
 @Config(manifest = Config.NONE, sdk = [29])
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
-class DebugFrameCaptureTest {
+class FrameCaptureTest {
+    private val capture = FrameCapture()
+
     @Test
     fun encodesJpegAndPreservesAspectRatioWithoutUpscaling() =
         runBlocking {
@@ -32,9 +34,9 @@ class DebugFrameCaptureTest {
                 TestScreen { callback ->
                     callback(Bitmap.createBitmap(640, 360, Bitmap.Config.ARGB_8888).apply { eraseColor(Color.RED) })
                 }
-            DebugFrameCapture.attach(owner, screen)
+            capture.attach(owner, screen)
             try {
-                val image = DebugFrameCapture.capture(320, 85)
+                val image = capture.capture(320, 85)
                 val bytes = Base64.decode(image.data, Base64.DEFAULT)
                 val decoded = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
                 assertEquals(320, image.width)
@@ -42,9 +44,9 @@ class DebugFrameCaptureTest {
                 assertEquals(320, decoded.width)
                 assertTrue(Color.red(decoded.getPixel(10, 10)) > 240)
                 decoded.recycle()
-                assertEquals(640, DebugFrameCapture.capture(1280, 85).width)
+                assertEquals(640, capture.capture(1280, 85).width)
             } finally {
-                DebugFrameCapture.detach(owner)
+                capture.detach(owner)
             }
         }
 
@@ -53,18 +55,18 @@ class DebugFrameCaptureTest {
         runBlocking {
             val callback = CompletableDeferred<(Bitmap?) -> Unit>()
             val owner = Any()
-            DebugFrameCapture.attach(owner, TestScreen { callback.complete(it) })
+            capture.attach(owner, TestScreen { callback.complete(it) })
             try {
-                val pending = async { runCatching { DebugFrameCapture.capture(320, 85) } }
+                val pending = async { runCatching { capture.capture(320, 85) } }
                 val complete = callback.await()
-                DebugFrameCapture.detach(owner)
+                capture.detach(owner)
                 val bitmap = Bitmap.createBitmap(64, 36, Bitmap.Config.ARGB_8888)
                 complete(bitmap)
                 assertTrue(pending.await().isFailure)
                 assertTrue(bitmap.isRecycled)
-                assertTrue(runCatching { DebugFrameCapture.capture(320, 85) }.isFailure)
+                assertTrue(runCatching { capture.capture(320, 85) }.isFailure)
             } finally {
-                DebugFrameCapture.detach(owner)
+                capture.detach(owner)
             }
         }
 
@@ -73,16 +75,16 @@ class DebugFrameCaptureTest {
         runBlocking {
             val callback = CompletableDeferred<(Bitmap?) -> Unit>()
             val owner = Any()
-            DebugFrameCapture.attach(owner, TestScreen { callback.complete(it) })
+            capture.attach(owner, TestScreen { callback.complete(it) })
             try {
-                val pending = async { DebugFrameCapture.capture(320, 85) }
+                val pending = async { capture.capture(320, 85) }
                 val complete = callback.await()
                 pending.cancelAndJoin()
                 val bitmap = Bitmap.createBitmap(64, 36, Bitmap.Config.ARGB_8888)
                 complete(bitmap)
                 assertTrue(bitmap.isRecycled)
             } finally {
-                DebugFrameCapture.detach(owner)
+                capture.detach(owner)
             }
         }
 

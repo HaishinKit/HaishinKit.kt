@@ -32,6 +32,7 @@ dokka {
 
 dependencies {
     dokka(project(":haishinkit:"))
+    dokka(project(":mcp:"))
     dokka(project(":compose:"))
     dokka(project(":lottie:"))
     dokka(project(":rtmp:"))
