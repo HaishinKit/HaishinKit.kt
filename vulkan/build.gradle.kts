@@ -121,3 +121,11 @@ val compileVulkanShaders =
 androidComponents.onVariants { variant ->
     variant.sources.assets?.addGeneratedSourceDirectory(compileVulkanShaders, CompileVulkanShaders::outputDirectory)
 }
+
+dokka {
+    dokkaSourceSets.configureEach {
+        if (name == "main") {
+            includes.from(project.layout.projectDirectory.file("module-docs.md"))
+        }
+    }
+}

@@ -1,81 +1,150 @@
 # Module vulkan
 
-Optional Vulkan output backend for Android API 28 and later. Screen composition,
-video effects, gravity, and background color use the existing OpenGL renderer;
-Vulkan imports its RGBA hardware buffers and presents them to the selected Surface.
+Experimental native Vulkan rendering for HaishinKit on Android 9 (API 28) and later.
+Use this optional backend for screen composition, camera/decoder inputs, video effects,
+previews, recording, and encoded stream output. OpenGL is the default backend.
 
-Add `implementation(project(":vulkan"))` (or the `com.github.HaishinKit:vulkan`
-artifact) and configure the factory **before constructing streams, recorders, or
-preview views**:
+## Installation
 
-```kotlin
-PixelTransform.factory = VkPixelTransform::create
-```
-
-`create` falls back to OpenGL when the native library or required Vulkan device
-features are unavailable. To restore the default for future instances:
+Add the Vulkan module alongside your existing core and transport dependencies, using
+JitPack and the **same release version for every HaishinKit module**:
 
 ```kotlin
-PixelTransform.factory = PixelTransform::createOpenGL
+dependencies {
+    val haishinkitVersion = "0.20.6"
+    implementation("com.github.HaishinKit.HaishinKit~kt:vulkan:$haishinkitVersion")
+}
 ```
 
-Existing instances retain their backend. The same factory is used by VideoCodec
-(RTMP/SRT publishing and recording), HkSurfaceView, HkTextureView, and media outputs.
-Screen creation and camera/source composition remain unchanged. Directly owned
-transforms should be closed when no longer needed. Setting `surface` or `screen`
-to null releases the active Vulkan renderer and its bridge; they can be attached
-again later.
+The module requires API 28, Vulkan 1.1, Android HardwareBuffer import, foreign queue
+ownership, sampler YCbCr conversion, swapchain support, and `VK_GOOGLE_display_timing`.
+Android's API level alone does not establish Vulkan support. Check the device at
+runtime with `VkPixelTransform.isSupported()`.
 
-Vulkan 1.1, Android hardware-buffer import, foreign queue ownership,
-sampler YCbCr conversion, swapchain, and `VK_GOOGLE_display_timing` are required.
-The timing extension forwards the composited frame's timestamp to the destination,
-including MediaCodec input surfaces. Device-level support cannot guarantee that
-every encoder or destination Surface supports Vulkan presentation.
+## Select both factories
 
-## Building and validation
+Configure **both** factories in application startup, before creating any `MediaMixer`,
+stream, recorder, or preview view:
 
-Initialize dependencies with `git submodule update --init --recursive`. Versions
-are pinned by the repository. The module uses NDK 28.2.13676358 and CMake 3.22.1;
-Gradle compiles the shaders with the NDK's `glslc` and packages them into the AAR.
+```kotlin
+import android.os.Build
+import com.haishinkit.graphics.PixelTransform
+import com.haishinkit.screen.Screen
+import com.haishinkit.vulkan.VkPixelTransform
+import com.haishinkit.vulkan.VkScreen
+
+fun configureVideoRenderer() {
+    if (Build.VERSION.SDK_INT >= 28 && VkPixelTransform.isSupported()) {
+        Screen.factory = VkScreen::create
+        PixelTransform.factory = VkPixelTransform::create
+    } else {
+        Screen.factory = Screen::createOpenGL
+        PixelTransform.factory = PixelTransform::createOpenGL
+    }
+}
+```
+
+`Screen.factory` chooses composition; `PixelTransform.factory` chooses the output
+renderer used by video codecs and preview views. Selecting only one creates a mixed
+backend: `VkPixelTransform` rejects an OpenGL `Screen`.
+
+Existing objects keep their backend. To switch, stop publishing/playback/recording
+and screen sharing, dispose the old mixers/screens/outputs, set both factories, and
+create the objects again. Restore OpenGL with the two `createOpenGL` factories above.
+`VkPixelTransform.create()` does **not** choose OpenGL automatically when Vulkan is
+unsupported; the application makes that choice before constructing objects.
+
+## Rendering and lifetime
+
+Camera, decoder, and MediaProjection surfaces feed an NDK ImageReader. Vulkan imports
+their HardwareBuffers, applies YCbCr conversion and cropping, and composes video,
+images, text, effects, and background color into an RGBA image. A second Vulkan pass
+resamples that image into the preview or MediaCodec input surface. This path does not
+use an OpenGL/EGL bridge or CPU video readback. Text still uses Android CPU bitmap
+rasterization, and `Screen.readPixels` explicitly transfers the composition to CPU
+memory for snapshots.
+
+The default output filter is bicubic. `videoGravity`, `backgroundColor`, `frameRate`,
+and `videoEffect` remain available through `PixelTransform`. Each output currently
+has its own Vulkan device and composition target; preview and encoding therefore
+repeat composition. Measure performance, thermal behavior, and A/V synchronization
+on the intended devices rather than assuming this backend is faster than OpenGL.
+
+Close directly owned transforms and dispose screens when finished. Detaching a
+transform's `surface` releases its output renderer; detaching its `screen` unregisters
+it from that composition. You can attach them again before closing the transform.
+`VkScreen.onError` reports asynchronous frame failures; its default handler logs them.
+A device passing `isSupported()` can still reject a particular destination Surface
+or encoder input surface, so test both preview and the intended encoding output.
+
+## Effects and custom shaders
+
+Default, bilinear, bicubic, monochrome, sepia, mosaic, and Lanczos effects have Vulkan
+implementations. An OpenGL GLSL shader is not converted automatically. Register a
+SPIR-V implementation of a custom `VideoEffect` with `VulkanEffectRegistry`:
+
+```kotlin
+import com.haishinkit.graphics.effect.VideoEffect
+import com.haishinkit.vulkan.VulkanEffectRegistry
+import com.haishinkit.vulkan.VulkanShader
+
+class TintEffect(var red: Float = 1f) : VideoEffect {
+    override val name = "tint"
+}
+
+fun registerTintEffect() {
+    VulkanEffectRegistry.register(TintEffect::class.java) { effect ->
+        VulkanShader(
+            fragmentAsset = "shaders/example-tint.frag.spv",
+            parameters = floatArrayOf(effect.red, 1f, 1f),
+        )
+    }
+}
+```
+
+Call `registerTintEffect()` before assigning `TintEffect(0.5f)` to a screen object's or transform's `videoEffect`. The factory
+runs each frame, allowing parameters to change. The module includes the tint shader
+asset shown above. For your own shader, compile GLSL 450 with the NDK's `glslc` and
+package the SPIR-V file as an Android asset. Unregistered effects, missing assets,
+and invalid shaders fail explicitly rather than silently falling back to OpenGL.
+
+`VulkanShader` accepts up to twelve finite float parameters. The shader interface uses
+one combined sampler at set 0/binding 0 and a 128-byte push-constant block: the MVP
+matrix, source crop rectangle, and three `vec4` parameter slots. Sampling must respect
+the source crop, including every filter tap. See the module's shader sources and
+[the shader contract](https://github.com/HaishinKit/HaishinKit.kt/blob/0.20.6/vulkan/README.md#custom-effects) for the full interface and sampling helper.
+
+## Device diagnostics
+
+`inspectDevices()` enumerates device information without creating a renderer or
+output surface:
+
+```kotlin
+val deviceInfoJson = VkPixelTransform.inspectDevices()
+```
+
+The JSON `devices` array contains device names/types, API and driver versions, vendor
+and device IDs, and extensions. An absent native library or Vulkan loader yields an
+empty array; Vulkan initialization/enumeration errors throw `IllegalStateException`.
+Enumeration is diagnostic information, not the backend compatibility check: use
+`isSupported()` to select the backend.
+
+## Example and development checks
+
+The example app requires Android 10 (API 29) or later. In **Settings → Renderer**,
+select **OpenGL** or **Vulkan**, then **Apply renderer**. The action stops existing
+outputs and rebuilds the screens. Vulkan is disabled when the device check fails.
+
+For a source checkout, initialize the pinned native dependencies before building:
 
 ```shell
-./gradlew :vulkan:assembleDebug :vulkan:assembleRelease :vulkan:lintDebug
-./gradlew :haishinkit:testDebugUnitTest
+git submodule update --init --recursive
+./gradlew :vulkan:assembleRelease :vulkan:lintDebug
 ./gradlew :vulkan:connectedDebugAndroidTest
 ```
 
-The device tests check a solid-color Screen reaching an output Surface after
-reattachment, and MediaCodec frames with increasing presentation timestamps.
-They skip devices without the required Vulkan features. Also check preview
-rotation/resizing, effects, background colors, repeated publish/stop, and RTMP/SRT
-A/V synchronization on physical devices before shipping this backend.
-
-Timestamp behavior follows Android's [SurfaceTexture timestamp contract](https://developer.android.com/reference/android/graphics/SurfaceTexture#getTimestamp()).
-
-Host regression tests for fractional display intervals and per-device dispatcher
-ownership can run without an Android device:
-
-```shell
-cmake -S vulkan/src/test/cpp -B build/vulkan-native-tests
-cmake --build build/vulkan-native-tests
-ctest --test-dir build/vulkan-native-tests --output-on-failure
-```
-
-The Fastlane review lane also runs these tests. Each native renderer owns its
-Vulkan dispatcher, including the dispatch references retained by resource deleters.
-Out-of-date swapchains recreate their dependent resources; a recording/submission
-exception stops the affected renderer instead of reusing incomplete synchronization
-state.
-
-Surface presentation prefers the identity transform. When unavailable, it applies
-clip-space pre-rotation and adjusts swapchain dimensions using the selected surface
-transform, following [Android's pre-rotation guidance](https://developer.android.com/games/optimize/vulkan-prerotation).
-The host tests cover transform selection, rotated dimensions/corners, and the
-render-pass dependency that orders color-attachment transitions after image acquisition.
-
-The example app also exposes **Preference → Renderer → OpenGL / Vulkan**.
-Selecting **Apply renderer** stops publishing, playback, recording, and screen
-sharing, saves the selection, and rebuilds the app screens with the selected
-backend. Unsupported devices keep OpenGL available and disable Vulkan selection.
-The example keeps its API 23 minimum by guarding the optional API 28 native module
-before loading it.
+Native host tests cover frame pacing, dispatch ownership, surface transforms, and
+render synchronization. Device tests cover composition, effects, HardwareBuffer
+inputs, cropping, surface reattachment, and encoder presentation timestamps. Building
+an instrumentation APK does not run those checks. Also verify real capture/playback,
+repeated start/stop, output resize/rotation, and A/V synchronization on target devices.
