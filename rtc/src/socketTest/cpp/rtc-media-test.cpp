@@ -67,8 +67,26 @@ static void vpSharedTimeAndPadding() {
     require(feedback->requests == 1, "Actual sequence loss did not request recovery");
 }
 
+static void vpMidFrameJoin() {
+    for (bool vp9 : {false, true}) for (uint16_t initial : {uint16_t{32768}, uint16_t{40000}, uint16_t{65535}}) {
+        VpRtpDepacketizer receiver(vp9);
+        auto partial = packet(initial, 100, false, 2);
+        (*partial)[sizeof(rtc::RtpHeader)] = rtc::byte{0}; // continuation, no frame start
+        rtc::message_vector data{partial};
+        receiver.incoming(data, [](rtc::message_ptr) {});
+        require(data.empty(), "Mid-frame join emitted incomplete picture");
+        auto key = packet(uint16_t(initial + 1), 200, true, 2);
+        (*key)[sizeof(rtc::RtpHeader)] = vp9 ? rtc::byte{0x0c} : rtc::byte{0x10};
+        key->back() = vp9 ? rtc::byte{0x82} : rtc::byte{0x10};
+        data = {key};
+        receiver.incoming(data, [](rtc::message_ptr) {});
+        require(data.size() == 1, "High initial sequence poisoned next keyframe");
+    }
+}
+
 static void vpTests() {
     vpSharedTimeAndPadding();
+    vpMidFrameJoin();
     for (bool vp9 : {false, true}) {
         auto config = std::make_shared<rtc::RtpPacketizationConfig>(42, "test", 96, 90000);
         config->sequenceNumber = 65534;

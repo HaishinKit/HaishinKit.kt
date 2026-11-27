@@ -67,13 +67,13 @@ public:
             }
             // Padding probes advance sequence between complete pictures too.
             if (end == start) {
-                if (mTimestamp && header->seqNumber() == mNextSequence) ++mNextSequence;
+                if (mHaveSequence && header->seqNumber() == mNextSequence) ++mNextSequence;
                 continue;
             }
-            if (mTimestamp && uint16_t(header->seqNumber() - mNextSequence) >= 0x8000) continue;
+            if (mHaveSequence && uint16_t(header->seqNumber() - mNextSequence) >= 0x8000) continue;
             const auto timestamp = header->timestamp();
             if (!mTimestamp || *mTimestamp != timestamp) {
-                if (mTimestamp && (mStarted || header->seqNumber() != mNextSequence)) requestKeyframe(send);
+                if (mHaveSequence && (mStarted || header->seqNumber() != mNextSequence)) requestKeyframe(send);
                 mTimestamp = timestamp;
                 mDiscarding = false;
                 mData.clear();
@@ -88,7 +88,7 @@ public:
                 const auto distance = uint16_t(header->seqNumber() - mNextSequence);
                 if (distance >= 0x8000) continue;
                 if (!mVp9) continue;
-                if (distance != 0) { discard(send); continue; }
+                if (distance != 0) { discard(send, header->seqNumber()); continue; }
                 mCompleted = false;
             }
             size_t offset = start;
@@ -97,11 +97,12 @@ public:
                 (mVp9 && finish != bool(header->marker())) ||
                 (!mStarted && !begin) || (mStarted && (begin || header->seqNumber() != mNextSequence)) ||
                 mPackets >= mMaxPackets || end - offset > mMaxBytes - mData.size()) {
-                discard(send);
+                discard(send, header->seqNumber());
                 continue;
             }
             mStarted = true;
             mNextSequence = uint16_t(header->seqNumber() + 1);
+            mHaveSequence = true;
             ++mPackets;
             mData.insert(mData.end(), message->begin() + offset, message->begin() + end);
             if (header->marker()) {
@@ -177,7 +178,9 @@ private:
         return true;
     }
 
-    void discard(const rtc::message_callback &send) {
+    void discard(const rtc::message_callback &send, uint16_t sequence) {
+        mNextSequence = uint16_t(sequence + 1);
+        mHaveSequence = true;
         mData.clear();
         mDiscarding = true;
         mStarted = false;
@@ -190,6 +193,7 @@ private:
     rtc::binary mData;
     std::optional<uint32_t> mTimestamp;
     uint16_t mNextSequence = 0;
+    bool mHaveSequence = false;
     size_t mPackets = 0;
     bool mStarted = false;
     bool mCompleted = false;

@@ -62,3 +62,7 @@ and 30 fps). These are compatibility limits, not a benchmark or the device maxim
 WHIP rejects settings above explicitly signaled server limits; absent limit
 parameters remain accepted for compatibility with existing servers. Corrupt VP
 keyframe headers are dropped with a recovery keyframe request while audio continues.
+VP9 hidden reference pictures may share a timestamp with a displayed picture, or
+carry a later sampling time. Decoder input timestamps are made unique while output
+is restored to its original RTP presentation time; the first displayed output after
+a validated keyframe can start rendering even when that keyframe was hidden.

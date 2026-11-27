@@ -34,6 +34,7 @@ import java.io.IOException
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.util.concurrent.ConcurrentSkipListSet
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 
 /** H.264/VP8/VP9 and Opus media stream owned by [RtcSession]. Uses the existing mixer and output views. */
@@ -335,6 +336,7 @@ class RtcStream internal constructor(context: Context, private val stop: () -> U
             }
             lastRtpTime = sample.timeUs
             lastInputTime = inputTime
+            if (run.videoType == RtcVideoCodec.VP9) run.videoTimestamps.remember(inputTime, sample.timeUs)
             feed(videoCodec.codec!!, run.videoIndices.receive(), sample.copy(timeUs = inputTime))
         }
     }
@@ -368,6 +370,7 @@ class RtcStream internal constructor(context: Context, private val stop: () -> U
             }
         screen.attachVideo(0, source)
         withRtcDeadline(5000, "Decoder output surface was not attached") { attached.await() }
+        run.videoNeedsSync.set(true)
         videoCodec.startRunning()
         check(videoCodec.isRunning.get()) { "${run.videoType.rtpName} decoder failed to start" }
         hasVideo = true
@@ -447,7 +450,11 @@ class RtcStream internal constructor(context: Context, private val stop: () -> U
         ): Boolean {
             if (current !== run) return true
             if (!run.publishing) {
-                queueOutputBuffer(if (mime == MediaFormat.MIMETYPE_AUDIO_RAW) MediaType.AUDIO else MediaType.VIDEO, index, buffer, info.presentationTimeUs, mime != MediaFormat.MIMETYPE_AUDIO_RAW && run.keyframes.remove(info.presentationTimeUs))
+                val audio = mime == MediaFormat.MIMETYPE_AUDIO_RAW
+                val firstVpOutput = !audio && run.videoType != RtcVideoCodec.H264 && run.videoNeedsSync.getAndSet(false)
+                val sync = !audio && (run.keyframes.remove(info.presentationTimeUs) || firstVpOutput)
+                val time = if (!audio && run.videoType == RtcVideoCodec.VP9) run.videoTimestamps.outputTime(info.presentationTimeUs) else info.presentationTimeUs
+                queueOutputBuffer(if (audio) MediaType.AUDIO else MediaType.VIDEO, index, buffer, time, sync)
                 return false
             }
             if (info.size == 0 || info.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG != 0) return true
@@ -488,6 +495,8 @@ class RtcStream internal constructor(context: Context, private val stop: () -> U
         val bitrate = Channel<Int>(Channel.CONFLATED)
         val bytes = AtomicLong()
         val keyframes = ConcurrentSkipListSet<Long>()
+        val videoNeedsSync = AtomicBoolean(true)
+        val videoTimestamps = VpVideo.Timestamps()
 
         @Volatile var hasVideoKeyframe = false
     }

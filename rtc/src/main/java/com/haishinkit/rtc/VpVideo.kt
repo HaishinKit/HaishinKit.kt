@@ -1,5 +1,7 @@
 package com.haishinkit.rtc
 
+import java.util.concurrent.ConcurrentSkipListMap
+
 /** Uncompressed keyframe metadata only; decoding stays with Android MediaCodec. */
 internal object VpVideo {
     /** VP9 reference/display pictures may share RTP time; MediaCodec input PTS must be unique. */
@@ -9,7 +11,7 @@ internal object VpVideo {
         previousRtp: Long,
         previousInput: Long,
     ): Long? {
-        if (timestamp < previousRtp || (timestamp == previousRtp && codec != RtcVideoCodec.VP9)) return null
+        if (codec != RtcVideoCodec.VP9 && timestamp <= previousRtp) return null
         return maxOf(timestamp, previousInput + 1)
     }
 
@@ -50,6 +52,24 @@ internal object VpVideo {
             }
         require(size.first > 0 && size.second > 0) { "Invalid VP dimensions" }
         return size
+    }
+
+    /** Decoder PTS are unique/increasing; output keeps the original RTP presentation time.
+     * Hidden pictures can refer to a later sampling time than the following visible picture.
+     * Unused hidden-picture entries are bounded above the input/output queue capacities.
+     */
+    class Timestamps {
+        private val values = ConcurrentSkipListMap<Long, Long>()
+
+        fun remember(
+            inputTime: Long,
+            rtpTime: Long,
+        ) {
+            values[inputTime] = rtpTime
+            while (values.size > 128) values.pollFirstEntry()
+        }
+
+        fun outputTime(inputTime: Long): Long = values.remove(inputTime) ?: inputTime
     }
 
     private class Bits(private val data: ByteArray) {

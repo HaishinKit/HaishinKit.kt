@@ -203,6 +203,10 @@ class RtcSessionTest {
             }
         }
 
+    @Test fun vp9HiddenKeyframeStartsPlaybackWithSharedRtpTime() = videoRoundTrip(RtcVideoCodec.VP9, 0L)
+
+    @Test fun vp9HiddenFutureReferenceStartsEarlierVisiblePlayback() = videoRoundTrip(RtcVideoCodec.VP9, 100_000L)
+
     @Test fun corruptVpHeadersDoNotStopOpusPlayback() =
         runBlocking {
             val context = InstrumentationRegistry.getInstrumentation().context
@@ -229,7 +233,10 @@ class RtcSessionTest {
             }
         }
 
-    private fun videoRoundTrip(codec: RtcVideoCodec) =
+    private fun videoRoundTrip(
+        codec: RtcVideoCodec,
+        hiddenOffsetUs: Long? = null,
+    ) =
         runBlocking {
             assumeTrue("OS encoder and decoder required for ${codec.rtpName}", CodecCapabilities.isCodecSupportedByType(Codec.MODE_ENCODE, codec.mime) && CodecCapabilities.isCodecSupportedByType(Codec.MODE_DECODE, codec.mime))
             val context = InstrumentationRegistry.getInstrumentation().context
@@ -295,13 +302,24 @@ class RtcSessionTest {
                     delay(200)
                     assertTrue("Corrupt VP header closed WHEP: ${receiver.failure.value}", receiver.isConnected)
                 }
-                repeat(48) {
-                    whep.peer!!.send(false, if (it / 8 % 2 == 0) keyframe else resizedKeyframe, (it + 1) * 100_000L)
-                    delay(100)
+                if (hiddenOffsetUs == null) {
+                    repeat(48) {
+                        whep.peer!!.send(false, if (it / 8 % 2 == 0) keyframe else resizedKeyframe, (it + 1) * 100_000L)
+                        delay(100)
+                    }
+                } else {
+                    val hidden = keyframe.copyOf().apply { this[0] = (this[0].toInt() and 0xfd).toByte() }
+                    whep.peer!!.send(false, hidden, 1_000_000L + hiddenOffsetUs)
+                    // Standard show_existing_frame=1, frame_to_show_map_idx=0.
+                    // No visible keyframe is ever sent to open the renderer gate.
+                    repeat(20) {
+                        whep.peer!!.send(false, byteArrayOf(0x88.toByte()), 1_000_000L + it * 100_000L)
+                        delay(100)
+                    }
                 }
                 assertTrue("WHEP failed: ${receiver.failure.value}", receiver.isConnected)
-                assertEquals(256, receiver.stream.screen.frame.width())
-                assertEquals(144, receiver.stream.screen.frame.height())
+                assertEquals(if (hiddenOffsetUs == null) 256 else 128, receiver.stream.screen.frame.width())
+                assertEquals(if (hiddenOffsetUs == null) 144 else 96, receiver.stream.screen.frame.height())
                 val pixel = CompletableDeferred<Int>()
                 receiver.stream.screen.readPixels { bitmap ->
                     if (bitmap == null) {

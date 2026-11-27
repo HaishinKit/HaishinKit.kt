@@ -41,8 +41,21 @@ class VpVideoTest {
         assertEquals(100L, VpVideo.decoderTime(RtcVideoCodec.VP9, 100, 99, 99))
         assertEquals(101L, VpVideo.decoderTime(RtcVideoCodec.VP9, 100, 100, 100))
         assertEquals(102L, VpVideo.decoderTime(RtcVideoCodec.VP9, 101, 100, 101))
-        assertEquals(null, VpVideo.decoderTime(RtcVideoCodec.VP9, 99, 100, 101))
+        assertEquals(102L, VpVideo.decoderTime(RtcVideoCodec.VP9, 99, 100, 101))
         assertEquals(null, VpVideo.decoderTime(RtcVideoCodec.VP8, 100, 100, 100))
+    }
+
+    @Test fun visibleRtpTimeIsPreservedAfterFutureHiddenReferences() {
+        val times = VpVideo.Timestamps()
+        times.remember(90_000, 90_000) // future hidden reference; no decoder output
+        val visible = checkNotNull(VpVideo.decoderTime(RtcVideoCodec.VP9, 87_000, 90_000, 90_000))
+        assertEquals(90_001L, visible)
+        times.remember(visible, 87_000)
+        assertEquals(87_000L, times.outputTime(visible))
+        // Hidden records that have no decoder output do not grow without bound.
+        repeat(256) { times.remember(100_000L + it, 10_000L + it) }
+        assertEquals(90_000L, times.outputTime(90_000))
+        assertEquals(10_255L, times.outputTime(100_255))
     }
 
     private fun hex(value: String): ByteArray = value.chunked(2).map { it.toInt(16).toByte() }.toByteArray()
