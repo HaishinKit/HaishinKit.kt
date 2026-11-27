@@ -89,10 +89,6 @@ internal class ThreadScreen(
 
     override fun addChild(child: ScreenObject?) {
         val child = child ?: return
-        if (Looper.myLooper() == handler.looper) {
-            screen.addChild(child)
-            return
-        }
         handler.apply {
             sendMessage(obtainMessage(MSG_ADD_CHILD, child))
         }
@@ -124,10 +120,6 @@ internal class ThreadScreen(
 
     override fun removeChild(child: ScreenObject?) {
         val child = child ?: return
-        if (Looper.myLooper() == handler.looper) {
-            screen.removeChild(child)
-            return
-        }
         handler.apply {
             sendMessage(obtainMessage(MSG_REMOVE_CHILD, child))
         }
@@ -140,10 +132,6 @@ internal class ThreadScreen(
     }
 
     override fun transition(screenObjectContainer: ScreenObjectContainer) {
-        if (Looper.myLooper() == handler.looper) {
-            screen.transition(screenObjectContainer)
-            return
-        }
         handler.apply {
             sendMessage(obtainMessage(MSG_TRANSITION, screenObjectContainer))
         }

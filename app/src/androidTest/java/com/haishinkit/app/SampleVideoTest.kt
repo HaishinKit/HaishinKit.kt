@@ -10,6 +10,15 @@ import java.security.MessageDigest
 
 @RunWith(AndroidJUnit4::class)
 class SampleVideoTest {
+    @Test fun truncatedCacheIsReplacedWithTheCompleteMovie() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val file = SampleVideo.file(context)
+        file.writeBytes(byteArrayOf(1, 2, 3))
+        val repaired = SampleVideo.file(context)
+        val expected = context.resources.openRawResource(R.raw.sample_video).use { it.readBytes() }
+        assertArrayEquals(expected, repaired.readBytes())
+    }
+
     @Test fun cacheContainsTheCompleteBundledSwiftVideoAndIsReused() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val file = SampleVideo.file(context)

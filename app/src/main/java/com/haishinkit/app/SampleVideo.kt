@@ -1,7 +1,7 @@
 package com.haishinkit.app
 
 import android.content.Context
-import android.util.AtomicFile
+import androidx.core.util.AtomicFile
 import java.io.File
 
 internal object SampleVideo {
@@ -10,7 +10,8 @@ internal object SampleVideo {
         @Suppress("DEPRECATION")
         val version = context.packageManager.getPackageInfo(context.packageName, 0).lastUpdateTime
         val file = File(context.cacheDir, "sample-video-$version.mp4")
-        if (file.exists() && file.length() > 0) return file
+        val expectedLength = context.resources.openRawResourceFd(R.raw.sample_video).use { it.length }
+        if (file.exists() && file.length() == expectedLength) return file
         val atomic = AtomicFile(file)
         val output = atomic.startWrite()
         try {

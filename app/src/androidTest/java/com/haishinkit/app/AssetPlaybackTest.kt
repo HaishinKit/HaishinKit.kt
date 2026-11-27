@@ -52,6 +52,51 @@ class AssetPlaybackTest {
 
     @Test fun vulkanCanCancelAndRestartPlayback() = exercise(true, true, "asset-short.mp4", true)
 
+    @Test fun drawingCanQueueSceneMutationsWithoutChangingTheLiveTraversal() {
+        val screen = Screen.createOpenGL(InstrumentationRegistry.getInstrumentation().targetContext)
+        screen.frame = Rect(0, 0, 64, 48)
+        val observerFrames = java.util.concurrent.atomic.AtomicInteger()
+        val marker =
+            object : com.haishinkit.screen.ScreenObject("marker") {
+                override val type = "test"
+                override var elements: Map<String, String> = emptyMap()
+
+                override fun draw(renderer: com.haishinkit.screen.Renderer) {}
+            }
+        val modifier =
+            object : com.haishinkit.screen.ScreenObject("modifier") {
+                override val type = "test"
+                override var elements: Map<String, String> = emptyMap()
+                private var queued = false
+
+                override fun draw(renderer: com.haishinkit.screen.Renderer) {
+                    if (queued) return
+                    queued = true
+                    screen.addChild(marker)
+                    screen.removeChild(this)
+                }
+            }
+        val observer =
+            object : com.haishinkit.screen.ScreenObject("observer") {
+                override val type = "test"
+                override var elements: Map<String, String> = emptyMap()
+
+                override fun draw(renderer: com.haishinkit.screen.Renderer) {
+                    observerFrames.incrementAndGet()
+                }
+            }
+        try {
+            screen.addChild(modifier)
+            screen.addChild(observer)
+            await(5_000) {
+                pixels(screen).recycle()
+                observerFrames.get() >= 2 && screen.findById("marker") === marker
+            }
+        } finally {
+            screen.dispose()
+        }
+    }
+
     @Test fun assetOnlyMixerObservesQueuedAddAndRemovalBeforeVideoSelection() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val file = File(context.cacheDir, "queued-asset.mp4")
