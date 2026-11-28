@@ -102,6 +102,7 @@ dependencies {
         implementation(project(":vqmetrix-example"))
     }
     implementation(project(":haishinkit"))
+    implementation(project(":rnnoise"))
     implementation(project(":vulkan"))
     implementation(project(":rtmp"))
     implementation(project(":srt"))

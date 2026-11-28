@@ -13,6 +13,7 @@ import com.haishinkit.media.MediaBuffer
 import com.haishinkit.media.MediaMixer
 import com.haishinkit.media.MediaType
 import com.haishinkit.media.audio.PcmAudioFormat
+import java.io.IOException
 import java.nio.ByteBuffer
 
 /**
@@ -72,6 +73,9 @@ class AudioRecordSource(
             return cachedAudioRecord
         }
 
+    /** Current capture session, without creating a recorder. Null while closed. */
+    val audioSessionId: Int? get() = cachedAudioRecord?.audioSessionId
+
     @Volatile
     private var cachedAudioRecord: AudioRecord? = null
     private var encoding = DEFAULT_ENCODING
@@ -104,9 +108,26 @@ class AudioRecordSource(
         return Result.success(Unit)
     }
 
-    override fun read(track: Int): MediaBuffer {
+    override fun read(track: Int): MediaBuffer = capture(track, false)
+
+    /**
+     * Reads PCM like [read], but throws [IOException] for negative AudioRecord error codes.
+     * A valid zero-byte read still returns an empty buffer. Use this when an input pipeline
+     * must retire a failed recorder rather than continue polling empty PCM.
+     */
+    @Throws(IOException::class)
+    fun readChecked(track: Int): MediaBuffer = capture(track, true)
+
+    private fun capture(
+        track: Int,
+        throwOnError: Boolean,
+    ): MediaBuffer {
         byteBuffer.clear()
         val result = cachedAudioRecord?.read(byteBuffer, sampleCount * 2) ?: -1
+        if (throwOnError && result < 0) {
+            byteBuffer.limit(0)
+            throw IOException("AudioRecord.read failed ($result)")
+        }
         byteBuffer.limit(result.coerceAtLeast(0))
         if (isMuted) {
             for (index in 0 until result.coerceAtLeast(0)) byteBuffer.put(index, 0.toByte())

@@ -16,7 +16,7 @@ end
 
 desc 'Warm shared native compiler outputs without building sample APKs.'
 lane :warm_native_cache do
-  %w[haishinkit vulkan rtc srt].each do |component|
+  %w[haishinkit rnnoise vulkan rtc srt].each do |component|
     %w[Debug Release].each do |variant|
       gradle(task: ":#{component}:assemble#{variant}")
     end
@@ -32,6 +32,9 @@ lane :review do
   # Both variants must exercise app-level R8 and packaged library consumer rules.
   gradle(task: ':app:assembleDebug')
   gradle(task: ':app:assembleRelease')
+  gradle(task: ':rnnoise:assembleRelease')
+  gradle(task: ':rnnoise:assembleDebugAndroidTest')
+  gradle(task: ':rnnoise:testDebugUnitTest')
   native_test_build = File.expand_path('../build/vulkan-native-tests', __dir__)
   build_native_host(component: 'vulkan')
   sh('ctest', '--test-dir', native_test_build, '--output-on-failure')

@@ -1,0 +1,1 @@
+-keepclasseswithmembernames class com.haishinkit.rnnoise.RnnoiseAudioProcessor { native <methods>; }

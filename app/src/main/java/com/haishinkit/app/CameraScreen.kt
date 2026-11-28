@@ -74,6 +74,12 @@ fun CameraScreen(
     onOpenSettings: () -> Unit = {},
     onSceneFileBusy: (Boolean) -> Unit = {},
 ) {
+    LaunchedEffect(viewModel, viewModel.noiseComparisonActive) {
+        while (viewModel.noiseComparisonActive) {
+            viewModel.refreshNoiseReductionStatus()
+            delay(500)
+        }
+    }
     var showAiChat by remember { mutableStateOf(false) }
     var showIngest by remember { mutableStateOf(false) }
     var applyingIngest by remember { mutableStateOf(false) }
@@ -346,6 +352,14 @@ fun CameraScreen(
                                 if (result.isSuccess) errorMessage = null
                             }
                         },
+                    )
+                    NoiseReductionControls(
+                        checked = viewModel.noiseReductionEnabled,
+                        comparisonActive = viewModel.noiseComparisonActive,
+                        enabled = permissions.audio.status.isGranted && !viewModel.noiseReductionBusy,
+                        error = viewModel.noiseReductionError,
+                        onCheckedChange = viewModel::setNoiseReductionEnabled,
+                        onRestoreSystem = viewModel::restoreSystemMicrophone,
                     )
                     CameraDeviceControllerView(
                         camera = selectedCamera,
