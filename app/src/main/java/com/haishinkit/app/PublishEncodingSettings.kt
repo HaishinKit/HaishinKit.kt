@@ -123,7 +123,10 @@ data class PublishEncodingSettings(
                 }
             }
         }
-        applyCodecSettings(video, audio, profile, videoEnabled, audioEnabled)
+        // A camera can appear while connect() is suspended. Stage HLG's Main10 settings
+        // before that window, without requiring a video encoder for audio-only use.
+        val stageVideo = videoEnabled || (range == DynamicRangeMode.HLG && CodecCapabilities.isCodecSupportedByType(Codec.MODE_ENCODE, profile.mime))
+        applyCodecSettings(video, audio, profile, stageVideo, audioEnabled)
     }
 
     internal fun createVideoFormat(

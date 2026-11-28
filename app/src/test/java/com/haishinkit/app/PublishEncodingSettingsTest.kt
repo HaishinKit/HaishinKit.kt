@@ -16,6 +16,48 @@ import org.robolectric.shadows.ShadowMediaCodecList
 @RunWith(RobolectricTestRunner::class)
 @Config(manifest = Config.NONE, sdk = [29])
 class PublishEncodingSettingsTest {
+    @Test fun hlgStagesMain10AndBitrateBeforeACameraBecomesAvailable() {
+        for (choice in listOf(PublishVideoCodec.H265, PublishVideoCodec.AV1)) {
+            ShadowMediaCodecList.reset()
+            val caps =
+                MediaCodecInfoBuilder.CodecCapabilitiesBuilder.newBuilder()
+                    .setMediaFormat(MediaFormat.createVideoFormat(choice.profile.mime, 320, 180))
+                    .setColorFormats(intArrayOf(MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface))
+                    .setIsEncoder(true).setProfileLevels(emptyArray()).build()
+            ShadowMediaCodecList.addCodec(MediaCodecInfoBuilder.newBuilder().setName("test.video.encoder").setIsEncoder(true).setCapabilities(caps).build())
+            try {
+                val video = VideoCodec.Setting()
+                val settings = PublishEncodingSettings(videoCodec = choice, videoBitRate = 2_000_000)
+                settings.validateAndApply(video, AudioCodec.Setting(), PublishingProtocol.RTMP, videoEnabled = false, audioEnabled = false, range = com.haishinkit.graphics.DynamicRangeMode.HLG)
+                assertEquals(2, video.profileLevel.profile)
+                assertEquals(choice.profile.mime, video.profileLevel.mime)
+                assertEquals(2_000_000, video.bitRate)
+                // The fake encoder has no Main10 profiles: staging must not validate an inactive input.
+                assertEquals(2, settings.createVideoFormat(video, PublishingProtocol.RTMP, com.haishinkit.graphics.DynamicRangeMode.HLG).getInteger(MediaFormat.KEY_PROFILE))
+            } finally {
+                ShadowMediaCodecList.reset()
+            }
+        }
+    }
+
+    @Test fun hlgAudioOnlyDoesNotRequireTheSelectedVideoEncoderOrBitrate() {
+        ShadowMediaCodecList.reset()
+        val caps =
+            MediaCodecInfoBuilder.CodecCapabilitiesBuilder.newBuilder()
+                .setMediaFormat(MediaFormat.createAudioFormat(MediaFormat.MIMETYPE_AUDIO_AAC, 48_000, 1))
+                .setIsEncoder(true).setProfileLevels(emptyArray()).build()
+        ShadowMediaCodecList.addCodec(MediaCodecInfoBuilder.newBuilder().setName("test.aac.encoder").setIsEncoder(true).setCapabilities(caps).build())
+        try {
+            val video = VideoCodec.Setting()
+            PublishEncodingSettings(videoCodec = PublishVideoCodec.H265, videoBitRate = -1)
+                .validateAndApply(video, AudioCodec.Setting(), PublishingProtocol.RTMP, videoEnabled = false, range = com.haishinkit.graphics.DynamicRangeMode.HLG)
+            assertEquals(VideoCodec.DEFAULT_PROFILE_LEVEL, video.profileLevel)
+            assertEquals(VideoCodec.DEFAULT_BIT_RATE, video.bitRate)
+        } finally {
+            ShadowMediaCodecList.reset()
+        }
+    }
+
     @Test fun hlgUsesMain10Bt2020LimitedRangeForBothCodecs() {
         for (codec in listOf(PublishVideoCodec.H265, PublishVideoCodec.AV1)) {
             val settings = PublishEncodingSettings(videoCodec = codec)
