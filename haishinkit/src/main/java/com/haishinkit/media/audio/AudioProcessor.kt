@@ -17,7 +17,10 @@ interface AudioProcessor : AutoCloseable {
 
     override fun close()
 
-    /** Creates a new, exclusively owned processor whenever the track starts or changes format. */
+    /**
+     * Creates a new, exclusively owned processor for a track start or a pushed decoder's
+     * format change. Read-based sources keep their format fixed until detached/closed.
+     */
     fun interface Factory {
         fun create(format: PcmAudioFormat): AudioProcessor
     }

@@ -9,7 +9,7 @@ import java.util.concurrent.atomic.AtomicReference
 /** Keep one factory identity across permission callbacks and live A/B changes. */
 internal class MicrophoneNoiseReduction(microphone: AudioRecordSource) {
     val source = RnnoiseMicrophoneSource(microphone)
-    val isUnconfirmed get() = source.osNoiseSuppression == RnnoiseMicrophoneSource.OsNoiseSuppression.UNCONFIRMED
+    val hasFailed get() = source.lastFailure != null
     val factory =
         AudioProcessor.Factory { format ->
             RnnoiseAudioProcessor(format).also {

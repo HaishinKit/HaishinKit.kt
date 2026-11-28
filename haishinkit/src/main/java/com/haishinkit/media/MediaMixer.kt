@@ -145,8 +145,9 @@ class MediaMixer(
 
     /**
      * Attaches a processor to this input track only. Other tracks and the mixed output are
-     * unprocessed. A factory creates a private instance on start/format change; stopping,
+     * unprocessed. A factory creates a private instance on start or pushed-format change; stopping,
      * detaching or disposing closes it. Failures stop only the affected input.
+     * Read-based PCM sources must keep their format fixed until detached and closed.
      */
     suspend fun attachAudio(
         track: Int,

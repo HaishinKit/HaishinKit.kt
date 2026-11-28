@@ -19,6 +19,10 @@ class RnnoiseMicrophoneSource(val source: AudioRecordSource) : PcmAudioSource by
 
     @Volatile var osNoiseSuppression = OsNoiseSuppression.UNCONFIRMED
         private set
+
+    /** Last open/read failure. Preserved on close and cleared when a new open begins. */
+    @Volatile var lastFailure: Throwable? = null
+        private set
     private var effect: NoiseSuppressor? = null
     private var session = 0
     private var suppressionAvailable = false
@@ -31,6 +35,7 @@ class RnnoiseMicrophoneSource(val source: AudioRecordSource) : PcmAudioSource by
     override suspend fun open(mixer: MediaMixer): Result<Unit> =
         try {
             synchronized(guard) {
+                lastFailure = null
                 // Prepare the recorder/session, but do not start capturing default-processed PCM.
                 requireNotNull(source.audioRecord) { "Recording permission is required" }
                 require(source.audioFormat.sampleRate == 48_000) { "Configure microphone input to 48 kHz before attaching RNNoise" }
@@ -48,6 +53,7 @@ class RnnoiseMicrophoneSource(val source: AudioRecordSource) : PcmAudioSource by
             }
             Result.success(Unit)
         } catch (cause: Exception) {
+            lastFailure = cause
             close()
             Result.failure(cause)
         }
@@ -65,16 +71,20 @@ class RnnoiseMicrophoneSource(val source: AudioRecordSource) : PcmAudioSource by
         return source.close()
     }
 
-    override fun read(track: Int): MediaBuffer {
-        synchronized(guard) { if (opened) verifyOsSuppression() }
-        val result = source.read(track)
-        synchronized(guard) {
-            // A changed or re-enabled session may already have queued processed PCM. Never
-            // return this block or attempt to repair it in place; close/reopen is required.
-            if (opened && result.payload?.hasRemaining() == true) verifyOsSuppression()
+    override fun read(track: Int): MediaBuffer =
+        try {
+            synchronized(guard) { if (opened) verifyOsSuppression() }
+            val result = source.read(track)
+            synchronized(guard) {
+                // A changed or re-enabled session may already have queued processed PCM. Never
+                // return this block or attempt to repair it in place; close/reopen is required.
+                if (opened && result.payload?.hasRemaining() == true) verifyOsSuppression()
+            }
+            result
+        } catch (cause: Exception) {
+            synchronized(guard) { if (opened) lastFailure = cause }
+            throw cause
         }
-        return result
-    }
 
     private fun verifyOsSuppression() {
         try {

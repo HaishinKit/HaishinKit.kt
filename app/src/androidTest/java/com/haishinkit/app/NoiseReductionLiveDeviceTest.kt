@@ -59,8 +59,16 @@ class NoiseReductionLiveDeviceTest {
             assertEquals(comparisonSession, microphone.audioSessionId)
             compose.runOnIdle { model.stopRunning() }
             compose.waitUntil(5000) { microphone.audioSessionId == null }
-            compose.runOnIdle { model.startRunning() }
+            compose.runOnIdle {
+                model.startRunning()
+                model.refreshNoiseReductionStatus()
+                assertNull(model.noiseReductionError)
+            }
             compose.waitUntil(5000) { microphone.audioSessionId != null }
+            compose.runOnIdle {
+                model.refreshNoiseReductionStatus()
+                assertNull(model.noiseReductionError)
+            }
             assertTrue(model.noiseComparisonActive)
             assertTrue(!model.noiseReductionEnabled)
             compose.runOnIdle { model.restoreSystemMicrophone() }

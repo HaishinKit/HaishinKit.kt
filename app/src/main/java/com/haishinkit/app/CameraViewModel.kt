@@ -475,8 +475,12 @@ class CameraViewModel(
     }
 
     internal fun refreshNoiseReductionStatus() {
-        if (noiseComparisonActive && !noiseReductionBusy && mixer.isRunning.get() && noiseReduction.isUnconfirmed) {
-            noiseReductionError = getApplication<Application>().getString(R.string.rnnoise_input_unavailable)
+        if (!noiseComparisonActive || noiseReductionBusy) return
+        val message = getApplication<Application>().getString(R.string.rnnoise_input_unavailable)
+        if (mixer.isRunning.get() && noiseReduction.hasFailed) {
+            noiseReductionError = message
+        } else if (noiseReductionError == message) {
+            noiseReductionError = null
         }
     }
 

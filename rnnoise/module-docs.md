@@ -26,6 +26,8 @@ It disables Android's session NoiseSuppressor before starting capture and checks
 enabled state before and after each read. A changed/re-enabled session fails the input
 without delivering the affected block; close/reopen is required. If the state cannot be confirmed off,
 only that input fails. `osNoiseSuppression` distinguishes disabled, unavailable and unconfirmed.
+Unconfirmed also covers a closed or opening input. Use `lastFailure` to distinguish a real
+capture failure; it remains available after close and clears when a new open begins.
 This cannot disable processing performed inside headset firmware. The system's default voice
 processing is therefore a separate comparison, not a claim of raw microphone audio.
 
