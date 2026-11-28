@@ -8,6 +8,40 @@ Build video compositions with [Screen][com.haishinkit.screen.Screen] and its scr
 [StreamSession][com.haishinkit.stream.StreamSession] provides a common publishing and playback
 interface; register a protocol-specific factory before building a session.
 
+## Bluetooth microphone and a fixed audio format
+
+Configure [AudioRecordSource][com.haishinkit.media.source.AudioRecordSource] before attaching it.
+Keep the PCM sample rate and channel count consistent with every stream and recorder fed by
+the mixer. For example, for a 48 kHz mono stream:
+
+```kotlin
+stream.audioSetting.sampleRate = 48_000
+stream.audioSetting.channelCount = 1
+mixer.attachAudio(0, AudioRecordSource(context).apply {
+    sampleRate = 48_000
+    channel = AudioFormat.CHANNEL_IN_MONO
+    preferBluetoothMicrophone = true
+})
+```
+
+Declare `RECORD_AUDIO` and `MODIFY_AUDIO_SETTINGS` in the application manifest and obtain
+recording permission. Bluetooth preference is opt-in; the default capture source and sample
+rate remain unchanged. On API 31+, a connected HFP or BLE headset is selected through the
+communication-device API; older devices use SCO. A2DP speakers are not microphone inputs.
+The example enables this preference for camera and screen-sharing microphone capture.
+
+The client PCM format stays fixed when Bluetooth disconnects and system routing returns to
+the built-in microphone (or another system-selected input). Android performs the hardware-to-client
+sample-rate/channel conversion; do not copy a headset's native sample rate into a running
+stream. A 16 kHz microphone converted to 48 kHz does not gain additional frequency detail.
+This behavior relies on the platform's [audio input conversion](https://developer.android.com/media/platform/sharing-audio-input).
+
+Voice-communication routing can also move playback to the headset and use device voice
+processing. A route transition can briefly interrupt capture. Short reads/errors never forward
+stale PCM; a dead recording instance is recreated with its previous client format without
+restarting the stream's encoder. Closing the source releases its route request and device
+callbacks. Actual headset transitions and audible gaps require device testing.
+
 ## Screen snapshot compatibility
 
 [ScreenObjectSnapshot][com.haishinkit.screen.scene.ScreenObjectSnapshot] shares its JSON

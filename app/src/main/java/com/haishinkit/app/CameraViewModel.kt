@@ -392,7 +392,13 @@ class CameraViewModel(
         viewModelScope.launch {
             audioLock.withLock {
                 if (mixer.hasAudio) return@withLock
-                mixer.attachAudio(0, AudioRecordSource(application.applicationContext).apply { sampleRate = 48_000 })
+                mixer.attachAudio(
+                    0,
+                    AudioRecordSource(application.applicationContext).apply {
+                        sampleRate = 48_000
+                        preferBluetoothMicrophone = true
+                    },
+                )
             }
         }
     }

@@ -135,7 +135,13 @@ class MediaProjectionService :
                 }
             }
         launch {
-            mixer.attachAudio(0, AudioRecordSource(applicationContext).apply { sampleRate = 48_000 })
+            mixer.attachAudio(
+                0,
+                AudioRecordSource(applicationContext).apply {
+                    sampleRate = 48_000
+                    preferBluetoothMicrophone = true
+                },
+            )
             intent?.getParcelableExtra<Intent>(EXTRA_RESULT_DATA)?.let {
                 mediaProjectionManager.getMediaProjection(Activity.RESULT_OK, it)?.let {
                     val source =
