@@ -1,6 +1,8 @@
 require 'json'
+require 'zlib'
 
-document = JSON.parse(File.read(ARGV.fetch(0)))
+path = ARGV.fetch(0)
+document = JSON.parse(path.end_with?('.gz') ? Zlib::GzipReader.open(path, &:read) : File.read(path))
 raise 'Incomplete recording' unless document['complete']
 rows = document.fetch('results')
 %w[OpenGL Vulkan].each do |backend|
@@ -17,6 +19,7 @@ puts '| Stage / backend | p50 ms | p95 ms | p99 ms, median (min–max) | Worst i
 puts '|---|---:|---:|---:|---:|'
 {
   'sensorIntervals' => 'Camera sensor',
+  'cameraCallbackIntervals' => 'Camera callback',
   'inputBeginIntervals' => 'Surface call start',
   'inputCompleteIntervals' => 'Surface call return',
   'outputArrivalIntervals' => 'Encoded output received',

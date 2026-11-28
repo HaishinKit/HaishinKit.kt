@@ -1,4 +1,5 @@
 require 'json'
+require 'zlib'
 
 module CameraIntervalStats
   module_function
@@ -105,5 +106,10 @@ if $PROGRAM_NAME == __FILE__
   document = CameraIntervalStats.load_recording(File.read(ARGV.fetch(0)), File.read(ARGV.fetch(1)))
   # One numeric sample per line keeps the raw arrays inspectable without expanding every cell.
   output = JSON.pretty_generate(document).gsub(/\[\n((?:\s+\d+,?\n)+)\s*\]/) { '[' + Regexp.last_match(1).scan(/\d+/).join(', ') + ']' }
-  File.write(ARGV.fetch(2), output + "\n")
+  path = ARGV.fetch(2)
+  if path.end_with?('.gz')
+    Zlib::GzipWriter.open(path) { |file| file.mtime = 0; file.write(output + "\n") }
+  else
+    File.write(path, output + "\n")
+  end
 end
