@@ -26,7 +26,7 @@ import java.util.concurrent.locks.LockSupport
 /** A single output clock; blocking capture never runs on the mixing thread. */
 internal class AudioMixer(private val owner: MediaMixer, private val output: (MediaBuffer) -> Unit) {
     @Volatile var settings = AudioMixerSettings()
-    val hasAudio: Boolean get() = engine != null || bindings.any { (it.source as? PushAudioSource)?.isClosed != true }
+    val hasAudio: Boolean get() = engine != null || bindings.any { !it.failed && (it.source as? PushAudioSource)?.isClosed != true }
 
     @Volatile private var bindings = emptyArray<Binding>()
 
@@ -51,7 +51,7 @@ internal class AudioMixer(private val owner: MediaMixer, private val output: (Me
                 if (source != null && bindings.any { it.source === source && it.track != track }) {
                     return@withLock Result.failure(IllegalArgumentException("An audio source can only occupy one track"))
                 }
-                bindings.firstOrNull { it.track == track && it.source === source }?.let {
+                bindings.firstOrNull { it.track == track && it.source === source && !it.failed }?.let {
                     if (!it.opened) {
                         val opened = openSource(it.source)
                         if (opened.isFailure) {
@@ -92,7 +92,7 @@ internal class AudioMixer(private val owner: MediaMixer, private val output: (Me
                 if (running || disposed || !owner.isRunning.get()) return@withLock
                 running = true
                 for (binding in bindings) {
-                    if ((binding.source as? PushAudioSource)?.isClosed == true) {
+                    if (binding.failed || (binding.source as? PushAudioSource)?.isClosed == true) {
                         detach(binding)
                     } else if (!binding.opened) {
                         try {
@@ -215,7 +215,11 @@ internal class AudioMixer(private val owner: MediaMixer, private val output: (Me
                             }
                         }
                     } catch (cause: Exception) {
-                        if (binding.capturing) Log.w(TAG, "Audio input stopped on track ${binding.track}", cause)
+                        if (binding.capturing) {
+                            binding.failed = true
+                            Log.w(TAG, "Audio input stopped on track ${binding.track}", cause)
+                            scope.launch { lock.withLock { if (bindings.any { it === binding }) detach(binding) } }
+                        }
                     }
                 }, "HaishinKit.AudioInput.${binding.track}").apply {
                     isDaemon = true
@@ -265,6 +269,8 @@ internal class AudioMixer(private val owner: MediaMixer, private val output: (Me
 
     private class Binding(val track: Int, val nativeId: Int, val source: AudioSource, var format: PcmAudioFormat?) {
         @Volatile var capturing = false
+
+        @Volatile var failed = false
         var opened = true
         var worker: Thread? = null
         var gain = Float.NaN

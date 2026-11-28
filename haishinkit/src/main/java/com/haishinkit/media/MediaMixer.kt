@@ -229,11 +229,11 @@ class MediaMixer(
         }
         updateDeviceOrientation()
         orientationEventListener.enable()
+        launch { audioMixer.start() }
         launch {
             videoLock.withLock {
                 if (isRunning.get()) openVideos(videoSources.filterKeys { it !in openVideoTracks })
             }
-            audioMixer.start()
         }
     }
 
@@ -243,11 +243,11 @@ class MediaMixer(
     override fun stopRunning() {
         if (!isRunning.compareAndSet(true, false)) return
         orientationEventListener.disable()
+        launch { audioMixer.stop() }
         launch {
             videoLock.withLock {
                 if (!isRunning.get() && !isDisposed.get()) closeOpenVideos()
             }
-            audioMixer.stop()
         }
     }
 
@@ -258,13 +258,13 @@ class MediaMixer(
         if (!isDisposed.compareAndSet(false, true)) return
         isRunning.set(false)
         orientationEventListener.disable()
+        launch { audioMixer.stop(dispose = true) }
         launch {
             videoLock.withLock {
                 closeOpenVideos()
                 videoSources = emptyMap()
                 if (screenDelegate.isInitialized()) screen.dispose()
             }
-            audioMixer.stop(dispose = true)
         }
     }
 
