@@ -3,6 +3,7 @@ package com.haishinkit.app.chatgpt
 import android.content.Context
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.sync.Mutex
@@ -33,13 +34,27 @@ internal class ChatGptAuth(context: Context, private val http: ChatGptAccountsHt
     private val store = ChatGptStore(context)
     private val mutex = Mutex()
     private var state: JsonObject? = null
+    private var closed = false
+
+    private companion object {
+        val TERMINAL_REFRESH_ERRORS =
+            setOf(
+                "invalid_grant",
+                "invalid_refresh_token",
+                "token_expired",
+                "refresh_token_expired",
+                "refresh_token_invalidated",
+                "refresh_token_reused",
+            )
+    }
 
     suspend fun accounts(): List<ChatGptAccount> =
         mutex.withLock {
             initialize()
             profiles().map { profile ->
                 val id = profile.text("client_id")
-                ChatGptAccount(id, "${profile.textOrNull("email") ?: "ChatGPT"} · ${id.takeLast(6)}", profile.scopes().contains(ChatGptProtocol.PLAN_SCOPE), profile.textOrNull("access_token") != null)
+                val connected = profile.textOrNull("access_token") != null
+                ChatGptAccount(id, "${profile.textOrNull("email") ?: "ChatGPT"} · ${id.takeLast(6)}", connected && ChatGptProtocol.PLAN_SCOPE in profile.scopes(), connected)
             }
         }
 
@@ -84,7 +99,7 @@ internal class ChatGptAuth(context: Context, private val http: ChatGptAccountsHt
                 if (selectedId == null) parameters["agent_name_hint"] = "HaishinKit Android sample"
                 selected?.textOrNull("id_token")?.let { parameters["id_token_hint"] = it }
                 selected?.textOrNull("email")?.let { parameters["login_hint"] = it }
-                if (selected?.textOrNull("id_token") != null && ChatGptProtocol.PLAN_SCOPE !in selected.scopes()) {
+                if (selected != null && ChatGptProtocol.PLAN_SCOPE !in selected.scopes() && (selected.textOrNull("id_token") != null || selected.scopes().isNotEmpty())) {
                     parameters["prompt"] = "consent"
                 }
                 withContext(Dispatchers.Main) { openBrowser("${ChatGptProtocol.ISSUER}/api/accounts/authorize?${encode(parameters)}") }
@@ -132,27 +147,68 @@ internal class ChatGptAuth(context: Context, private val http: ChatGptAccountsHt
             }
         }
 
-    suspend fun accessToken(clientId: String): String =
-        mutex.withLock {
-            initialize()
-            var profile = profiles().single { it.text("client_id") == clientId }
-            check(ChatGptProtocol.PLAN_SCOPE in profile.scopes()) { "ChatGPT plan usage was not authorized" }
-            if ((profile["expires_at"]?.jsonPrimitive?.longOrNull ?: 0) <= System.currentTimeMillis() + 60_000) {
-                val tokens =
-                    http.form(
-                        "${ChatGptProtocol.ISSUER}/api/accounts/oauth/token",
-                        mapOf(
-                            "grant_type" to "refresh_token",
-                            "client_id" to clientId,
-                            "refresh_token" to profile.text("refresh_token"),
-                            "resource" to ChatGptProtocol.RESOURCE,
-                        ),
-                    )
-                profile = tokenRecord(clientId, tokens, profile)
-                replaceProfile(profile)
+    suspend fun accessToken(clientId: String): String {
+        val token =
+            try {
+                mutex.withLock {
+                    currentCoroutineContext().ensureActive()
+                    initialize()
+                    var profile = profiles().single { it.text("client_id") == clientId }
+                    if (profile.textOrNull("access_token") == null || ChatGptProtocol.PLAN_SCOPE !in profile.scopes()) {
+                        throw OpenAiFailure("sign_in_required", requiresSignIn = true)
+                    }
+                    if ((profile["expires_at"]?.jsonPrimitive?.longOrNull ?: 0) <= System.currentTimeMillis() + 60_000) {
+                        // A consumed rotating token must be replaced even if its caller stops inference.
+                        withContext(NonCancellable) {
+                            try {
+                                val tokens =
+                                    withTimeout(15_000) {
+                                        http.form(
+                                            "${ChatGptProtocol.ISSUER}/api/accounts/oauth/token",
+                                            mapOf(
+                                                "grant_type" to "refresh_token",
+                                                "client_id" to clientId,
+                                                "refresh_token" to profile.text("refresh_token"),
+                                                "resource" to ChatGptProtocol.RESOURCE,
+                                            ),
+                                        )
+                                    }
+                                profile = tokenRecord(clientId, tokens, profile)
+                                // Keep disk commit outside the network deadline so a received token is not discarded.
+                                replaceProfile(profile)
+                            } catch (_: TimeoutCancellationException) {
+                                throw OpenAiFailure("refresh_timeout")
+                            } catch (error: OpenAiFailure) {
+                                if (error.code in TERMINAL_REFRESH_ERRORS) {
+                                    replaceProfile(registration(profile))
+                                    throw OpenAiFailure(error.code, error.status, requiresSignIn = true)
+                                }
+                                throw error
+                            }
+                        }
+                    }
+                    check(ChatGptProtocol.PLAN_SCOPE in profile.scopes())
+                    profile.text("access_token")
+                }
+            } catch (error: Exception) {
+                // Cancellation also takes precedence over a terminal error delivered after renewal.
+                currentCoroutineContext().ensureActive()
+                throw error
             }
-            check(ChatGptProtocol.PLAN_SCOPE in profile.scopes())
-            profile.text("access_token")
+        // NonCancellable protects renewal, not the model request that was already stopped.
+        currentCoroutineContext().ensureActive()
+        return token
+    }
+
+    /** Wait for an already-started renewal/store transaction before closing its HTTP client. */
+    suspend fun close(): Unit =
+        withContext(NonCancellable) {
+            mutex.withLock {
+                if (!closed) {
+                    closed = true
+                    http.close()
+                }
+            }
         }
 
     /** Returns false if local sign-out succeeded but server-side revocation was not confirmed. */
@@ -168,17 +224,12 @@ internal class ChatGptAuth(context: Context, private val http: ChatGptAccountsHt
                         http.form(metadata.text("revocation_endpoint"), mapOf("token" to token, "token_type_hint" to "refresh_token", "client_id" to clientId))
                     }.isSuccess
             }
-            replaceProfile(
-                buildJsonObject {
-                    put("client_id", clientId)
-                    profile["subject"]?.let { put("subject", it) }
-                    profile["email"]?.let { put("email", it) }
-                },
-            )
+            replaceProfile(registration(profile))
             revoked
         }
 
     private suspend fun initialize() {
+        check(!closed) { "The ChatGPT connection is closed" }
         if (state == null) {
             val initial = store.read()
             store.write(initial)
@@ -199,6 +250,15 @@ internal class ChatGptAuth(context: Context, private val http: ChatGptAccountsHt
             state = next
         }
     }
+
+    private fun registration(profile: JsonObject): JsonObject =
+        buildJsonObject {
+            put("client_id", profile.text("client_id"))
+            profile["subject"]?.let { put("subject", it) }
+            profile["email"]?.let { put("email", it) }
+            // Remember earlier consent without treating a signed-out registration as connected.
+            profile["scopes"]?.let { put("scopes", it) }
+        }
 
     private fun tokenRecord(
         id: String,
@@ -233,6 +293,7 @@ internal class ChatGptAuth(context: Context, private val http: ChatGptAccountsHt
                         runCatching {
                             val bytes = ByteArrayOutputStream()
                             while (bytes.size() < 8_192) {
+                                currentCoroutineContext().ensureActive()
                                 val value = it.getInputStream().read()
                                 if (value < 0) error("Incomplete callback")
                                 bytes.write(value)

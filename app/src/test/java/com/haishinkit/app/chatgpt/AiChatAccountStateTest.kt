@@ -22,4 +22,12 @@ class AiChatAccountStateTest {
         assertEquals(account, account.withAccount("account-a"))
         assertNull(account.withAccount(null).model)
     }
+
+    @Test
+    fun revokedPlanCannotKeepTheSelectedAccountsModel() {
+        val account = AiChatState(account = "account-a", models = listOf(ChatModel("a-only", "A model")), model = "a-only")
+        val revoked = account.withAccount("account-a", planEnabled = false)
+        assertTrue(revoked.models.isEmpty())
+        assertNull(revoked.model)
+    }
 }

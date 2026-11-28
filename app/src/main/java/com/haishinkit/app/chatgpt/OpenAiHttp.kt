@@ -20,7 +20,7 @@ import java.util.concurrent.TimeUnit
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
-internal class OpenAiFailure(val code: String, val status: Int = 0) : IOException("OpenAI request failed ($status, $code)")
+internal class OpenAiFailure(val code: String, val status: Int = 0, val requiresSignIn: Boolean = false) : IOException("OpenAI request failed ($status, $code)")
 
 /** Credentials are only sent to the pinned OpenAI HTTPS endpoints, never to MCP. */
 internal fun interface ChatGptInference {
@@ -32,6 +32,8 @@ internal fun interface ChatGptInference {
 }
 
 internal interface ChatGptAccountsHttp {
+    fun close()
+
     suspend fun get(
         url: String,
         token: String? = null,
@@ -78,7 +80,7 @@ internal class OpenAiHttp : ChatGptInference, ChatGptAccountsHttp {
             response.body!!.charStream().buffered().use { readResponseStream(it, onDelta) }
         }
 
-    fun close() {
+    override fun close() {
         client.dispatcher.cancelAll()
         client.connectionPool.evictAll()
         client.dispatcher.executorService.shutdown()

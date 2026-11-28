@@ -41,8 +41,11 @@ internal data class AiChatState(
     val notice: String? = null,
     val usageLimited: Boolean = false,
 ) {
-    fun withAccount(id: String?): AiChatState =
-        if (id == account) this else copy(account = id, models = emptyList(), model = null)
+    fun withAccount(
+        id: String?,
+        planEnabled: Boolean = true,
+    ): AiChatState =
+        if (id == account && planEnabled) this else copy(account = id, models = emptyList(), model = null)
 }
 
 internal class AiChatViewModel(application: Application) : AndroidViewModel(application) {
@@ -180,7 +183,7 @@ internal class AiChatViewModel(application: Application) : AndroidViewModel(appl
                 } catch (error: CancellationException) {
                     throw error
                 } catch (error: Exception) {
-                    if (generation == turn) report(error)
+                    if (generation == turn) recover(error)
                 } finally {
                     if (generation == turn) mutableState.update { it.copy(busy = false, partial = "") }
                 }
@@ -225,7 +228,7 @@ internal class AiChatViewModel(application: Application) : AndroidViewModel(appl
 
     override fun onCleared() {
         pause()
-        http.close()
+        viewModelScope.launch(start = CoroutineStart.UNDISPATCHED) { auth.close() }
         super.onCleared()
     }
 
@@ -238,7 +241,7 @@ internal class AiChatViewModel(application: Application) : AndroidViewModel(appl
                 try {
                     block()
                 } catch (error: Exception) {
-                    if (attempt == authGeneration) report(error)
+                    if (attempt == authGeneration) recover(error)
                 } finally {
                     if (attempt == authGeneration) mutableState.update { it.copy(busy = false) }
                 }
@@ -249,7 +252,7 @@ internal class AiChatViewModel(application: Application) : AndroidViewModel(appl
         val accounts = auth.accounts()
         val id = selected?.takeIf { id -> accounts.any { it.id == id } } ?: accounts.lastOrNull()?.id
         val welcome = accounts.any { it.id == id && it.planEnabled } && auth.needsPlanNotice()
-        mutableState.update { it.withAccount(id).copy(accounts = accounts, welcome = welcome) }
+        mutableState.update { it.withAccount(id, planEnabled = accounts.any { account -> account.id == id && account.planEnabled }).copy(accounts = accounts, welcome = welcome) }
     }
 
     private suspend fun loadModels() {
@@ -263,12 +266,18 @@ internal class AiChatViewModel(application: Application) : AndroidViewModel(appl
         if (mutableState.value.account == account.id) mutableState.update { it.copy(models = models, model = models.firstOrNull()?.slug) }
     }
 
+    private suspend fun recover(error: Exception) {
+        if ((error as? OpenAiFailure)?.requiresSignIn == true) reloadAccounts()
+        report(error)
+    }
+
     private fun report(error: Exception) {
         if (error is CancellationException && error !is TimeoutCancellationException) return
         val message =
-            when ((error as? OpenAiFailure)?.code) {
-                "access_denied" -> R.string.ai_denied
-                "subscription_sharing_usage_limit_exceeded", "subscription_sharing_usage_unavailable" -> R.string.ai_usage_limit
+            when {
+                (error as? OpenAiFailure)?.requiresSignIn == true -> R.string.ai_sign_in_required
+                (error as? OpenAiFailure)?.code == "access_denied" -> R.string.ai_denied
+                (error as? OpenAiFailure)?.code in setOf("subscription_sharing_usage_limit_exceeded", "subscription_sharing_usage_unavailable") -> R.string.ai_usage_limit
                 else -> R.string.ai_request_failed
             }
         mutableState.update { it.copy(notice = text(message), usageLimited = message == R.string.ai_usage_limit) }

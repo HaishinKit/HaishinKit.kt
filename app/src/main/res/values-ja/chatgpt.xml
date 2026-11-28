@@ -30,4 +30,5 @@
     <string name="ai_plan_notice">このサンプルの対応リクエストにはChatGPTプランとその利用枠を使用します。ChatGPT設定の「利用状況を管理」からアクセスの確認・変更ができます。</string>
     <string name="ai_got_it">わかりました</string>
     <string name="ai_using_plan">ChatGPTプランを使用中</string>
+    <string name="ai_sign_in_required">ChatGPTの接続が期限切れまたは解除済みです。Continue with ChatGPTから再接続してください。</string>
 </resources>

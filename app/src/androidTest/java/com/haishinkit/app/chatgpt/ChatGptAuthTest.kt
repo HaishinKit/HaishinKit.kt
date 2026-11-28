@@ -3,8 +3,15 @@ package com.haishinkit.app.chatgpt
 import android.content.Context
 import android.content.ContextWrapper
 import androidx.test.platform.app.InstrumentationRegistry
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.yield
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
@@ -14,6 +21,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
+import java.io.IOException
 import java.net.Socket
 import java.net.URI
 import java.net.URLDecoder
@@ -107,12 +115,136 @@ class ChatGptAuthTest {
                     val id = auth.signIn(null, http::browser)
                     assertFalse(auth.accounts().single().planEnabled)
                     assertEquals(null, http.lastPrompt)
+                    auth.signOut(id)
+                    assertFalse(auth.accounts().single().connected)
                     http.grantedScopes = ChatGptProtocol.SCOPES
                     auth.signIn(id, http::browser)
                     assertEquals("consent", http.lastPrompt)
                     assertTrue(auth.accounts().single().planEnabled)
                     auth.signIn(id, http::browser)
                     assertEquals(null, http.lastPrompt)
+                }
+            } finally {
+                context.noBackupFilesDir.deleteRecursively()
+            }
+        }
+
+    @Test
+    fun canceledRenewalCompletesBeforeHttpShutdownAndNeverStartsInference() =
+        runBlocking {
+            for (terminal in listOf(false, true)) {
+                val context = isolatedContext()
+                try {
+                    withTimeout(20_000) {
+                        val entered = CompletableDeferred<Unit>()
+                        val release = CompletableDeferred<Unit>()
+                        val http =
+                            FakeAccountsHttp().apply {
+                                refreshEntered = entered
+                                refreshRelease = release
+                                if (terminal) refreshFailure = OpenAiFailure("invalid_grant", 400)
+                            }
+                        val auth = ChatGptAuth(context, http)
+                        val id = auth.signIn(null, http::browser)
+                        var inferenceStarted = false
+                        val request =
+                            launch {
+                                auth.accessToken(id)
+                                inferenceStarted = true
+                            }
+                        entered.await()
+                        request.cancel()
+                        val clearedOwner = CoroutineScope(Job().apply { cancel() } + Dispatchers.Main)
+                        val shutdown = clearedOwner.launch(start = CoroutineStart.UNDISPATCHED) { auth.close() }
+                        yield()
+                        assertFalse(http.closed)
+                        release.complete(Unit)
+                        request.join()
+                        shutdown.join()
+                        assertFalse(inferenceStarted)
+                        assertTrue(http.closed)
+                        val replacementHttp = FakeAccountsHttp()
+                        val restored = ChatGptAuth(context, replacementHttp)
+                        if (terminal) {
+                            assertFalse(restored.accounts().single().connected)
+                        } else {
+                            assertEquals("refreshed-access", restored.accessToken(id))
+                        }
+                        assertEquals(0, replacementHttp.refreshes)
+                        restored.close()
+                    }
+                } finally {
+                    context.noBackupFilesDir.deleteRecursively()
+                }
+            }
+        }
+
+    @Test
+    fun terminalRefreshErrorsClearTokensButRetainTheRegistration() =
+        runBlocking {
+            for (code in listOf("invalid_grant", "invalid_refresh_token", "token_expired", "refresh_token_expired", "refresh_token_invalidated", "refresh_token_reused")) {
+                val context = isolatedContext()
+                try {
+                    withTimeout(15_000) {
+                        val http = FakeAccountsHttp().apply { refreshFailure = OpenAiFailure(code, 400) }
+                        val auth = ChatGptAuth(context, http)
+                        val id = auth.signIn(null, http::browser)
+                        val failure = runCatching { auth.accessToken(id) }.exceptionOrNull() as OpenAiFailure
+                        assertEquals(code, failure.code)
+                        assertTrue(failure.requiresSignIn)
+                        val account = auth.accounts().single()
+                        assertEquals(id, account.id)
+                        assertFalse(account.connected)
+                        assertFalse(account.planEnabled)
+                        assertTrue(runCatching { auth.accessToken(id) }.isFailure)
+                        assertEquals(1, http.refreshes)
+                        auth.close()
+                    }
+                } finally {
+                    context.noBackupFilesDir.deleteRecursively()
+                }
+            }
+        }
+
+    @Test
+    fun temporaryRefreshFailuresKeepTheRenewableSession() =
+        runBlocking {
+            for (error in listOf(IOException("offline"), OpenAiFailure("temporarily_unavailable", 503))) {
+                val context = isolatedContext()
+                try {
+                    withTimeout(15_000) {
+                        val http = FakeAccountsHttp().apply { refreshFailure = error }
+                        val auth = ChatGptAuth(context, http)
+                        val id = auth.signIn(null, http::browser)
+                        assertTrue(runCatching { auth.accessToken(id) }.isFailure)
+                        assertTrue(auth.accounts().single().connected)
+                        assertTrue(auth.accounts().single().planEnabled)
+                        http.refreshFailure = null
+                        assertEquals("refreshed-access", auth.accessToken(id))
+                        assertEquals(2, http.refreshes)
+                        auth.close()
+                    }
+                } finally {
+                    context.noBackupFilesDir.deleteRecursively()
+                }
+            }
+        }
+
+    @Test
+    fun stalledRefreshHasAFifteenSecondNetworkDeadline() =
+        runBlocking {
+            val context = isolatedContext()
+            try {
+                withTimeout(22_000) {
+                    val http = FakeAccountsHttp().apply { refreshRelease = CompletableDeferred() }
+                    val auth = ChatGptAuth(context, http)
+                    val id = auth.signIn(null, http::browser)
+                    val start = android.os.SystemClock.elapsedRealtime()
+                    assertEquals("refresh_timeout", (runCatching { auth.accessToken(id) }.exceptionOrNull() as OpenAiFailure).code)
+                    assertTrue(android.os.SystemClock.elapsedRealtime() - start < 20_000)
+                    assertTrue(auth.accounts().single().connected)
+                    auth.close()
+                    assertTrue(http.closed)
                 }
             } finally {
                 context.noBackupFilesDir.deleteRecursively()
@@ -135,8 +267,16 @@ class ChatGptAuthTest {
         var lastAuthorizeClient: String? = null
         var lastPrompt: String? = null
         var grantedScopes = ChatGptProtocol.SCOPES
+        var refreshFailure: Exception? = null
+        var refreshEntered: CompletableDeferred<Unit>? = null
+        var refreshRelease: CompletableDeferred<Unit>? = null
+        var closed = false
         private var nonce = ""
         private val pair = KeyPairGenerator.getInstance("RSA").apply { initialize(2048) }.generateKeyPair()
+
+        override fun close() {
+            closed = true
+        }
 
         override suspend fun get(
             url: String,
@@ -171,6 +311,7 @@ class ChatGptAuthTest {
             url: String,
             values: Map<String, String>,
         ): JsonObject {
+            check(!closed)
             assertEquals("issued-test-client", values["client_id"])
             if (url.endsWith("test-revoke")) {
                 revokedToken = values["token"]
@@ -181,6 +322,9 @@ class ChatGptAuthTest {
             if (refresh) {
                 refreshes++
                 assertEquals("original-refresh", values["refresh_token"])
+                refreshEntered?.complete(Unit)
+                refreshRelease?.await()
+                refreshFailure?.let { throw it }
             } else {
                 assertTrue(values["code_verifier"]!!.length >= 43)
                 assertTrue(values["redirect_uri"]!!.startsWith("http://127.0.0.1:"))

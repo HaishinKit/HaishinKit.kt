@@ -157,7 +157,11 @@ The suffix shown in the account picker distinguishes their issued client IDs.
 
 Credentials and a stable installation host ID are stored as one AES-GCM encrypted
 atomic record in Android's no-backup directory; the key remains in AndroidKeyStore.
-Refreshes are serialized and rotated credentials are saved atomically. Sign out
+Refreshes are serialized and rotated credentials are saved atomically. Once renewal
+starts, stopping inference leaves only that renewal running, with a 15-second
+network deadline followed by atomic storage; HTTP cleanup waits for it. A canceled
+caller never proceeds to inference. Confirmed terminal refresh errors clear tokens
+while retaining the registration for sign-in; temporary failures retain credentials. Sign out
 revokes the refresh token when reachable and clears local tokens. If remote
 revocation cannot be confirmed, the UI says so and links to ChatGPT usage settings.
 No client secret, shared Codex registration, credential logging, or credential
