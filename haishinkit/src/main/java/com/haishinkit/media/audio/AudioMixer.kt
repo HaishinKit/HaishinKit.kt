@@ -45,32 +45,26 @@ internal class AudioMixer(private val owner: MediaMixer, private val output: (Me
     ): Result<Unit> =
         withContext(Dispatchers.IO) {
             lock.withLock {
-                check(!disposed) { "Audio mixer is disposed" }
+                if (disposed) return@withLock Result.failure(IllegalStateException("Audio mixer is disposed"))
                 for (ended in bindings.filter { (it.source as? PushAudioSource)?.isClosed == true }) detach(ended)
                 bindings.firstOrNull { it.track == track && it.source === source }?.let {
                     if (!it.opened) {
-                        it.source.open(owner).getOrThrow()
+                        val opened = openSource(it.source)
+                        if (opened.isFailure) {
+                            detach(it)
+                            return@withLock opened.map { Unit }
+                        }
+                        it.format = opened.getOrThrow()
                         it.opened = true
                     }
                     return@withLock Result.success(Unit)
                 }
                 bindings.firstOrNull { it.track == track }?.let { detach(it) }
                 if (source == null) return@withLock Result.success(Unit)
-                require(bindings.size < 32) { "At most 32 audio tracks can be mixed" }
-                val opened =
-                    try {
-                        source.open(owner)
-                    } catch (cause: Exception) {
-                        withContext(NonCancellable) { runCatching { source.close() } }
-                        if (cause is CancellationException) throw cause
-                        return@withLock Result.failure(cause)
-                    }
-                if (opened.isFailure) {
-                    withContext(NonCancellable) { source.close() }
-                    (opened.exceptionOrNull() as? CancellationException)?.let { throw it }
-                    return@withLock opened
-                }
-                val binding = Binding(track, ids.incrementAndGet(), source)
+                if (bindings.size >= 32) return@withLock Result.failure(IllegalArgumentException("At most 32 audio tracks can be mixed"))
+                val opened = openSource(source)
+                if (opened.isFailure) return@withLock opened.map { Unit }
+                val binding = Binding(track, ids.incrementAndGet(), source, opened.getOrThrow())
                 bindings = bindings + binding
                 (source as? PushAudioSource)?.onEnded = {
                     scope.launch { lock.withLock { if (bindings.any { it === binding }) detach(binding) } }
@@ -98,10 +92,9 @@ internal class AudioMixer(private val owner: MediaMixer, private val output: (Me
                         detach(binding)
                     } else if (!binding.opened) {
                         try {
-                            binding.source.open(owner).getOrThrow()
+                            binding.format = openSource(binding.source).getOrThrow()
                             binding.opened = true
                         } catch (cause: Exception) {
-                            withContext(NonCancellable) { runCatching { binding.source.close() } }
                             detach(binding)
                             if (cause is CancellationException) throw cause
                             Log.w(TAG, "Unable to reopen audio track ${binding.track}", cause)
@@ -132,6 +125,16 @@ internal class AudioMixer(private val owner: MediaMixer, private val output: (Me
             }
         }
 
+    private suspend fun openSource(source: AudioSource): Result<PcmAudioFormat?> =
+        try {
+            source.open(owner).getOrThrow()
+            Result.success((source as? PcmAudioSource)?.audioFormat)
+        } catch (cause: Exception) {
+            withContext(NonCancellable) { runCatching { source.close() } }
+            if (cause is CancellationException) throw cause
+            Result.failure(cause)
+        }
+
     private suspend fun detach(binding: Binding) {
         bindings = bindings.filterNot { it === binding }.toTypedArray()
         (binding.source as? PushAudioSource)?.onEnded = null
@@ -142,17 +145,29 @@ internal class AudioMixer(private val owner: MediaMixer, private val output: (Me
     private suspend fun stopBinding(binding: Binding) {
         binding.capturing = false
         (binding.source as? PushAudioSource)?.consumer = null
-        if (binding.opened) binding.source.close().onFailure { Log.w(TAG, "Unable to close audio track ${binding.track}", it) }
+        if (binding.opened) {
+            withContext(NonCancellable) {
+                runCatching { binding.source.close().getOrThrow() }.onFailure { Log.w(TAG, "Unable to close audio track ${binding.track}", it) }
+            }
+        }
         binding.opened = false
         binding.worker?.interrupt()
         binding.worker?.join()
         binding.worker = null
     }
 
-    private fun startEngine() {
+    private suspend fun startEngine() {
         val next = NativeAudioMixer(settings)
         engine = next
-        for (binding in bindings) startBinding(binding, next)
+        for (binding in bindings) {
+            try {
+                startBinding(binding, next)
+            } catch (cause: Exception) {
+                detach(binding)
+                if (cause is CancellationException) throw cause
+                Log.w(TAG, "Unable to start audio track ${binding.track}", cause)
+            }
+        }
         renderThread =
             Thread({ render(next) }, "HaishinKit.AudioMix").apply {
                 isDaemon = true
@@ -182,7 +197,7 @@ internal class AudioMixer(private val owner: MediaMixer, private val output: (Me
                     override fun clear() = mixer.clear(binding.nativeId)
                 }
         } else {
-            val format = (binding.source as? PcmAudioSource)?.audioFormat ?: PcmAudioFormat(settings.sampleRate, settings.channels)
+            val format = binding.format ?: PcmAudioFormat(settings.sampleRate, settings.channels)
             binding.worker =
                 Thread({
                     Process.setThreadPriority(Process.THREAD_PRIORITY_AUDIO)
@@ -244,7 +259,7 @@ internal class AudioMixer(private val owner: MediaMixer, private val output: (Me
         }
     }
 
-    private class Binding(val track: Int, val nativeId: Int, val source: AudioSource) {
+    private class Binding(val track: Int, val nativeId: Int, val source: AudioSource, var format: PcmAudioFormat?) {
         @Volatile var capturing = false
         var opened = true
         var worker: Thread? = null

@@ -14,3 +14,10 @@ verify that the OS decoder honors the stereo output limit before native mixing:
 ```sh
 ffmpeg -f lavfi -i 'aevalsrc=0.05*sin(2*PI*440*t)|0.05*sin(2*PI*660*t)|0.05*sin(2*PI*880*t)|0.05*sin(2*PI*100*t)|0.05*sin(2*PI*550*t)|0.05*sin(2*PI*770*t):s=48000:d=1.2:c=5.1' -c:a aac -b:a 256k audio-surround.m4a
 ```
+
+`audio-timed.m4a` starts a 1 kHz tone at 350 ms, to distinguish stale audio from
+audio aligned with the video clock after an injected decoder stall:
+
+```sh
+ffmpeg -f lavfi -i 'aevalsrc=if(gte(t\,0.35)\,0.125*sin(2*PI*1000*t)\,0):s=48000:d=1.2' -c:a aac -b:a 96k audio-timed.m4a
+```

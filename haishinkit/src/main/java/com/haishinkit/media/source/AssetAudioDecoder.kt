@@ -72,6 +72,7 @@ internal class AssetAudioDecoder(
             var inputEnded = false
             var outputEnded = false
             var joinPositionUs = 0L
+            var resynchronizing = false
             val info = MediaCodec.BufferInfo()
             while (running.get() && clock.active) {
                 val current = clock.pass
@@ -86,10 +87,12 @@ internal class AssetAudioDecoder(
                     pass = current
                     inputEnded = false
                     outputEnded = false
+                    resynchronizing = false
                     discontinuity()
                 }
                 if (!inputEnded) {
-                    val index = decoder.dequeueInputBuffer(10_000)
+                    // A full input queue must not delay draining already-decoded PCM.
+                    val index = decoder.dequeueInputBuffer(0)
                     if (index >= 0) {
                         val input = checkNotNull(decoder.getInputBuffer(index))
                         input.clear()
@@ -99,7 +102,8 @@ internal class AssetAudioDecoder(
                             inputEnded = true
                         } else {
                             require(source.sampleFlags and MediaExtractor.SAMPLE_FLAG_ENCRYPTED == 0) { "Encrypted asset audio is not supported" }
-                            decoder.queueInputBuffer(index, 0, count, source.sampleTime, 0)
+                            val flags = if (source.sampleFlags and MediaExtractor.SAMPLE_FLAG_PARTIAL_FRAME != 0) MediaCodec.BUFFER_FLAG_PARTIAL_FRAME else 0
+                            decoder.queueInputBuffer(index, 0, count, source.sampleTime, flags)
                             source.advance()
                         }
                     }
@@ -121,13 +125,23 @@ internal class AssetAudioDecoder(
                                     val frames = info.size / frameBytes
                                     val durationUs = (frames * 1_000_000L + actual.sampleRate - 1) / actual.sampleRate
                                     val lateFrames = if (lateUs >= durationUs) frames else (lateUs * actual.sampleRate / 1_000_000).toInt()
-                                    val trim = lateFrames * frameBytes
-                                    if (trim < info.size) {
-                                        output.limit(info.offset + info.size)
-                                        output.position(info.offset + trim)
+                                    if (lateFrames < frames) {
                                         val target = deadline + lateFrames * 1_000_000_000L / actual.sampleRate
                                         waitUntil(target, current)
-                                        if (running.get() && clock.active && clock.pass === current) pcm(output, actual)
+                                        if (running.get() && clock.active && clock.pass === current) {
+                                            val expired = current.expiredFrames(info.presentationTimeUs, frames, actual.sampleRate, System.nanoTime(), resynchronizing)
+                                            if (expired > 0) {
+                                                if (!resynchronizing) discontinuity()
+                                                resynchronizing = true
+                                            }
+                                            val trim = maxOf(lateFrames, expired) * frameBytes
+                                            if (trim < info.size) {
+                                                output.limit(info.offset + info.size)
+                                                output.position(info.offset + trim)
+                                                pcm(output, actual)
+                                                resynchronizing = false
+                                            }
+                                        }
                                     }
                                 }
                                 outputEnded = info.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0

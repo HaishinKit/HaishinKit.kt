@@ -145,7 +145,10 @@ class MediaProjectionService :
             if (captureAudio) mixer.attachAudio(0, AudioRecordSource(applicationContext).apply { sampleRate = mixer.audioMixerSettings.sampleRate })
             intent?.getParcelableExtra<Intent>(EXTRA_RESULT_DATA)?.let {
                 mediaProjectionManager.getMediaProjection(Activity.RESULT_OK, it)?.let {
-                    if (captureAudio) mixer.attachAudio(1, MediaProjectionAudioSource(applicationContext, it)).getOrThrow()
+                    if (captureAudio) {
+                        mixer.attachAudio(1, MediaProjectionAudioSource(applicationContext, it))
+                            .onFailure { cause -> Log.w(TAG, "Playback audio capture is unavailable; continuing screen sharing", cause) }
+                    }
                     val source =
                         MediaProjectionSource(
                             applicationContext,

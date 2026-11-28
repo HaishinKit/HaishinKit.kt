@@ -6,6 +6,16 @@ import org.junit.Assert.assertThrows
 import org.junit.Test
 
 class AssetPlaybackClockTest {
+    @Test fun ordinaryJitterIsRetainedButStaleAudioIsTrimmedAfterAStall() {
+        val pass = AssetPlaybackClock.Pass(0, 1_000_000_000)
+        assertEquals(0, pass.expiredFrames(200_000, 1024, 48000, 1_205_000_000))
+        assertEquals(0, pass.expiredFrames(200_000, 1024, 48000, 1_220_000_000))
+        assertEquals(0, pass.expiredFrames(200_000, 1024, 48000, 1_280_000_000))
+        assertEquals(1008, pass.expiredFrames(200_000, 1024, 48000, 1_221_000_000, recovering = true))
+        assertEquals(1024, pass.expiredFrames(200_000, 1024, 48000, 1_320_000_000))
+        assertEquals(0, pass.expiredFrames(400_000, 1024, 48000, 1_320_000_000))
+    }
+
     @Test fun loopEpochAndPresentationOffsetsUseTheSharedClock() {
         val clock = AssetPlaybackClock()
         clock.begin(1000, 1_000_000)

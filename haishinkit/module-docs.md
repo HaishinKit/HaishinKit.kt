@@ -92,6 +92,8 @@ cancel, detach and loop boundaries. Closing the asset also detaches its audio in
 including when the mixer is stopped. Audio decoder output is limited to stereo;
 surround downmix depends on the OS decoder honoring that request. Unsupported audio
 formats report through the asset's `onError`; video playback can continue.
+When decoder lag exceeds 100 ms, expired PCM and queued stale audio are discarded until
+the decoder catches up with the current video clock. Ordinary scheduling jitter is tolerated.
 
 ## Screen snapshot compatibility
 

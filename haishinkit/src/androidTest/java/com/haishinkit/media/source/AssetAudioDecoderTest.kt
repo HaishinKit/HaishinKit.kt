@@ -9,6 +9,9 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.io.File
+import java.nio.ByteOrder
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
 import java.util.concurrent.locks.LockSupport
 import kotlin.math.cos
@@ -17,6 +20,57 @@ import kotlin.math.sqrt
 
 @RunWith(AndroidJUnit4::class)
 class AssetAudioDecoderTest {
+    @Test fun decoderStallSkipsExpiredAudioInsteadOfKeepingTheSoundtrackBehindVideo() {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val file = File(instrumentation.targetContext.cacheDir, "asset-audio-timed.m4a")
+        instrumentation.context.assets.open("audio-timed.m4a").use { input -> file.outputStream().use { input.copyTo(it) } }
+        val clock = AssetPlaybackClock()
+        clock.begin(0, System.nanoTime())
+        val received = CountDownLatch(1)
+        val error = AtomicReference<Throwable?>()
+        val rms = AtomicReference<Double>()
+        val clears = java.util.concurrent.atomic.AtomicInteger()
+        var stalled = false
+        val decoder =
+            AssetAudioDecoder(
+                instrumentation.targetContext,
+                Uri.fromFile(file),
+                clock,
+                null,
+                pcm = { pcm, _ ->
+                    if (stalled && received.count > 0) {
+                        val samples = pcm.duplicate().order(ByteOrder.nativeOrder()).asShortBuffer()
+                        val count = samples.remaining()
+                        var energy = 0.0
+                        while (samples.hasRemaining()) {
+                            val sample = samples.get().toDouble()
+                            energy += sample * sample
+                        }
+                        rms.set(sqrt(energy / count))
+                        received.countDown()
+                    } else if (!stalled && clock.pass!!.positionUs() >= 200_000) {
+                        // The fixture is silent until 350 ms. A 180 ms stall crosses that marker.
+                        stalled = true
+                        android.os.SystemClock.sleep(180)
+                    }
+                },
+                discontinuity = { clears.incrementAndGet() },
+                error = { error.set(it) },
+            )
+        try {
+            decoder.start()
+            assertTrue("No audio after the injected stall", received.await(5, TimeUnit.SECONDS))
+            error.get()?.let { throw AssertionError("Timed audio failed", it) }
+            assertTrue("Expired pre-marker silence was replayed after the stall: ${rms.get()}", rms.get() > 1000)
+            assertTrue("Stale native audio was not flushed", clears.get() > 1)
+        } finally {
+            clock.active = false
+            decoder.cancel()
+            decoder.awaitRelease()
+            file.delete()
+        }
+    }
+
     @Test fun sixChannelAacIsDownmixedByTheDecoder() {
         val instrumentation = InstrumentationRegistry.getInstrumentation()
         val context = instrumentation.targetContext
