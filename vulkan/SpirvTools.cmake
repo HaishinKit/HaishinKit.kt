@@ -1,5 +1,8 @@
 # The gitlinks pin SPIRV-Tools v2026.4 and the Headers revision from its DEPS file.
 # Only the core validator is linked; executables, tests and optimizer targets are excluded.
+# Require a host interpreter capable of running the pinned generator scripts.
+find_package(Python3 3.8 REQUIRED COMPONENTS Interpreter)
+
 set(SPIRV_SKIP_EXECUTABLES ON CACHE BOOL "" FORCE)
 set(SPIRV_SKIP_TESTS ON CACHE BOOL "" FORCE)
 set(SPIRV_WERROR OFF CACHE BOOL "" FORCE)
