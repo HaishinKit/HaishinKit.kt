@@ -20,6 +20,7 @@ class RnnoiseMicrophoneSource(val source: AudioRecordSource) : PcmAudioSource by
         private set
     private var effect: NoiseSuppressor? = null
     private var session = 0
+    private var suppressionAvailable = false
 
     @Volatile private var opened = false
     private val guard = Any()
@@ -30,6 +31,7 @@ class RnnoiseMicrophoneSource(val source: AudioRecordSource) : PcmAudioSource by
         return try {
             synchronized(guard) {
                 require(source.audioFormat.sampleRate == 48_000) { "Configure microphone input to 48 kHz before attaching RNNoise" }
+                suppressionAvailable = NoiseSuppressor.isAvailable()
                 disableOsSuppression()
                 opened = true
             }
@@ -61,7 +63,7 @@ class RnnoiseMicrophoneSource(val source: AudioRecordSource) : PcmAudioSource by
 
     private fun disableOsSuppression() {
         osNoiseSuppression = OsNoiseSuppression.UNCONFIRMED
-        if (!NoiseSuppressor.isAvailable()) {
+        if (!suppressionAvailable) {
             osNoiseSuppression = OsNoiseSuppression.UNAVAILABLE
             return
         }
