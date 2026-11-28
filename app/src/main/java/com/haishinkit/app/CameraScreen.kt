@@ -296,7 +296,7 @@ fun CameraScreen(
                         onDelete = { if (!viewModel.sceneFileBusy) viewModel.removeFocusedScreenObject() },
                     )
 
-                    if (filterFeedbackVisible) {
+                    if (filterFeedbackVisible && viewModel.videoEffectItems.size > 1) {
                         Surface(modifier = Modifier.align(Alignment.Center), color = PreviewColors.container) {
                             Column(Modifier.padding(horizontal = 16.dp, vertical = 10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                                 Text("‹ ${viewModel.videoEffectItems[selectedEffect].name} ›", color = PreviewColors.content)
