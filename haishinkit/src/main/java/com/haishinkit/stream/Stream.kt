@@ -221,7 +221,7 @@ abstract class Stream(
     protected open fun startRunning() {
         if (isRunning.get()) return
         if (BuildConfig.DEBUG) {
-            Log.d(TAG, "Starting stream codecs: mode=${if (mode == Codec.MODE_ENCODE) "encode" else "decode"}")
+            Log.d(TAG, "Starting stream: mode=${if (mode == Codec.MODE_ENCODE) "encode" else "decode"}")
         }
         when (mode) {
             Codec.MODE_ENCODE -> {
