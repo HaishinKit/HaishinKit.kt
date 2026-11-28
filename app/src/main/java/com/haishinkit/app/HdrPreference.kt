@@ -29,22 +29,42 @@ internal object HdrPreference {
         settings: HdrSettings,
     ) {
         if (!settings.enabled) return
-        unsupportedReason(settings, PublishingProtocol.fromUrl(Preference.shared.streamURL))?.let { throw IllegalArgumentException(context.getString(it)) }
+        unsupportedReason(settings, Preference.shared.streamURL)?.let { throw IllegalArgumentException(context.getString(it)) }
+        validateGraphics(context, settings)
+    }
+
+    fun validateGraphics(
+        context: Context,
+        settings: HdrSettings,
+    ) {
+        graphicsUnsupportedReason(settings)?.let { throw IllegalArgumentException(context.getString(it)) }
+        if (!settings.enabled) return
         // Probe on the rendering worker before replacing any running session or preference.
         Screen.createOpenGL(context, DynamicRangeMode.HLG).dispose()
     }
 
     internal fun unsupportedReason(
         settings: HdrSettings,
-        protocol: PublishingProtocol,
+        destination: String,
         sdk: Int = Build.VERSION.SDK_INT,
     ): Int? =
         when {
             !settings.enabled -> null
-            sdk < 33 -> R.string.studio_hdr_android
-            protocol != PublishingProtocol.RTMP -> R.string.studio_hdr_rtmp_only
+            graphicsUnsupportedReason(settings, sdk) != null -> graphicsUnsupportedReason(settings, sdk)
+            !isRtmpDestination(destination) -> R.string.studio_hdr_rtmp_only
             else -> null
         }
+
+    internal fun isRtmpDestination(destination: String): Boolean {
+        val uri = android.net.Uri.parse(destination.trim()).normalizeScheme()
+        return uri.scheme in setOf("rtmp", "rtmps") && !uri.host.isNullOrBlank()
+    }
+
+    internal fun graphicsUnsupportedReason(
+        settings: HdrSettings,
+        sdk: Int = Build.VERSION.SDK_INT,
+    ): Int? =
+        if (settings.enabled && sdk < 33) R.string.studio_hdr_android else null
 
     fun save(
         context: Context,

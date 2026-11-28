@@ -5,6 +5,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asAndroidBitmap
+import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertTextContains
@@ -12,9 +13,11 @@ import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.junit4.StateRestorationTester
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performTextReplacement
 import androidx.test.filters.SdkSuppress
 import androidx.test.platform.app.InstrumentationRegistry
 import com.haishinkit.graphics.DynamicRangeMode
@@ -47,7 +50,7 @@ class HdrControlsTest {
         restoration.setContent {
             StudioTheme {
                 Column(Modifier.verticalScroll(rememberScrollState())) {
-                    HdrSettingsControls { applied = it }
+                    HdrSettingsControls(Preference.shared.streamURL) { applied = it }
                 }
             }
         }
@@ -66,11 +69,41 @@ class HdrControlsTest {
         compose.runOnIdle { assertEquals(HdrSettings(DynamicRangeMode.HLG, DynamicRangeMode.HLG), applied) }
     }
 
+    @Test fun editingTheDestinationUpdatesHlgAndPreventsInvalidApplyOnTheSameScreen() {
+        Preference.shared = Preference("srt://127.0.0.1:9999", "")
+        var applied = false
+        compose.setContent {
+            StudioTheme {
+                PreferenceScreen(onOpenCodecs = {}, onApplyHdr = { applied = true }, onApplyRenderer = {})
+            }
+        }
+        compose.onNodeWithTag("hdr-publish-HLG").performScrollTo().assertIsNotEnabled()
+
+        fun edit(url: String) {
+            compose.onNodeWithText(context.getString(R.string.studio_url)).performScrollTo().performTextReplacement(url)
+            androidx.test.espresso.Espresso.closeSoftKeyboard()
+        }
+        edit("rtmp://127.0.0.1/live")
+        compose.onNodeWithTag("hdr-publish-HLG").performScrollTo().assertIsEnabled().performClick()
+        for (invalid in listOf("", "ftp://host/live", "rtmp:///live", "srt://127.0.0.1:9999")) {
+            edit(invalid)
+            compose.onNodeWithTag("hdr-publish-HLG").performScrollTo().assertIsNotEnabled()
+            compose.onNodeWithTag("hdr-playback-HLG").performScrollTo().assertIsNotEnabled()
+            compose.onNodeWithTag("hdr-apply").performScrollTo().assertIsNotEnabled().performClick()
+            compose.runOnIdle {
+                org.junit.Assert.assertFalse(applied)
+                assertEquals(HdrSettings(), HdrPreference.selected(context))
+            }
+        }
+        edit("rtmps://127.0.0.1/live")
+        compose.onNodeWithTag("hdr-apply").performScrollTo().assertIsEnabled()
+    }
+
     @Test fun unsupportedTransportDisablesHlgChoices() {
         Preference.shared = Preference("srt://127.0.0.1:9999", "")
         compose.setContent {
             StudioTheme {
-                Column(Modifier.verticalScroll(rememberScrollState())) { HdrSettingsControls {} }
+                Column(Modifier.verticalScroll(rememberScrollState())) { HdrSettingsControls(Preference.shared.streamURL) {} }
             }
         }
         compose.onNodeWithTag("hdr-publish-HLG").performScrollTo().assertIsNotEnabled()

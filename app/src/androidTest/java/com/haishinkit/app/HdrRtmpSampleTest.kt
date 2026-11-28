@@ -103,6 +103,30 @@ class HdrRtmpSampleTest {
             }
         }
 
+    @Test fun savedHdrModesSurviveAnUnrelatedDestinationAtStartup() {
+        assumeNotNull(InstrumentationRegistry.getArguments().getString("hlgRtmpUrl"))
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val previous = Preference.shared
+        val previousHdr = HdrPreference.selected(context)
+        val renderer = RendererPreference.selected(context)
+        val settings = HdrSettings(DynamicRangeMode.HLG, DynamicRangeMode.HLG)
+        try {
+            HdrPreference.save(context, settings)
+            Preference.shared = Preference("srt://127.0.0.1:9999", "")
+            HdrPreference.validateGraphics(context, HdrPreference.selected(context))
+            assertEquals(settings, HdrPreference.selected(context))
+            org.junit.Assert.assertThrows(IllegalArgumentException::class.java) { HdrPreference.validate(context, settings) }
+            assertEquals(settings, HdrPreference.selected(context))
+            Preference.shared = Preference("rtmp://127.0.0.1/live", "test")
+            HdrPreference.validate(context, settings)
+            assertEquals(settings, HdrPreference.selected(context))
+        } finally {
+            Preference.shared = previous
+            HdrPreference.save(context, previousHdr)
+            RendererPreference.save(context, renderer)
+        }
+    }
+
     private fun readPixel(screen: Screen): FloatArray {
         val handler = screen.javaClass.getDeclaredMethod("getHandler").apply { isAccessible = true }.invoke(screen) as android.os.Handler
         val read =

@@ -25,7 +25,10 @@ import kotlinx.coroutines.launch
 
 @Suppress("ktlint:standard:function-naming")
 @Composable
-internal fun HdrSettingsControls(onApply: suspend (HdrSettings) -> Unit) {
+internal fun HdrSettingsControls(
+    destination: String,
+    onApply: suspend (HdrSettings) -> Unit,
+) {
     val context = LocalContext.current
     val current = remember { HdrPreference.selected(context) }
     val settingsSaver =
@@ -39,7 +42,7 @@ internal fun HdrSettingsControls(onApply: suspend (HdrSettings) -> Unit) {
     var applying by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
-    val hlgAvailable = Build.VERSION.SDK_INT >= 33 && PublishingProtocol.fromUrl(Preference.shared.streamURL) == PublishingProtocol.RTMP
+    val hlgAvailable = Build.VERSION.SDK_INT >= 33 && HdrPreference.isRtmpDestination(destination)
     StudioSection(stringResource(R.string.studio_hdr_title), stringResource(R.string.studio_hdr_help)) {
         Text(stringResource(R.string.studio_hdr_publish_label), style = MaterialTheme.typography.labelLarge)
         HdrRangeChips("publish", selected.publishing, applying, hlgAvailable) { selected = selected.copy(publishing = it) }
@@ -49,7 +52,7 @@ internal fun HdrSettingsControls(onApply: suspend (HdrSettings) -> Unit) {
         if (!hlgAvailable) Text(stringResource(if (Build.VERSION.SDK_INT < 33) R.string.studio_hdr_android else R.string.studio_hdr_rtmp_only))
         Button(
             modifier = Modifier.testTag("hdr-apply"),
-            enabled = !applying && selected != current,
+            enabled = !applying && selected != current && (!selected.enabled || hlgAvailable),
             onClick = {
                 applying = true
                 error = null

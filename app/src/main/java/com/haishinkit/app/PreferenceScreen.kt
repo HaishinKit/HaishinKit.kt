@@ -156,7 +156,7 @@ fun PreferenceScreen(
                     )
                 }
             }
-            HdrSettingsControls(onApplyHdr)
+            HdrSettingsControls(streamUrl, onApplyHdr)
             val context = LocalContext.current
 
             val scope = rememberCoroutineScope()

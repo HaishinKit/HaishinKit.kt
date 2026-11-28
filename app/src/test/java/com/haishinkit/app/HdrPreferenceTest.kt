@@ -11,6 +11,25 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(manifest = Config.NONE, sdk = [33])
 class HdrPreferenceTest {
+    @Test fun onlyRtmpUrlsWithAHostPermitHlg() {
+        val settings = HdrSettings(DynamicRangeMode.HLG, DynamicRangeMode.HLG)
+        for (url in listOf("", "ftp://host/live", "https://host/live", "srt://host:9999", "rtmp://", "rtmp:///live")) {
+            assertEquals(url, R.string.studio_hdr_rtmp_only, HdrPreference.unsupportedReason(settings, url, 33))
+        }
+        for (url in listOf("rtmp://host/live", " RTMPS://host/live ")) {
+            assertEquals(url, null, HdrPreference.unsupportedReason(settings, url, 33))
+        }
+    }
+
+    @Test fun graphicsSupportDoesNotDependOnTheEditedDestination() {
+        val settings = HdrSettings(DynamicRangeMode.HLG, DynamicRangeMode.HLG)
+        val context = RuntimeEnvironment.getApplication()
+        HdrPreference.save(context, settings)
+        assertEquals(null, HdrPreference.graphicsUnsupportedReason(settings, 33))
+        assertEquals(R.string.studio_hdr_rtmp_only, HdrPreference.unsupportedReason(settings, "srt://host:9999", 33))
+        assertEquals(settings, HdrPreference.selected(context))
+    }
+
     @Test fun directionsPersistIndependentlyAndHlgSelectsOpenGl() {
         val context = RuntimeEnvironment.getApplication()
         RendererPreference.save(context, Renderer.VULKAN)
@@ -24,8 +43,8 @@ class HdrPreferenceTest {
     }
 
     @Test fun unsupportedTransportIsRejectedBeforeOpeningGraphics() {
-        assertEquals(R.string.studio_hdr_rtmp_only, HdrPreference.unsupportedReason(HdrSettings(playback = DynamicRangeMode.HLG), PublishingProtocol.SRT, 33))
-        assertEquals(null, HdrPreference.unsupportedReason(HdrSettings(), PublishingProtocol.SRT, 29))
+        assertEquals(R.string.studio_hdr_rtmp_only, HdrPreference.unsupportedReason(HdrSettings(playback = DynamicRangeMode.HLG), "srt://127.0.0.1:9999", 33))
+        assertEquals(null, HdrPreference.unsupportedReason(HdrSettings(), "srt://127.0.0.1:9999", 29))
     }
 
     @Test
@@ -34,6 +53,6 @@ class HdrPreferenceTest {
         val context = RuntimeEnvironment.getApplication()
         HdrPreference.save(context, HdrSettings(DynamicRangeMode.HLG, DynamicRangeMode.HLG))
         assertEquals(HdrSettings(), HdrPreference.selected(context))
-        assertEquals(R.string.studio_hdr_android, HdrPreference.unsupportedReason(HdrSettings(playback = DynamicRangeMode.HLG), PublishingProtocol.RTMP, 29))
+        assertEquals(R.string.studio_hdr_android, HdrPreference.unsupportedReason(HdrSettings(playback = DynamicRangeMode.HLG), "rtmp://example.com/live", 29))
     }
 }

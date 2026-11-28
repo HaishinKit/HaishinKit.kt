@@ -28,7 +28,7 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         lifecycle.addObserver(DebugMcpServer())
         pictureInPicture = isInPictureInPictureMode
-        runCatching { HdrPreference.validate(this, HdrPreference.selected(this)) }.onFailure { cause ->
+        runCatching { HdrPreference.validateGraphics(this, HdrPreference.selected(this)) }.onFailure { cause ->
             HdrPreference.save(this, HdrSettings())
             android.widget.Toast.makeText(this, cause.message, android.widget.Toast.LENGTH_LONG).show()
         }
