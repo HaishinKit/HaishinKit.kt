@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="ai_title">AIチャット</string>
+    <string name="ai_close">AIチャットを閉じる</string>
+    <string name="ai_intro">合成映像について質問できます。新しいカメラ画像をOpenAIに送る前に毎回確認します。会話と画像は消去またはアプリ終了までメモリー内に保持します。</string>
+    <string name="ai_plan_required">対応するChatGPTプランと利用枠を使用します。APIキーは不要です。</string>
+    <string name="ai_camera_ready">合成映像に接続済み</string>
+    <string name="ai_camera_unavailable">合成映像に未接続</string>
+    <string name="ai_reconnect">再接続</string>
+    <string name="ai_sign_out">サインアウト</string>
+    <string name="ai_add_account">アカウント・ワークスペースを追加</string>
+    <string name="ai_manage_usage">利用状況を管理</string>
+    <string name="ai_clear">新しいチャット</string>
+    <string name="ai_model">モデル: %1$s</string>
+    <string name="ai_you">あなた</string>
+    <string name="ai_assistant">アシスタント</string>
+    <string name="ai_image_sent">この会話でカメラ画像の送信を許可しました。</string>
+    <string name="ai_prompt">メッセージ</string>
+    <string name="ai_stop">停止</string>
+    <string name="ai_send">送信</string>
+    <string name="ai_image_title">カメラ画像を送信しますか？</string>
+    <string name="ai_image_consent">現在の合成映像を1枚撮影し、この会話のためにOpenAIに送信します。人物、文字、個人情報が写る可能性があります。許可した画像は、この会話の後続の質問にも含まれます。「新しいチャット」で以降の送信対象から削除できます。</string>
+    <string name="ai_allow_image">画像を送信</string>
+    <string name="ai_decline_image">送信しない</string>
+    <string name="ai_denied">サインインが許可されませんでした。もう一度お試しください。</string>
+    <string name="ai_usage_limit">ChatGPTプランの利用枠に達したか、現在利用できません。「利用状況を管理」を確認してください。</string>
+    <string name="ai_request_failed">リクエストを完了できませんでした。通信状況を確認するか、ChatGPTに再接続してください。</string>
+    <string name="ai_revocation_unconfirmed">この端末からサインアウトしました。サーバー側の解除は確認できていません。「利用状況を管理」を確認してください。</string>
+    <string name="ai_plan_title">ChatGPTプランを使用します</string>
+    <string name="ai_plan_notice">このサンプルの対応リクエストにはChatGPTプランとその利用枠を使用します。ChatGPT設定の「利用状況を管理」からアクセスの確認・変更ができます。</string>
+    <string name="ai_got_it">わかりました</string>
+    <string name="ai_using_plan">ChatGPTプランを使用中</string>
+    <string name="ai_sign_in_required">ChatGPTの接続が期限切れまたは解除済みです。Continue with ChatGPTから再接続してください。</string>
+    <string name="ai_not_eligible">このアカウントまたはワークスペースでは、利用条件・ポリシーによりChatGPTプランを使用できません。設定を確認するか、利用可能な別のアカウントを選択してください。</string>
+    <string name="ai_inference_restricted">地域・権限・ポリシーによる制限のため、このリクエストを実行できません。アカウント・ワークスペースの権限と、連携機能の提供状況を確認してください。</string>
+</resources>

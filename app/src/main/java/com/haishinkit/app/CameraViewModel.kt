@@ -104,6 +104,9 @@ class CameraViewModel(
     internal var loadedSceneSize: Size? by mutableStateOf(null)
         private set
 
+    internal var onCompositionStopping: (() -> Unit)? = null
+    internal val compositionScreen get() = mixer.screen
+
     private var cameraDeviceManager: CameraDeviceManager =
         CameraDeviceManager(context = application.applicationContext)
     private var mixer: MediaMixer = MediaMixer(application.applicationContext, dynamicRangeMode)
@@ -467,11 +470,13 @@ class CameraViewModel(
     }
 
     fun stopRunning() {
+        onCompositionStopping?.invoke()
         assetPlaybackEnabled = false
         AssetScreenObject.findAssets(mixer.screen).forEach { asset ->
             if (asset.isReading) pausedAssets.add(asset)
             asset.cancelReading()
         }
+
         QualityCapture.stop("camera")
         DebugFrameCapture.detach(this)
         mixer.stopRunning()
@@ -486,8 +491,10 @@ class CameraViewModel(
     }
 
     override suspend fun stopForRendererChange() {
+        onCompositionStopping?.invoke()
         AssetScreenObject.findAssets(mixer.screen).forEach { it.close() }
         pausedAssets.clear()
+
         QualityCapture.stop("camera")
         DebugFrameCapture.detach(this)
         if (recorder.isRecording) recorder.stopRecording()
@@ -503,6 +510,7 @@ class CameraViewModel(
     }
 
     override fun onCleared() {
+        onCompositionStopping?.invoke()
         ingestDiscovery.stop()
         DebugFrameCapture.detach(this)
         session?.stream?.dispose()

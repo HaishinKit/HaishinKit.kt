@@ -73,6 +73,14 @@ The sample accepts archives and expanded contents up to 32 MiB, a canvas up to
 4096 pixels per side and 8 megapixels total. Deleted media is removed on save;
 files with unknown objects retain all resources to preserve those objects.
 
+## 💬 ChatGPT and composition tools
+
+Open **Publish → AI chat → Continue with ChatGPT** to ask about the current
+composition using an eligible ChatGPT plan. Approve each new camera image before
+it is sent. This local, open-source sample needs no API key or client secret.
+See the [authentication and local MCP guide](../mcp/module-docs.md#android-ai-chat-sample)
+for setup, data handling, limitations, and validation steps.
+
 ## 📡 Bonjour SRT publishing
 
 On the Mac sample, open **Playback**, start the SRT listener and enable its
