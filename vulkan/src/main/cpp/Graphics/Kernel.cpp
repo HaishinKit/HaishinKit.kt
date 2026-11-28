@@ -82,6 +82,10 @@ void Kernel::SetImageExtent(int32_t width, int32_t height) {
     swapChain.SetImageExtent(width, height);
 }
 
+vk::PhysicalDeviceLimits Kernel::GetPhysicalDeviceLimits() const {
+    return physicalDevice.getProperties().limits;
+}
+
 void Kernel::SetAssetManager(AAssetManager *newAssetManager) {
     DispatcherScope dispatchScope(dispatcher);
     assetManager = newAssetManager;

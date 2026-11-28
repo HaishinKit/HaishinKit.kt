@@ -103,13 +103,29 @@ class VkPixelTransform(override val context: Context) : PixelTransform {
         }
         val shader = VulkanEffectRegistry.resolve(videoEffect)
         screen.compose(renderer)
-        renderer.end(timestamp, matrix, shader.assets(), shader.parameters, backgroundColor)
+        try {
+            renderer.end(timestamp, matrix, shader.assets(), shader.parameters, backgroundColor)
+        } catch (error: Exception) {
+            // Presentation may have acquired an image or reset a fence before failing.
+            // Recreate this output before the next frame uses its presentation resources.
+            try {
+                discardNative()
+            } catch (cleanupError: Exception) {
+                error.addSuppressed(cleanupError)
+            }
+            throw error
+        }
     }
 
     private fun reset() {
-        native?.close()
-        native = null
         pacer.reset()
+        discardNative()
+    }
+
+    private fun discardNative() {
+        val previous = native
+        native = null
+        previous?.close()
     }
 
     companion object {

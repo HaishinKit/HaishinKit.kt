@@ -14,8 +14,11 @@ import android.util.Size
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.haishinkit.graphics.effect.BicubicVideoEffect
+import com.haishinkit.graphics.effect.DefaultVideoEffect
 import com.haishinkit.graphics.effect.VideoEffect
 import com.haishinkit.screen.ImageScreenObject
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotSame
 import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeTrue
 import org.junit.Test
@@ -31,6 +34,60 @@ import kotlin.math.floor
 class VkPixelTransformTest {
     private class BrokenPreviewEffect : VideoEffect {
         override val name = "broken-preview"
+    }
+
+    @Test
+    fun failedOutputRendersAgainAfterSelectingAValidEffect() {
+        assumeTrue(VkPixelTransform.isSupported())
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val screen =
+            VkScreen.create(context).apply {
+                frame = Rect(0, 0, 64, 64)
+                backgroundColor = Color.GREEN
+            }
+        val failed = CountDownLatch(1)
+        val expectedFrame = AtomicReference(Color.GREEN to CountDownLatch(1))
+        screen.onError = { failed.countDown() }
+        val reader = ImageReader.newInstance(64, 64, PixelFormat.RGBA_8888, 3)
+        val callbacks = HandlerThread("VulkanOutputRetryTest").apply { start() }
+        val transform = VkPixelTransform(context)
+        VulkanEffectRegistry.register(BrokenPreviewEffect::class.java) { VulkanShader("shaders/nonexistent-preview.frag.spv") }
+        try {
+            reader.setOnImageAvailableListener({ source ->
+                source.acquireLatestImage()?.use { image ->
+                    val plane = image.planes[0]
+                    val offset = 32 * plane.rowStride + 32 * plane.pixelStride
+                    val red = plane.buffer.get(offset).toInt() and 255
+                    val green = plane.buffer.get(offset + 1).toInt() and 255
+                    val blue = plane.buffer.get(offset + 2).toInt() and 255
+                    val expected = expectedFrame.get()
+                    if (abs(red - Color.red(expected.first)) < 5 && abs(green - Color.green(expected.first)) < 5 && abs(blue - Color.blue(expected.first)) < 5) expected.second.countDown()
+                }
+            }, Handler(callbacks.looper))
+            transform.imageExtent = Size(64, 64)
+            transform.surface = reader.surface
+            transform.screen = screen
+            assertTrue("The initial output should render", expectedFrame.get().second.await(10, TimeUnit.SECONDS))
+            val nativeField = VkPixelTransform::class.java.getDeclaredField("native").apply { isAccessible = true }
+            val previous = VkWorker.run { nativeField.get(transform) as NativeScene }
+            transform.videoEffect = BrokenPreviewEffect()
+            assertTrue("The output should report the missing shader", failed.await(5, TimeUnit.SECONDS))
+            val pointerField = NativeScene::class.java.getDeclaredField("memory").apply { isAccessible = true }
+            assertEquals("The failed renderer should be disposed", 0L, VkWorker.run { pointerField.getLong(previous) })
+            expectedFrame.set(Color.BLUE to CountDownLatch(1))
+            screen.backgroundColor = Color.BLUE
+            transform.videoEffect = DefaultVideoEffect.shared
+            assertTrue("The output should render with fresh presentation resources", expectedFrame.get().second.await(10, TimeUnit.SECONDS))
+            assertNotSame(previous, VkWorker.run { nativeField.get(transform) as NativeScene })
+        } finally {
+            transform.close()
+            screen.dispose()
+            reader.setOnImageAvailableListener(null, null)
+            callbacks.quitSafely()
+            callbacks.join()
+            reader.close()
+            VulkanEffectRegistry.unregister(BrokenPreviewEffect::class.java)
+        }
     }
 
     @Test
