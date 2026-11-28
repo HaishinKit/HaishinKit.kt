@@ -24,13 +24,16 @@ import javax.crypto.spec.GCMParameterSpec
 internal class ChatGptStore(context: Context) {
     private val file = AtomicFile(File(context.noBackupFilesDir, "chatgpt-credentials-v1.bin"))
 
-    suspend fun read(): JsonObject =
+    suspend fun readOrCreate(): JsonObject =
         withContext(Dispatchers.IO) {
             if (!file.baseFile.exists() && !File("${file.baseFile.path}.bak").exists()) {
-                return@withContext buildJsonObject {
-                    put("host_id", "urn:uuid:${UUID.randomUUID()}")
-                    put("profiles", JsonArray(emptyList()))
-                }
+                val initial =
+                    buildJsonObject {
+                        put("host_id", "urn:uuid:${UUID.randomUUID()}")
+                        put("profiles", JsonArray(emptyList()))
+                    }
+                write(initial)
+                return@withContext initial
             }
             val bytes =
                 file.openRead().use { input ->

@@ -234,9 +234,7 @@ internal class ChatGptAuth(context: Context, private val http: ChatGptAccountsHt
     private suspend fun initialize() {
         check(!closed) { "The ChatGPT connection is closed" }
         // The file is authoritative across owners; never write back an instance's stale cache.
-        val current = store.read()
-        store.write(current)
-        state = current
+        state = store.readOrCreate()
     }
 
     private fun profiles(): List<JsonObject> = state!!["profiles"]!!.jsonArray.map { it.jsonObject }

@@ -17,6 +17,7 @@ import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -306,6 +307,34 @@ class ChatGptAuthTest {
             }
         }
 
+    @Test
+    fun readingAValidSessionNeverReencryptsItsCredentialFile() =
+        runBlocking {
+            val context = isolatedContext()
+            try {
+                withTimeout(15_000) {
+                    val http = FakeAccountsHttp().apply { initialExpiresIn = 3600 }
+                    val auth = ChatGptAuth(context, http)
+                    // Initial creation must persist the stable host even before first authorization.
+                    auth.accounts()
+                    val file = File(context.noBackupFilesDir, "chatgpt-credentials-v1.bin")
+                    assertTrue(file.isFile)
+                    val id = auth.signIn(null, http::browser)
+                    val before = file.readBytes()
+                    repeat(3) {
+                        assertTrue(auth.accounts().single().connected)
+                        auth.needsPlanNotice()
+                        assertEquals("original-access", auth.accessToken(id))
+                    }
+                    assertArrayEquals(before, file.readBytes())
+                    assertEquals(0, http.refreshes)
+                    auth.close()
+                }
+            } finally {
+                context.noBackupFilesDir.deleteRecursively()
+            }
+        }
+
     private fun isolatedContext(): Context {
         val base = InstrumentationRegistry.getInstrumentation().targetContext
         val directory = File(base.cacheDir, "chatgpt-auth-test-${UUID.randomUUID()}").apply { mkdirs() }
@@ -322,6 +351,7 @@ class ChatGptAuthTest {
         var lastAuthorizeClient: String? = null
         var lastPrompt: String? = null
         var grantedScopes = ChatGptProtocol.SCOPES
+        var initialExpiresIn = 0
         var refreshFailure: Exception? = null
         var refreshEntered: CompletableDeferred<Unit>? = null
         var refreshRelease: CompletableDeferred<Unit>? = null
@@ -388,7 +418,7 @@ class ChatGptAuthTest {
                 put("token_type", "Bearer")
                 put("access_token", if (refresh) "refreshed-access" else "original-access")
                 put("refresh_token", if (refresh) "rotated-refresh" else "original-refresh")
-                put("expires_in", if (refresh) 3600 else 0)
+                put("expires_in", if (refresh) 3600 else initialExpiresIn)
                 if (!refresh) {
                     put("scope", grantedScopes)
                     put("id_token", identity())

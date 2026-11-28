@@ -36,6 +36,7 @@ internal data class AiChatState(
     val lines: List<ChatLine> = emptyList(),
     val partial: String = "",
     val pendingPrompt: String? = null,
+    val activeTurnId: Int? = null,
     val imageApproved: Boolean = false,
     val busy: Boolean = false,
     val mcpReady: Boolean = false,
@@ -46,16 +47,25 @@ internal data class AiChatState(
 ) {
     val canChangeModel get() = !busy && lines.isEmpty()
 
-    fun beginTurn(prompt: String): AiChatState = copy(busy = true, pendingPrompt = prompt, partial = "", notice = null, usageLimited = false)
+    fun beginTurn(
+        prompt: String,
+        turnId: Int,
+    ): AiChatState = copy(busy = true, pendingPrompt = prompt, activeTurnId = turnId, partial = "", notice = null, usageLimited = false)
 
     fun completeTurn(
         prompt: String,
         answer: String,
         hasImages: Boolean,
     ): AiChatState =
-        copy(busy = false, lines = (lines + ChatLine(true, prompt) + ChatLine(false, answer)).takeLast(12), pendingPrompt = null, partial = "", imageApproved = hasImages)
+        copy(busy = false, lines = (lines + ChatLine(true, prompt) + ChatLine(false, answer)).takeLast(12), pendingPrompt = null, activeTurnId = null, partial = "", imageApproved = hasImages)
 
-    fun discardPendingTurn(hasImages: Boolean): AiChatState = copy(pendingPrompt = null, partial = "", imageApproved = hasImages, approval = false)
+    fun discardPendingTurn(hasImages: Boolean): AiChatState = copy(pendingPrompt = null, activeTurnId = null, partial = "", imageApproved = hasImages, approval = false)
+
+    fun appendDelta(
+        turnId: Int,
+        delta: String,
+    ): AiChatState =
+        if (activeTurnId == turnId && busy && pendingPrompt != null) copy(partial = partial + delta) else this
 
     fun withAccounts(
         accounts: List<ChatGptAccount>,
@@ -189,7 +199,7 @@ internal class AiChatViewModel(application: Application) : AndroidViewModel(appl
         val connection = bridge ?: return
         if (current.busy || current.welcome || !current.mcpReady || prompt.isBlank()) return
         val turn = ++generation
-        mutableState.update { it.beginTurn(prompt) }
+        mutableState.update { it.beginTurn(prompt, turn) }
         chatJob =
             viewModelScope.launch {
                 try {
@@ -207,7 +217,7 @@ internal class AiChatViewModel(application: Application) : AndroidViewModel(appl
                                     mutableState.update { it.copy(approval = false) }
                                 }
                             },
-                            onDelta = { delta -> if (generation == turn) mutableState.update { it.copy(partial = it.partial + delta) } },
+                            onDelta = { delta -> mutableState.update { it.appendDelta(turn, delta) } },
                             onImage = { if (generation == turn) mutableState.update { it.copy(imageApproved = true) } },
                         )
                     if (generation == turn) mutableState.update { it.completeTurn(prompt, answer, conversation.hasImages) }
@@ -339,6 +349,7 @@ internal class AiChatViewModel(application: Application) : AndroidViewModel(appl
 internal fun chatErrorMessage(error: Exception): Int =
     when {
         (error as? OpenAiFailure)?.requiresSignIn == true -> R.string.ai_sign_in_required
+        (error as? OpenAiFailure)?.inferenceRestricted == true -> R.string.ai_inference_restricted
         (error as? OpenAiFailure)?.code == "access_denied" -> R.string.ai_denied
         (error as? OpenAiFailure)?.code == "subscription_sharing_user_not_eligible" -> R.string.ai_not_eligible
         (error as? OpenAiFailure)?.code in setOf("subscription_sharing_usage_limit_exceeded", "subscription_sharing_usage_unavailable") -> R.string.ai_usage_limit

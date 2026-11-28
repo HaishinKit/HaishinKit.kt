@@ -5,8 +5,8 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.Call
 import okhttp3.Callback
 import okhttp3.FormBody
@@ -20,7 +20,7 @@ import java.util.concurrent.TimeUnit
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
-internal class OpenAiFailure(val code: String, val status: Int = 0, val requiresSignIn: Boolean = false) : IOException("OpenAI request failed ($status, $code)")
+internal class OpenAiFailure(val code: String, val status: Int = 0, val requiresSignIn: Boolean = false, val inferenceRestricted: Boolean = false) : IOException("OpenAI request failed ($status, $code)")
 
 /** Credentials are only sent to the pinned OpenAI HTTPS endpoints, never to MCP. */
 internal fun interface ChatGptInference {
@@ -121,7 +121,7 @@ internal class OpenAiHttp : ChatGptInference, ChatGptAccountsHttp {
                                 response.use {
                                     if (!it.isSuccessful) {
                                         val body = runCatching { Json.parseToJsonElement(it.body!!.string()).jsonObject }.getOrNull()
-                                        throw OpenAiFailure(body?.get("error")?.let { value -> if (value is JsonObject) value["code"]?.jsonPrimitive?.content else (value as? JsonPrimitive)?.content } ?: "request_failed", it.code)
+                                        throw openAiHttpFailure(request, it.code, body)
                                     }
                                     read(it)
                                 }
@@ -165,4 +165,17 @@ internal fun readResponseStream(
         }
     }
     return completed ?: throw OpenAiFailure("incomplete_stream")
+}
+
+/** Admission failures do not always carry the API's structured error object. */
+internal fun openAiHttpFailure(
+    request: Request,
+    status: Int,
+    body: JsonObject?,
+): OpenAiFailure {
+    val value = body?.get("error")
+    val codeValue = if (value is JsonObject) value["code"] as? JsonPrimitive else value as? JsonPrimitive
+    val code = codeValue?.takeIf { it.isString }?.contentOrNull?.takeIf { it.isNotBlank() }
+    val inference = request.method == "POST" && request.url.host == "api.openai.com" && request.url.encodedPath == "/v1/responses"
+    return OpenAiFailure(code ?: "request_failed", status, inferenceRestricted = inference && status == 403 && code == null)
 }
