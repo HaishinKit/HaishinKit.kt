@@ -187,7 +187,7 @@ abstract class Codec :
         synchronized(lifecycleLock) {
             if (isRunning.get()) return@synchronized
             if (BuildConfig.DEBUG) {
-                Log.d(TAG, "Starting codec: mode=${if (mode == MODE_ENCODE) "encode" else "decode"}, inputMime=$inputMimeType, outputMime=$outputMimeType")
+                Log.d(TAG, "Starting codec: mode=${if (mode == MODE_ENCODE) "encode" else "decode"}, codecMime=${if (mode == MODE_ENCODE) outputMimeType else inputMimeType}")
             }
             try {
                 val codec = codec ?: return@synchronized
@@ -203,7 +203,7 @@ abstract class Codec :
                     isRunning.set(true)
                 }
             } catch (e: MediaCodec.CodecException) {
-                Log.w(TAG, "Unable to configure or start codec: mode=${if (mode == MODE_ENCODE) "encode" else "decode"}, inputMime=$inputMimeType, outputMime=$outputMimeType", e)
+                Log.w(TAG, "Unable to configure or start codec: mode=${if (mode == MODE_ENCODE) "encode" else "decode"}, codecMime=${if (mode == MODE_ENCODE) outputMimeType else inputMimeType}", e)
             }
         }
 
