@@ -329,7 +329,7 @@ internal class AmfTypeBuffer(
             buffer.get(bytes)
             String(bytes, charset("UTF-8"))
         } catch (e: UnsupportedEncodingException) {
-            Log.e(javaClass.name, e.toString())
+            Log.e(javaClass.name, "Unable to decode an AMF UTF-8 string: byteLength=$length", e)
             ""
         }
     }

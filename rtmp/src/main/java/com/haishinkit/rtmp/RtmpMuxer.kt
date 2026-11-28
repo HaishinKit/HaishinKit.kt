@@ -102,7 +102,7 @@ internal class RtmpMuxer(
                                     inputBuffer.put(it)
                                     true
                                 } else {
-                                    Log.w(TAG, "BufferOverrun will drop a RTMPVideoMessage")
+                                    Log.w(TAG, "Dropping RTMP video packet: payloadBytes=${it.remaining()}, availableInputBytes=${inputBuffer.remaining()}")
                                     false
                                 }
                             } == true
@@ -124,7 +124,7 @@ internal class RtmpMuxer(
                             inputBuffer.put(data)
                             codec.queueInputBuffer(index, 0, inputBuffer.position(), message.presentationTimeUs, message.toFlags())
                         } else {
-                            Log.w(TAG, "Audio input buffer too small; dropping packet")
+                            Log.w(TAG, "Dropping RTMP audio packet: payloadBytes=${data?.remaining() ?: 0}, availableInputBytes=${inputBuffer.remaining()}")
                             codec.queueInputBuffer(index, 0, 0, message.presentationTimeUs, 0)
                         }
                     }

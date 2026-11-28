@@ -221,7 +221,7 @@ abstract class Stream(
     protected open fun startRunning() {
         if (isRunning.get()) return
         if (BuildConfig.DEBUG) {
-            Log.d(TAG, "startRunning()")
+            Log.d(TAG, "Starting stream codecs: mode=${if (mode == Codec.MODE_ENCODE) "encode" else "decode"}")
         }
         when (mode) {
             Codec.MODE_ENCODE -> {
@@ -245,7 +245,7 @@ abstract class Stream(
     protected open fun stopRunning() {
         if (!isRunning.get()) return
         if (BuildConfig.DEBUG) {
-            Log.d(TAG, "stopRunning()")
+            Log.d(TAG, "Stopping stream codecs: mode=${if (mode == Codec.MODE_ENCODE) "encode" else "decode"}")
         }
         when (mode) {
             Codec.MODE_ENCODE -> {

@@ -170,7 +170,7 @@ class MediaLink(
     override fun startRunning() {
         if (isRunning.get()) return
         if (BuildConfig.DEBUG) {
-            Log.d(TAG, "startRunning()")
+            Log.d(TAG, "Starting audio/video playback scheduling")
         }
         keepAlive = true
         frameTracker?.clear()
@@ -199,7 +199,7 @@ class MediaLink(
     override fun stopRunning() {
         if (!isRunning.get()) return
         if (BuildConfig.DEBUG) {
-            Log.d(TAG, "stopRunning()")
+            Log.d(TAG, "Stopping audio/video playback scheduling")
         }
         handler = null
         choreographer = null
@@ -248,14 +248,14 @@ class MediaLink(
                     it.remove()
                 } else {
                     if (VERBOSE && 2 < frameCount) {
-                        Log.d(TAG, "droppedFrame: ${frameCount - 1}")
+                        Log.d(TAG, "Released overdue video frames without rendering: count=${frameCount - 1}")
                     }
                     break
                 }
             }
         } catch (e: IllegalStateException) {
             if (BuildConfig.DEBUG) {
-                Log.w(TAG, "", e)
+                Log.w(TAG, "Unable to release a scheduled video frame", e)
             }
         }
     }
@@ -278,7 +278,7 @@ class MediaLink(
                     if (written == 0) yield()
                 }
             } catch (e: IllegalStateException) {
-                if (BuildConfig.DEBUG) Log.w(TAG, "", e)
+                if (BuildConfig.DEBUG) Log.w(TAG, "Unable to write decoded audio to AudioTrack; releasing the buffer", e)
             } finally {
                 stream.releaseOutputBuffer(buffer, false)
             }

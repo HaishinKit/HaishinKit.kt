@@ -93,7 +93,7 @@ internal data class AudioSpecificConfig(
         encode(buffer)
         buffer.flip()
         codec.options = listOf(CodecOption(CSD0, buffer))
-        Log.i(TAG, "apply value=$this for an audioCodec")
+        Log.i(TAG, "Applying AAC decoder configuration: objectType=$type, sampleRate=${frequency.int}, channelConfig=$channel")
     }
 
     companion object {

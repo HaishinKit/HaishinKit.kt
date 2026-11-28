@@ -132,9 +132,9 @@ internal class Camera2Output(
             try {
                 session?.setRepeatingRequest(builder.build(), null, null)
             } catch (e: android.hardware.camera2.CameraAccessException) {
-                Log.e(TAG, "Unable to update camera controls", e)
+                Log.e(TAG, "Unable to submit camera controls: cameraId=$cameraId", e)
             } catch (e: IllegalStateException) {
-                Log.e(TAG, "Camera session is closed", e)
+                Log.e(TAG, "Unable to submit camera controls because the capture session is no longer valid: cameraId=$cameraId", e)
             }
         }
 
@@ -177,7 +177,7 @@ internal class Camera2Output(
                                         }
                                     }
                                 } catch (e: RuntimeException) {
-                                    Log.e(TAG, "", e)
+                                    Log.e(TAG, "Unable to start the configured camera capture session: cameraId=$cameraId", e)
                                 }
                             }
 
@@ -209,7 +209,7 @@ internal class Camera2Output(
                                     }
                                 }
                             } catch (e: RuntimeException) {
-                                Log.e(TAG, "", e)
+                                Log.e(TAG, "Unable to start the configured camera capture session: cameraId=$cameraId", e)
                             }
                         }
 
@@ -239,7 +239,7 @@ internal class Camera2Output(
 
     override fun onDisconnected(camera: CameraDevice) {
         if (BuildConfig.DEBUG) {
-            Log.d(TAG, "onDisconnected($camera)")
+            Log.d(TAG, "Camera disconnected: cameraId=$cameraId")
         }
         camera.close()
         close()
@@ -253,7 +253,7 @@ internal class Camera2Output(
         error: Int,
     ) {
         if (BuildConfig.DEBUG) {
-            Log.d(TAG, "onError($camera, $error)")
+            Log.d(TAG, "Camera device error: cameraId=$cameraId, errorCode=$error")
         }
         camera.close()
         close()

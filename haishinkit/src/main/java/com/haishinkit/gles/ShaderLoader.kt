@@ -65,7 +65,7 @@ internal class ShaderLoader(
         var program = GLES20.glCreateProgram()
         Utils.checkGlError(GL_CREATE_PROGRAM)
         if (program == 0) {
-            Log.e(TAG, "Could not create program")
+            Log.e(TAG, "Unable to create OpenGL shader program: effect=${videoEffect.name}, target=$target, conversion=$conversion")
         }
         GLES20.glAttachShader(program, vertexShader)
         Utils.checkGlError(GL_ATTACH_SHADER)
@@ -75,8 +75,7 @@ internal class ShaderLoader(
         val linkStatus = IntArray(1)
         GLES20.glGetProgramiv(program, GLES20.GL_LINK_STATUS, linkStatus, 0)
         if (linkStatus[0] != GLES20.GL_TRUE) {
-            Log.e(TAG, "Could not link program: ")
-            Log.e(TAG, GLES20.glGetProgramInfoLog(program))
+            Log.e(TAG, "Unable to link OpenGL shader program: effect=${videoEffect.name}, target=$target, conversion=$conversion, driverLog=${GLES20.glGetProgramInfoLog(program)}")
             GLES20.glDeleteProgram(program)
             program = 0
         }
@@ -132,8 +131,7 @@ internal class ShaderLoader(
         val compiled = IntArray(1)
         GLES20.glGetShaderiv(shader, GLES20.GL_COMPILE_STATUS, compiled, 0)
         if (compiled[0] == 0) {
-            Log.e(TAG, "Could not compile shader $shaderType:")
-            Log.e(TAG, " " + GLES20.glGetShaderInfoLog(shader))
+            Log.e(TAG, "Unable to compile OpenGL shader: effect=${videoEffect.name}, shaderType=$shaderType, target=$target, conversion=$conversion, driverLog=${GLES20.glGetShaderInfoLog(shader)}")
             GLES20.glDeleteShader(shader)
             shader = 0
         }
@@ -169,7 +167,7 @@ internal class ShaderLoader(
         } catch (e: FileNotFoundException) {
             return readFile(target, shaderType, "default", suffix)
         } catch (e: Exception) {
-            Log.e(TAG, e.toString())
+            Log.e(TAG, "Unable to read shader asset: asset=$fileName", e)
             return ""
         }
     }

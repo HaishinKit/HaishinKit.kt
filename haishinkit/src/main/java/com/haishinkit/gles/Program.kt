@@ -50,7 +50,7 @@ internal class Program(
                 }
 
                 else -> {
-                    Log.e(TAG, "value type not supported")
+                    Log.e(TAG, "Skipping unsupported shader uniform: method=${handler.value.name}, type=${value?.javaClass?.name ?: "null"}, location=${handler.key}")
                 }
             }
         }
