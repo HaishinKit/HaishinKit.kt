@@ -7,6 +7,7 @@ paths = %w[
   .github/workflows/native-cache.yml .gitmodules
   build.gradle.kts settings.gradle.kts gradle.properties gradle fastlane/Fastfile
   app/build.gradle.kts vulkan/build.gradle.kts rtc/build.gradle.kts srt/build.gradle.kts
+  haishinkit/build.gradle.kts haishinkit/src/main/cpp
   vulkan/CMakeLists.txt vulkan/SpirvTools.cmake vulkan/vendor
   vulkan/src/main/cpp vulkan/src/test/cpp
   rtc/src/main/cpp rtc/src/main/assets rtc/src/socketTest/cpp

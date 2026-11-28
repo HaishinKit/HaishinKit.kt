@@ -32,6 +32,7 @@ android {
     }
 
     testBuildType = "uiTest"
+    sourceSets.getByName("androidTest").assets.srcDir("../haishinkit/src/androidTest/assets")
 
     buildTypes {
         configureEach {

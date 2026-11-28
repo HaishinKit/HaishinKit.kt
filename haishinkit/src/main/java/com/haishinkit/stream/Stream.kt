@@ -8,6 +8,7 @@ import com.haishinkit.codec.AudioCodec
 import com.haishinkit.codec.Codec
 import com.haishinkit.codec.VideoCodec
 import com.haishinkit.graphics.DynamicRangeMode
+import com.haishinkit.media.AudioMixingDataSource
 import com.haishinkit.media.CodecOutputBuffer
 import com.haishinkit.media.MediaBuffer
 import com.haishinkit.media.MediaLink
@@ -29,7 +30,11 @@ abstract class Stream(
     private var context: Context,
     playbackDynamicRangeMode: DynamicRangeMode,
 ) : MediaOutput,
-    MediaOutputDataSource {
+    AudioMixingDataSource {
+    /** The upstream mixed PCM format, or null when this stream is not fed by a mixer. */
+    override val audioMixerSettings: com.haishinkit.media.AudioMixerSettings?
+        get() = (dataSource?.get() as? AudioMixingDataSource)?.audioMixerSettings
+
     /**
      * Specifies the video codec settings.
      */
@@ -47,6 +52,10 @@ abstract class Stream(
     override var dataSource: WeakReference<MediaOutputDataSource>? = null
         set(value) {
             field = value
+            (value?.get() as? AudioMixingDataSource)?.audioMixerSettings?.let {
+                audioSetting.sampleRate = it.sampleRate
+                audioSetting.channelCount = it.channels
+            }
             videoCodec.pixelTransform.screen = value?.get()?.screen
             outputs.forEach {
                 it.dataSource = value

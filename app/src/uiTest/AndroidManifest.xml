@@ -1,0 +1,12 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <queries>
+        <package android:name="com.haishinkit.test" />
+        <package android:name="com.haishinkit.audio.mixing.test" />
+    </queries>
+    <application>
+        <activity android:name=".AudioCaptureConsentActivity" android:exported="false"
+            android:theme="@android:style/Theme.Material.Light.NoActionBar" />
+        <service android:name=".AudioCaptureTestService" android:exported="false"
+            android:foregroundServiceType="mediaProjection" />
+    </application>
+</manifest>

@@ -183,7 +183,10 @@ class CameraViewModel(
                     val container =
                         sceneFiles.create(loaded).also {
                             preparedContainer = it
-                            AssetScreenObject.findAssets(it).forEach { asset -> asset.onError = ::reportAssetPlaybackError }
+                            AssetScreenObject.findAssets(it).forEach { asset ->
+                                asset.onError = ::reportAssetPlaybackError
+                                mixer.attachAudio(asset.audioTrack, asset.audioSource).getOrThrow()
+                            }
                         }
                     val hadFront = frontCameraObject != null
                     val restoredFront = container.findByClass(VideoScreenObject::class.java).filterNot { it is AssetScreenObject }.firstOrNull { it.track == FRONT_CAMERA_TRACK }
@@ -345,6 +348,7 @@ class CameraViewModel(
                                 pausedAssets.add(asset)
                             }
                             screenObjectDragController.register(asset, position)
+                            mixer.attachAudio(asset.audioTrack, asset.audioSource).getOrThrow()
                             mixer.screen.addChild(asset)
                         }.onFailure { if (it is CancellationException) throw it else onError(application.getString(R.string.asset_playback_error)) }
                     }
@@ -458,7 +462,13 @@ class CameraViewModel(
         val current = AssetScreenObject.findAssets(mixer.screen).toSet()
         pausedAssets.filter { it in current }.forEach { asset -> asset.sourceUri?.let { asset.startReading(it) } }
         pausedAssets.clear()
-        mixer.startRunning()
+        viewModelScope.launch {
+            for (asset in current) {
+                if (!assetPlaybackEnabled) return@launch
+                mixer.attachAudio(asset.audioTrack, asset.audioSource).onFailure(::reportAssetPlaybackError)
+            }
+            if (assetPlaybackEnabled) mixer.startRunning()
+        }
         DebugFrameCapture.attach(this, mixer.screen)
     }
 
