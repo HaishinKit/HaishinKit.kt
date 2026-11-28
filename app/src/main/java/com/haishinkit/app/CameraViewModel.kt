@@ -113,7 +113,11 @@ class CameraViewModel(
     private val _selectedCamera = MutableStateFlow<CameraDevice?>(null)
     private val cameraLock = Mutex()
     private val audioLock = Mutex()
-    private val microphoneSource = AudioRecordSource(application.applicationContext).apply { sampleRate = 48_000 }
+    private val microphoneSource =
+        AudioRecordSource(application.applicationContext).apply {
+            sampleRate = 48_000
+            preferBluetoothMicrophone = true
+        }
     private var frontCameraObject: VideoScreenObject? = null
     private var sessionSettings: Preference.SessionSettings? = null
 

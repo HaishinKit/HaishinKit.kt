@@ -100,6 +100,38 @@ formats report through the asset's `onError`; video playback can continue.
 When decoder lag exceeds 100 ms, expired PCM and queued stale audio are discarded until
 the decoder catches up with the current video clock. Ordinary scheduling jitter is tolerated.
 
+## Bluetooth microphone and a fixed audio format
+
+Opt into headset microphones before attaching the source:
+
+```kotlin
+val mic = AudioRecordSource(context).apply {
+    sampleRate = 48_000
+    preferBluetoothMicrophone = true
+}
+mixer.attachAudio(0, mic)
+mixer.registerOutput(stream) // Inherits the mixer's selected output rate/channels.
+```
+
+Declare `RECORD_AUDIO` and `MODIFY_AUDIO_SETTINGS` and obtain recording permission.
+API 31+ uses the communication-device API for HFP/BLE headsets; older devices use SCO.
+A2DP-only playback devices are not microphone inputs. The sample enables this preference
+for camera and screen-sharing microphone capture.
+
+Android converts the device input into the requested client PCM format. Recreating a dead
+recorder preserves that rate/channel count; the mixer's output and encoder configuration
+remain fixed when the headset disconnects and system input takes over. A 16 kHz microphone
+converted to 48 kHz does not gain additional frequency detail. See the platform's
+[audio input conversion](https://developer.android.com/media/platform/sharing-audio-input).
+
+Communication routing can also send playback to the headset and enable voice processing.
+Transitions may briefly interrupt capture. Short reads/errors discard stale PCM, and closing
+the source releases its route request and callbacks. On a Pixel 8 with soundcore AeroFit Pro,
+Bluetooth-to-built-in-to-Bluetooth transitions retained 48 kHz mono input and 48 kHz stereo
+AAC output without restarting the encoder. A reconnect capture gap of about 184 ms was
+observed. This verifies format continuity; audible transitions and A/V synchronization
+require separate listening and video tests. Other headset/OS combinations may differ.
+
 ## Screen snapshot compatibility
 
 [ScreenObjectSnapshot][com.haishinkit.screen.scene.ScreenObjectSnapshot] shares its JSON

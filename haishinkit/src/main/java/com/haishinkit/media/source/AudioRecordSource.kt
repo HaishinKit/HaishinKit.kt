@@ -7,6 +7,7 @@ import android.content.pm.PackageManager
 import android.media.AudioFormat
 import android.media.AudioRecord
 import android.media.MediaRecorder
+import android.os.SystemClock
 import android.util.Log
 import androidx.core.app.ActivityCompat
 import com.haishinkit.media.MediaBuffer
@@ -26,7 +27,11 @@ class AudioRecordSource(
     private val context: Context,
 ) : PcmAudioSource {
     @Volatile override var isMuted = false
-    override val audioFormat: PcmAudioFormat get() = PcmAudioFormat(cachedAudioRecord?.sampleRate ?: sampleRate, cachedAudioRecord?.channelCount ?: Integer.bitCount(channel))
+    override val audioFormat: PcmAudioFormat
+        get() =
+            synchronized(recorderLock) {
+                PcmAudioFormat(cachedAudioRecord?.sampleRate ?: sampleRate, cachedAudioRecord?.channelCount ?: Integer.bitCount(channel))
+            }
 
     /**
      * The input channel mask, such as `AudioFormat.CHANNEL_IN_MONO`.
@@ -39,78 +44,114 @@ class AudioRecordSource(
     var audioSource = DEFAULT_AUDIO_SOURCE
 
     /**
-     * The capture sample rate, in hertz.
+     * The requested client PCM sample rate, in hertz. Configure before opening the recorder.
+     * Android converts the hardware input to this rate; route changes do not change it.
      */
     var sampleRate = DEFAULT_SAMPLE_RATE
+
+    /**
+     * Prefer a connected Bluetooth headset microphone, falling back to system input on removal.
+     * Configure before [open]. Requires `MODIFY_AUDIO_SETTINGS` permission.
+     * This opts into voice-communication capture/routing, which can also route playback to
+     * the headset. [sampleRate] and [channel] remain the PCM format delivered to the mixer;
+     * Android converts the device's native format. Match these to the stream's audio settings.
+     */
+    var preferBluetoothMicrophone = false
 
     /**
      * The capture buffer size, in bytes; computed on first access unless explicitly assigned.
      */
     var minBufferSize = -1
-        get() {
-            if (field == -1) {
-                field = AudioRecord.getMinBufferSize(sampleRate, channel, encoding)
+        get() =
+            synchronized(recorderLock) {
+                if (field == -1) {
+                    field = AudioRecord.getMinBufferSize(sampleRate, channel, encoding)
+                }
+                return field
             }
-            return field
-        }
 
     /**
      * The lazily created recorder, or `null` if audio recording permission has not been granted.
      */
     val audioRecord: AudioRecord?
-        get() {
-            if (ActivityCompat.checkSelfPermission(
-                    context,
-                    Manifest.permission.RECORD_AUDIO,
-                ) != PackageManager.PERMISSION_GRANTED
-            ) {
-                return null
+        get() =
+            synchronized(recorderLock) {
+                if (ActivityCompat.checkSelfPermission(
+                        context,
+                        Manifest.permission.RECORD_AUDIO,
+                    ) != PackageManager.PERMISSION_GRANTED
+                ) {
+                    return@synchronized null
+                }
+                if (cachedAudioRecord == null) {
+                    cachedAudioRecord = createAudioRecord(if (preferBluetoothMicrophone) MediaRecorder.AudioSource.VOICE_COMMUNICATION else audioSource, sampleRate, channel, encoding, minBufferSize)
+                }
+                cachedAudioRecord
             }
-            if (cachedAudioRecord == null) {
-                cachedAudioRecord = createAudioRecord(audioSource, sampleRate, channel, encoding, minBufferSize)
-            }
-            return cachedAudioRecord
-        }
 
     @Volatile
     private var cachedAudioRecord: AudioRecord? = null
+    private val recorderLock = Any()
+    private var bluetoothRoute: BluetoothMicrophoneRoute? = null
+    private var recoveryFormat: CaptureFormat? = null
+    private var nextRecoveryTime = 0L
     private var encoding = DEFAULT_ENCODING
     private var sampleCount = DEFAULT_SAMPLE_COUNT
     private var byteBuffer: ByteBuffer = ByteBuffer.allocateDirect(sampleCount * 2)
 
     override suspend fun open(mixer: MediaMixer): Result<Unit> {
-        try {
-            val recorder = audioRecord ?: return Result.failure(SecurityException("Recording permission is required"))
-            recorder.startRecording()
-        } catch (e: IllegalStateException) {
-            return Result.failure(e)
+        return synchronized(recorderLock) {
+            try {
+                val recorder = audioRecord ?: return@synchronized Result.failure(SecurityException("Recording permission is required"))
+                recoveryFormat = null
+                nextRecoveryTime = 0
+                if (preferBluetoothMicrophone && bluetoothRoute == null) {
+                    bluetoothRoute = BluetoothMicrophoneRoute(context).also { it.open() }
+                }
+                recorder.startRecording()
+                Result.success(Unit)
+            } catch (e: RuntimeException) {
+                runCatching { releaseRecorder() }
+                runCatching { closeRoute() }
+                Result.failure(e)
+            }
         }
-        return Result.success(Unit)
     }
 
     override suspend fun close(): Result<Unit> {
-        val recorder = cachedAudioRecord ?: return Result.success(Unit)
-        cachedAudioRecord = null
-        try {
+        return synchronized(recorderLock) {
+            recoveryFormat = null
             try {
-                recorder.stop()
-            } finally {
-                recorder.release()
+                try {
+                    releaseRecorder()
+                } finally {
+                    closeRoute()
+                }
+                Result.success(Unit)
+            } catch (e: RuntimeException) {
+                Log.w(TAG, e)
+                Result.failure(e)
             }
-        } catch (e: java.lang.IllegalStateException) {
-            Log.w(TAG, "Unable to stop or release microphone capture", e)
-            return Result.failure(e)
         }
-        return Result.success(Unit)
     }
 
     override fun read(track: Int): MediaBuffer {
         byteBuffer.clear()
-        val result = cachedAudioRecord?.read(byteBuffer, sampleCount * 2) ?: -1
+        val recorder = cachedAudioRecord
+        val result =
+            try {
+                recorder?.read(byteBuffer, byteBuffer.capacity()) ?: AudioRecord.ERROR_INVALID_OPERATION
+            } catch (_: IllegalStateException) {
+                AudioRecord.ERROR_INVALID_OPERATION
+            }
+        // Direct-buffer reads do not advance position. Do not forward stale PCM after
+        // short reads or input changes, and keep the downstream encoder running.
         byteBuffer.limit(result.coerceAtLeast(0))
-        if (isMuted) {
-            for (index in 0 until result.coerceAtLeast(0)) byteBuffer.put(index, 0.toByte())
+        if (isMuted && result > 0) {
+            for (index in 0 until result) byteBuffer.put(index, 0.toByte())
         }
+        if (result == AudioRecord.ERROR_DEAD_OBJECT || recorder == null) recoverRecorder(recorder)
+        if (result <= 0) SystemClock.sleep(10) // Avoid spinning while the input is unavailable.
         return MediaBuffer(
             type = MediaType.AUDIO,
             index = track,
@@ -119,6 +160,45 @@ class AudioRecordSource(
             sync = true,
         )
     }
+
+    private fun releaseRecorder() {
+        val recorder = cachedAudioRecord ?: return
+        cachedAudioRecord = null
+        try {
+            if (recorder.recordingState == AudioRecord.RECORDSTATE_RECORDING) recorder.stop()
+        } finally {
+            recorder.release()
+        }
+    }
+
+    private fun closeRoute() {
+        val route = bluetoothRoute
+        bluetoothRoute = null
+        route?.close()
+    }
+
+    private fun recoverRecorder(failed: AudioRecord?) =
+        synchronized(recorderLock) {
+            if (cachedAudioRecord !== failed) return@synchronized
+            if (failed != null) {
+                // Preserve the client format, independently of the replacement microphone's native rate.
+                recoveryFormat = CaptureFormat(failed.audioSource, failed.sampleRate, failed.channelConfiguration, failed.audioFormat)
+            }
+            val format = recoveryFormat ?: return@synchronized
+            if (SystemClock.uptimeMillis() < nextRecoveryTime) return@synchronized
+            nextRecoveryTime = SystemClock.uptimeMillis() + 500
+            try {
+                releaseRecorder()
+                cachedAudioRecord = createAudioRecord(format.source, format.rate, format.channel, format.encoding, AudioRecord.getMinBufferSize(format.rate, format.channel, format.encoding))
+                cachedAudioRecord?.startRecording()
+                recoveryFormat = null
+            } catch (cause: RuntimeException) {
+                Log.w(TAG, "Unable to recreate audio recorder after input change", cause)
+                runCatching { releaseRecorder() }
+            }
+        }
+
+    private data class CaptureFormat(val source: Int, val rate: Int, val channel: Int, val encoding: Int)
 
     companion object {
         const val DEFAULT_CHANNEL = AudioFormat.CHANNEL_IN_MONO

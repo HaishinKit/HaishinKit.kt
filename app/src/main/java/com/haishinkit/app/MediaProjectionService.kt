@@ -142,7 +142,15 @@ class MediaProjectionService :
                 }
             }
         launch {
-            if (captureAudio) mixer.attachAudio(0, AudioRecordSource(applicationContext).apply { sampleRate = mixer.audioMixerSettings.sampleRate })
+            if (captureAudio) {
+                mixer.attachAudio(
+                    0,
+                    AudioRecordSource(applicationContext).apply {
+                        sampleRate = mixer.audioMixerSettings.sampleRate
+                        preferBluetoothMicrophone = true
+                    },
+                )
+            }
             intent?.getParcelableExtra<Intent>(EXTRA_RESULT_DATA)?.let {
                 mediaProjectionManager.getMediaProjection(Activity.RESULT_OK, it)?.let {
                     if (captureAudio) {
