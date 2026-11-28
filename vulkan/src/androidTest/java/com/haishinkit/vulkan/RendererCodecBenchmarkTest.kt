@@ -92,6 +92,14 @@ class RendererCodecBenchmarkTest {
             }
         }
         assertTrue("No supported trials ran", (0 until results.length()).any { results.getJSONObject(it).has("outputFps") })
+        instrumentation.sendStatus(2, Bundle().apply { putString("benchmark_document", document.toString()) })
+    }
+
+    @Test
+    fun exportLastResult() {
+        assumeTrue(arguments.getString("rendererBenchmarkExport") == "true")
+        val document = JSONObject(File(context.filesDir, "renderer-codec-benchmark.json").readText())
+        instrumentation.sendStatus(2, Bundle().apply { putString("benchmark_document", document.toString()) })
     }
 
     private fun measure(
