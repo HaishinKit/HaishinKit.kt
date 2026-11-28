@@ -78,6 +78,20 @@ processing throughput, excluding hardware capture, decoding, encoding, network l
 and UI work; results vary by device and load. Native tests also compare optimized C++
 and NEON PCM16/int32 and Float32 kernels, including clipping and non-vector-sized tails.
 
+### Input-track audio processors
+
+`MediaMixer.attachAudio(track, source, AudioProcessor.Factory { format -> ... })` applies
+a processor only to the selected input, before resampling and mixing. The two-argument
+method keeps its existing behavior and does not create a processing pipeline. Factories
+create independent processor instances per input/start/format. Stop, detach and disposal
+close them; pushed input discontinuities reset their state. Input-format changes recreate
+the processor. Processing failures retire only that input, preserving the mixer clock and
+other inputs. Processors must preserve the PCM format and sample count over time.
+
+The optional `rnnoise` module provides a 48 kHz noise suppressor and a microphone wrapper
+that checks Android session noise suppression to avoid stacking it with RNNoise. See the
+rnnoise module documentation for configuration, A/B latency and limitations.
+
 ### Projection and asset lifetime
 
 `MediaProjectionAudioSource` needs `RECORD_AUDIO`, explicit screen-capture consent and

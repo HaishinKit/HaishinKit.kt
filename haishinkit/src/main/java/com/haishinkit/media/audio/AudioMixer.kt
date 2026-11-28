@@ -43,6 +43,7 @@ internal class AudioMixer(private val owner: MediaMixer, private val output: (Me
     suspend fun attach(
         track: Int,
         source: AudioSource?,
+        processorFactory: AudioProcessor.Factory? = null,
     ): Result<Unit> =
         withContext(Dispatchers.IO) {
             lock.withLock {
@@ -51,7 +52,7 @@ internal class AudioMixer(private val owner: MediaMixer, private val output: (Me
                 if (source != null && bindings.any { it.source === source && it.track != track }) {
                     return@withLock Result.failure(IllegalArgumentException("An audio source can only occupy one track"))
                 }
-                bindings.firstOrNull { it.track == track && it.source === source && !it.failed }?.let {
+                bindings.firstOrNull { it.track == track && it.source === source && it.processorFactory === processorFactory && !it.failed }?.let {
                     if (!it.opened) {
                         val opened = openSource(it.source)
                         if (opened.isFailure) {
@@ -68,7 +69,7 @@ internal class AudioMixer(private val owner: MediaMixer, private val output: (Me
                 if (bindings.size >= 32) return@withLock Result.failure(IllegalArgumentException("At most 32 audio tracks can be mixed"))
                 val opened = openSource(source)
                 if (opened.isFailure) return@withLock opened.map { Unit }
-                val binding = Binding(track, ids.incrementAndGet(), source, opened.getOrThrow())
+                val binding = Binding(track, ids.incrementAndGet(), source, opened.getOrThrow(), processorFactory)
                 bindings = bindings + binding
                 (source as? PushAudioSource)?.onEnded = {
                     scope.launch { lock.withLock { if (bindings.any { it === binding }) detach(binding) } }
@@ -158,6 +159,8 @@ internal class AudioMixer(private val owner: MediaMixer, private val output: (Me
         binding.worker?.interrupt()
         binding.worker?.join()
         binding.worker = null
+        runCatching { binding.processor?.close() }.onFailure { Log.w(TAG, "Unable to close audio processor on track ${binding.track}", it) }
+        binding.processor = null
     }
 
     private suspend fun startEngine() {
@@ -183,6 +186,7 @@ internal class AudioMixer(private val owner: MediaMixer, private val output: (Me
         binding: Binding,
         mixer: NativeAudioMixer,
     ) {
+        binding.processor = binding.processorFactory?.let { InputAudioProcessor(it) }
         mixer.add(binding.nativeId)
         binding.capturing = true
         binding.gain = Float.NaN
@@ -195,10 +199,23 @@ internal class AudioMixer(private val owner: MediaMixer, private val output: (Me
                         buffer: ByteBuffer,
                         format: PcmAudioFormat,
                     ) {
-                        if (binding.capturing && buffer.hasRemaining()) mixer.append(binding.nativeId, buffer, format)
+                        if (binding.capturing && buffer.hasRemaining()) {
+                            try {
+                                append(binding, mixer, buffer, format)
+                            } catch (cause: Exception) {
+                                failBinding(binding, cause)
+                            }
+                        }
                     }
 
-                    override fun clear() = mixer.clear(binding.nativeId)
+                    override fun clear() {
+                        try {
+                            binding.processor?.reset()
+                            mixer.clear(binding.nativeId)
+                        } catch (cause: Exception) {
+                            failBinding(binding, cause)
+                        }
+                    }
                 }
         } else {
             val format = binding.format ?: PcmAudioFormat(settings.sampleRate, settings.channels)
@@ -209,16 +226,14 @@ internal class AudioMixer(private val owner: MediaMixer, private val output: (Me
                         while (binding.capturing) {
                             val pcm = binding.source.read(binding.track).payload
                             if (binding.capturing && pcm != null && pcm.hasRemaining()) {
-                                mixer.append(binding.nativeId, pcm, format)
+                                append(binding, mixer, pcm, format)
                             } else {
                                 LockSupport.parkNanos(10_000_000)
                             }
                         }
                     } catch (cause: Exception) {
                         if (binding.capturing) {
-                            binding.failed = true
-                            Log.w(TAG, "Audio input stopped on track ${binding.track}", cause)
-                            scope.launch { lock.withLock { if (bindings.any { it === binding }) detach(binding) } }
+                            failBinding(binding, cause)
                         }
                     }
                 }, "HaishinKit.AudioInput.${binding.track}").apply {
@@ -226,6 +241,29 @@ internal class AudioMixer(private val owner: MediaMixer, private val output: (Me
                     start()
                 }
         }
+    }
+
+    private fun append(
+        binding: Binding,
+        mixer: NativeAudioMixer,
+        buffer: ByteBuffer,
+        format: PcmAudioFormat,
+    ) {
+        if (binding.processorFactory == null) {
+            mixer.append(binding.nativeId, buffer, format)
+        } else {
+            binding.processor?.append(buffer, format) { mixer.append(binding.nativeId, it, format) }
+        }
+    }
+
+    private fun failBinding(
+        binding: Binding,
+        cause: Exception,
+    ) {
+        binding.failed = true
+        binding.capturing = false
+        Log.w(TAG, "Audio input stopped on track ${binding.track}", cause)
+        scope.launch { lock.withLock { if (bindings.any { it === binding }) detach(binding) } }
     }
 
     private fun configure(
@@ -267,8 +305,10 @@ internal class AudioMixer(private val owner: MediaMixer, private val output: (Me
         }
     }
 
-    private class Binding(val track: Int, val nativeId: Int, val source: AudioSource, var format: PcmAudioFormat?) {
+    private class Binding(val track: Int, val nativeId: Int, val source: AudioSource, var format: PcmAudioFormat?, val processorFactory: AudioProcessor.Factory?) {
         @Volatile var capturing = false
+
+        @Volatile var processor: InputAudioProcessor? = null
 
         @Volatile var failed = false
         var opened = true

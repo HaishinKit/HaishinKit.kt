@@ -14,6 +14,8 @@ on:
       - 'build.gradle.kts'
       - 'settings.gradle.kts'
       - 'app/build.gradle.kts'
+      - 'rnnoise/build.gradle.kts'
+      - 'rnnoise/src/main/cpp/**'
       - 'haishinkit/build.gradle.kts'
       - 'haishinkit/src/main/cpp/**'
       - 'vulkan/build.gradle.kts'

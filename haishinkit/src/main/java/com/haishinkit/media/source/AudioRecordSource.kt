@@ -72,6 +72,9 @@ class AudioRecordSource(
             return cachedAudioRecord
         }
 
+    /** Current capture session, without creating a recorder. Null while closed. */
+    val audioSessionId: Int? get() = cachedAudioRecord?.audioSessionId
+
     @Volatile
     private var cachedAudioRecord: AudioRecord? = null
     private var encoding = DEFAULT_ENCODING

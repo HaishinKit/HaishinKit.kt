@@ -9,6 +9,7 @@ import com.haishinkit.graphics.DynamicRangeMode
 import com.haishinkit.graphics.effect.VideoEffect
 import com.haishinkit.lang.Running
 import com.haishinkit.media.audio.AudioMixer
+import com.haishinkit.media.audio.AudioProcessor
 import com.haishinkit.media.source.AudioSource
 import com.haishinkit.media.source.Camera2Source
 import com.haishinkit.media.source.VideoSource
@@ -140,6 +141,20 @@ class MediaMixer(
     ): Result<Unit> {
         if (isDisposed.get()) return Result.failure(IllegalStateException("MediaMixer is disposed"))
         return audioMixer.attach(track, audio)
+    }
+
+    /**
+     * Attaches a processor to this input track only. Other tracks and the mixed output are
+     * unprocessed. A factory creates a private instance on start/format change; stopping,
+     * detaching or disposing closes it. Failures stop only the affected input.
+     */
+    suspend fun attachAudio(
+        track: Int,
+        audio: AudioSource?,
+        processorFactory: AudioProcessor.Factory,
+    ): Result<Unit> {
+        if (isDisposed.get()) return Result.failure(IllegalStateException("MediaMixer is disposed"))
+        return audioMixer.attach(track, audio, processorFactory)
     }
 
     /**

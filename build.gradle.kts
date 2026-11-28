@@ -35,6 +35,7 @@ dependencies {
     dokka(project(":mcp:"))
     dokka(project(":compose:"))
     dokka(project(":lottie:"))
+    dokka(project(":rnnoise:"))
     dokka(project(":rtmp:"))
     dokka(project(":srt:"))
     dokka(project(":rtc:"))
