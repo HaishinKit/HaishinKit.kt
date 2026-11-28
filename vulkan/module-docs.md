@@ -233,6 +233,153 @@ The test's `exportLastResult` method with `-e rendererBenchmarkExport true` can 
 the saved JSON after an interrupted run; check its source revision because that
 file may be incomplete or retained from a previous run.
 
+## 30 fps camera frame intervals
+
+Average fps can hide alternating short and long intervals. This separate experiment
+uses the Pixel 8's rear camera at 1920×1080 with Camera2 `TEMPLATE_RECORD` and a fixed
+AE target range of `[30, 30]`. Capture results verify that range for every recorded
+frame. A test-only `VideoSource` feeds the normal OpenGL SurfaceTexture or Vulkan
+HardwareBuffer path, then one encoder Surface. Both backends request 1080p/30 fps,
+H.264 at 16 Mbps, bicubic output resampling, and the same encoder settings as above.
+The source uses sensor coordinates, without a camera-orientation rotation.
+
+Each backend runs four 30-second windows after a 5-second warmup, alternating order
+and closing the camera/renderer between trials. A minimal foreground activity keeps
+camera access active and requests a 60 Hz display. The scene and ambient light are
+not calibrated; exposure and sensor frame duration are included in the raw data.
+The results cover one device and Android development build, not all camera hardware.
+
+### Measurement points
+
+- **Camera sensor:** `CaptureResult.SENSOR_TIMESTAMP`; camera callback arrival is
+  recorded independently. Only differences within this sensor clock are used.
+- **Surface call start/return:** immediately before/after `eglSwapBuffers` on OpenGL
+  or `vkQueuePresentKHR` on Vulkan. These are the observable producer-side input
+  boundaries. [Surface input](https://developer.android.com/reference/android/media/MediaCodec)
+  does not expose a dequeueable MediaCodec input buffer; API return is not the time
+  the encoder hardware consumed the frame or completed waiting on GPU work.
+- **Output received:** immediately after synchronous `dequeueOutputBuffer` returns
+  encoded data on a dedicated draining thread, using a 5 ms wait timeout. The wait
+  returns when data is available; it is not a fixed 5 ms polling cadence.
+- **Output PTS:** `BufferInfo.presentationTimeUs`, treated as a media timeline rather
+  than a delivery timestamp. Surface-assigned PTS values are also recorded for
+  checking input/output correspondence, with ±1 µs rounding tolerance.
+
+Application observation times use
+[`elapsedRealtimeNanos`](https://developer.android.com/reference/android/os/SystemClock#elapsedRealtimeNanos())
+and native `CLOCK_BOOTTIME`. The trace labels carry those explicit numeric times;
+analysis does not depend on the ftrace display clock. Sensor and PTS timestamps are
+not subtracted from these times to claim a capture/encoding latency.
+The marker is emitted after API return and carries the start/end values; the
+marker's own short trace span is not the swap/present call duration.
+The `HK.Input.GL` / `HK.Input.VK` app trace events are emitted only while app tracing
+is enabled. Their overhead is included in this profiled experiment. The previous
+synthetic throughput experiment was untraced and uses a different workload.
+
+### Recorded interval distributions
+
+Recorded on 2026-11-28 with benchmark source `3b3216d2`, encoder
+`c2.exynos.h264.encoder`, and Release libraries. The reported battery temperature
+is 30.2 °C and Android thermal status is 0 at every measurement boundary. All
+display readings are 60 Hz. Applied capture ranges are `[30, 30]`; every one of the
+7,190 measured encoded outputs matches a recorded input PTS within ±1 µs. There
+are no gaps in the recorded capture-result frame numbers or non-increasing output
+PTS values. Exposure is automatic and varies across trials; per-trial mean exposure
+ranges from 19.71 to 32.66 ms.
+See the [readable per-trial statistics](https://github.com/HaishinKit/HaishinKit.kt/blob/3b1f5ef0148dbc25707fde383ac30caaf9cb99a0/vulkan/benchmarks/2026-11-28-pixel8-camera-intervals.summary.json)
+and [compressed numeric timing samples](https://github.com/HaishinKit/HaishinKit.kt/blob/3b1f5ef0148dbc25707fde383ac30caaf9cb99a0/vulkan/benchmarks/2026-11-28-pixel8-camera-intervals.json.gz).
+`camera_interval_summary.rb` accepts either JSON or gzip-compressed JSON.
+
+| Stage / backend | p50 ms | p95 ms | p99 ms, median (min–max) | Worst interval ms |
+|---|---:|---:|---:|---:|
+| Camera sensor / OpenGL | 33.38 | 33.55 | 33.73 (33.65–33.78) | 38.23 |
+| Camera sensor / Vulkan | 33.44 | 33.56 | 33.73 (33.69–33.85) | 37.12 |
+| Camera callback / OpenGL | 33.14 | 48.71 | 59.41 (55.39–62.47) | 73.89 |
+| Camera callback / Vulkan | 33.11 | 48.97 | 59.53 (58.01–61.82) | 74.27 |
+| Surface call start / OpenGL | 33.36 | 37.97 | 45.47 (44.24–51.68) | 59.99 |
+| Surface call start / Vulkan | 33.33 | 39.62 | 45.56 (44.23–46.67) | 57.12 |
+| Surface call return / OpenGL | 33.37 | 40.15 | 48.18 (46.34–51.81) | 57.62 |
+| Surface call return / Vulkan | 33.33 | 40.00 | 46.63 (45.02–47.33) | 58.13 |
+| Encoded output received / OpenGL | 33.28 | 47.88 | 58.69 (53.38–60.71) | 70.24 |
+| Encoded output received / Vulkan | 33.19 | 47.10 | 54.14 (51.63–58.28) | 71.24 |
+| Encoded output PTS / OpenGL | 33.34 | 33.36 | 33.38 (33.32–33.39) | 50.08 |
+| Encoded output PTS / Vulkan | 33.34 | 33.35 | 33.36 (33.35–33.38) | 50.01 |
+
+| Stage / backend | <20 ms % | Within 33.333 ±5 ms % | >45 ms % | >66.667 ms % |
+|---|---:|---:|---:|---:|
+| Surface call return / OpenGL | 1.06 | 83.07 | 1.98 | 0.00 |
+| Surface call return / Vulkan | 1.20 | 82.17 | 1.61 | 0.00 |
+| Encoded output received / OpenGL | 4.66 | 59.12 | 7.14 | 0.08 |
+| Encoded output received / Vulkan | 4.45 | 52.98 | 7.29 | 0.08 |
+
+| Backend | Camera fps | Surface return fps | Output fps | Surface API p99 ms | Worst Surface API ms |
+|---|---:|---:|---:|---:|---:|
+| OpenGL | 29.97 | 29.92 | 29.92 | 12.55 | 19.06 |
+| Vulkan | 29.93 | 30.00 | 30.00 | 6.28 | 17.76 |
+
+Quantiles are nearest-rank quantiles within each trial. The table reports the median
+of the four per-trial p50/p95/p99 values and the range of their p99 values; the worst
+interval is the maximum across every trial, not the median maximum. These are not
+confidence intervals. The threshold percentages pool the observed intervals across
+trials. The criteria are not a partition: `>66.667 ms` is also included in `>45 ms`.
+The raw records include standard deviation, RMSE from 33.333 ms, complete histograms,
+camera callback timing, requested/applied capture range, and Surface API duration.
+Events are selected by observation time; only intervals between two events inside
+the same window enter the statistics. Sensor intervals use the sensor timestamps
+of the selected capture-result callbacks. Boundary-spanning intervals and setup/
+teardown are excluded.
+
+Both paths average approximately 30 encoded frames/s, while Surface return and
+output-receive intervals vary substantially. The output PTS p99 remains close to
+33.333 ms, with occasional gaps up to about 50 ms; the actual output-receive p99 is
+54.14–58.69 ms and the worst receive interval is about 71 ms. Camera metadata
+callback delivery also varies despite much steadier sensor timestamps.
+Vulkan has a lower median p99 in this recording, while OpenGL has more output
+intervals within ±5 ms of the nominal period. Trial p99 ranges overlap, and the
+scene is uncontrolled and automatic exposure varies between trials. These data do not establish that
+either backend is universally steadier or that MediaCodec execution alone causes
+the observed variation.
+
+This separates visible cadence at submission and delivery from PTS regularity. It
+does not isolate GPU completion, hardware encoding, driver buffering, and the drain
+thread's scheduling from each other. It also does not identify which captured image
+was sampled by the renderer, so it cannot count repeated camera images from PTS alone.
+The persisted camera records contain numeric timing/settings rather than images.
+
+### Reproduce the camera comparison
+
+Build/install the Release instrumentation APK as above, then explicitly grant camera
+access to the test package and enable **app-only** tracing. Always stop tracing after
+the run, including on failure. The benchmark normally takes about five minutes.
+
+```shell
+adb shell pm grant com.haishinkit.vulkan.test android.permission.CAMERA
+adb shell atrace --async_start -b 8192 -a com.haishinkit.vulkan.test
+adb shell am instrument -w -r \
+  -e class com.haishinkit.vulkan.CameraCodecIntervalBenchmarkTest#compareCameraIntervals \
+  -e cameraIntervalBenchmark true -e cameraBenchmarkRepetitions 4 \
+  -e cameraBenchmarkSeconds 30 -e cameraBenchmarkWarmupSeconds 5 \
+  -e benchmarkRevision "$(git rev-parse HEAD)" \
+  com.haishinkit.vulkan.test/androidx.test.runner.AndroidJUnitRunner > camera.log
+adb shell atrace --async_stop > camera.atrace
+ruby vulkan/benchmarks/camera_interval_stats.rb camera.log camera.atrace camera.json
+ruby vulkan/benchmarks/camera_interval_summary.rb camera.json
+ruby vulkan/benchmarks/test_camera_interval_stats.rb
+```
+
+To summarize the recorded archive directly:
+
+```shell
+ruby vulkan/benchmarks/camera_interval_summary.rb vulkan/benchmarks/2026-11-28-pixel8-camera-intervals.json.gz
+```
+
+The analyzer requires a successful complete recording, Release builds, all expected
+trials, applied fixed `[30, 30]` camera settings, successful Surface submissions,
+60 Hz readings, and a trace buffer that has not wrapped. It preserves the numeric
+input/capture/output samples for checking the distribution and PTS matches.
+The camera test's `exportLastResult` with `-e cameraIntervalExport true` can export
+the saved recording; source revision and completeness must be checked on recovery.
+
 ## Example and development checks
 
 The example app requires Android 10 (API 29) or later. In **Settings → Renderer**,
