@@ -9,38 +9,47 @@ internal class AudioCodecBuffer {
     var channelCount: Int = 1
     var presentationTimestamp: Long = DEFAULT_PRESENTATION_TIMESTAMP
         private set
-    private val pool = Pools.SynchronizedPool<ByteBuffer>(CAPACITY * 2)
-    private val buffers = LinkedBlockingDeque<ByteBuffer>(CAPACITY)
-    private var pending: ByteBuffer? = null
+    private val pool = Pools.SynchronizedPool<PcmBlock>(CAPACITY * 2)
+    private val buffers = LinkedBlockingDeque<PcmBlock>(CAPACITY)
+    private var pending: PcmBlock? = null
     private var anchorTimeUs = DEFAULT_PRESENTATION_TIMESTAMP
-    private var samples = 0L
+    private var anchorFrame = 0L
+    private var nextByteOffset = 0L
 
     fun append(byteBuffer: ByteBuffer) {
-        val available = pool.acquire()
-        val buffer = available?.takeIf { it.capacity() >= byteBuffer.remaining() } ?: ByteBuffer.allocateDirect(byteBuffer.remaining())
+        val block = pool.acquire() ?: PcmBlock(ByteBuffer.allocateDirect(byteBuffer.remaining()))
+        if (block.buffer.capacity() < byteBuffer.remaining()) block.buffer = ByteBuffer.allocateDirect(byteBuffer.remaining())
+        val buffer = block.buffer
         buffer.clear()
         buffer.put(byteBuffer.duplicate())
         buffer.flip()
+        block.byteOffset = nextByteOffset
+        nextByteOffset += buffer.remaining()
         if (buffers.remainingCapacity() == 0) buffers.poll()?.let { pool.release(it) }
-        buffers.add(buffer)
+        buffers.add(block)
     }
 
     fun render(byteBuffer: ByteBuffer): Int? {
-        val buffer = pending ?: buffers.poll() ?: return null
+        val block = pending ?: buffers.poll() ?: return null
+        val buffer = block.buffer
+        val frame = (block.byteOffset + buffer.position()) / (2 * channelCount)
         val count = minOf(buffer.remaining(), byteBuffer.remaining())
         val view = buffer.duplicate()
         view.limit(view.position() + count)
         byteBuffer.put(view)
         buffer.position(buffer.position() + count)
         if (buffer.hasRemaining()) {
-            pending = buffer
+            pending = block
         } else {
             pending = null
-            pool.release(buffer)
+            pool.release(block)
         }
-        if (anchorTimeUs == DEFAULT_PRESENTATION_TIMESTAMP) anchorTimeUs = System.nanoTime() / 1000
-        presentationTimestamp = anchorTimeUs + samples * 1_000_000 / sampleRate
-        samples += count / (2 * channelCount)
+        if (anchorTimeUs == DEFAULT_PRESENTATION_TIMESTAMP) {
+            anchorTimeUs = System.nanoTime() / 1000
+            anchorFrame = frame
+        }
+        // Queue eviction leaves a gap in frame positions, including after a partial block.
+        presentationTimestamp = anchorTimeUs + (frame - anchorFrame) * 1_000_000 / sampleRate
         return count
     }
 
@@ -50,8 +59,11 @@ internal class AudioCodecBuffer {
         while (true) pool.release(buffers.poll() ?: break)
         presentationTimestamp = DEFAULT_PRESENTATION_TIMESTAMP
         anchorTimeUs = DEFAULT_PRESENTATION_TIMESTAMP
-        samples = 0
+        anchorFrame = 0
+        nextByteOffset = 0
     }
+
+    private class PcmBlock(var buffer: ByteBuffer, var byteOffset: Long = 0)
 
     companion object {
         const val CAPACITY = 4
