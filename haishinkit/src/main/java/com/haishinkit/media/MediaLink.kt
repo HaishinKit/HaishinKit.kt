@@ -248,7 +248,7 @@ class MediaLink(
                     it.remove()
                 } else {
                     if (VERBOSE && 2 < frameCount) {
-                        Log.d(TAG, "Released overdue video frames without rendering: count=${frameCount - 1}")
+                        Log.d(TAG, "Processed due video frames: count=$frameCount")
                     }
                     break
                 }

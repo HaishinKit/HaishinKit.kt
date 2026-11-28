@@ -73,7 +73,7 @@ class RtmpConnection : EventDispatcher(null) {
         override fun handleEvent(event: Event) {
             val data = EventUtils.toMap(event)
             if (VERBOSE) {
-                Log.i(TAG, "RTMP connection status received: code=${data["code"]}")
+                Log.i(TAG, "RTMP connection status received: code=${data["code"] as? String ?: "unknown"}")
             }
             when (data["code"].toString()) {
                 Code.CONNECT_SUCCESS.rawValue -> {
@@ -375,7 +375,7 @@ class RtmpConnection : EventDispatcher(null) {
                 }
 
                 override fun onStatus(arguments: List<Any?>) {
-                    Log.w(TAG, "RTMP createStream command failed: code=${(arguments.firstOrNull() as? Map<*, *>)?.get("code")}")
+                    Log.w(TAG, "RTMP createStream command failed: code=${(arguments.firstOrNull() as? Map<*, *>)?.get("code") as? String ?: "unknown"}")
                 }
             },
         )

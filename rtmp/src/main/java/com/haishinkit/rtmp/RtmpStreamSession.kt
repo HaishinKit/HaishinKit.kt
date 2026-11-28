@@ -71,7 +71,7 @@ internal class RtmpStreamSession(applicationContext: Context, uri: Uri, val mode
 
     override fun handleEvent(event: Event) {
         val data = EventUtils.toMap(event)
-        if (BuildConfig.DEBUG) Log.d(TAG, "RTMP session event: type=${event.type}, code=${data["code"]}, state=${state.value}")
+        if (BuildConfig.DEBUG) Log.d(TAG, "RTMP session event: type=${event.type}, code=${data["code"] as? String ?: "none"}, state=${state.value}")
         if (event.type == Event.IO_ERROR) {
             fail("")
             return

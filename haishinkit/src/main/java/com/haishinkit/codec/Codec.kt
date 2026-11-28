@@ -288,7 +288,7 @@ abstract class Codec :
             callback.first?.onInputBufferAvailable(callback.second, codec, index)
         } catch (e: IllegalStateException) {
             if (BuildConfig.DEBUG) {
-                Log.w(TAG, "Unable to process codec input buffer: index=$index, mime=${callback.second}", e)
+                Log.w(TAG, "Unable to process codec input buffer: index=$index, outputMime=${callback.second}", e)
             }
         }
     }
