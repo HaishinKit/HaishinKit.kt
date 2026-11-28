@@ -1,8 +1,14 @@
 package com.haishinkit.rtmp
 
+import android.graphics.Bitmap
 import android.util.Log
+import com.haishinkit.media.source.VideoSource
+import com.haishinkit.screen.Screen
+import com.haishinkit.screen.ScreenObject
+import org.junit.After
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -13,6 +19,29 @@ import org.robolectric.shadows.ShadowLog
 @RunWith(RobolectricTestRunner::class)
 @Config(manifest = Config.NONE, sdk = [28])
 class RtmpDiagnosticLoggingTest {
+    private val originalScreenFactory = Screen.factory
+
+    @Before fun isolateCommandLoggingFromGraphics() {
+        Screen.factory = { context ->
+            object : Screen(context) {
+                override fun attachVideo(
+                    track: Int,
+                    video: VideoSource?,
+                ) {}
+
+                override fun readPixels(lambda: (Bitmap?) -> Unit) {}
+
+                override fun bind(screenObject: ScreenObject) {}
+
+                override fun unbind(screenObject: ScreenObject) {}
+            }
+        }
+    }
+
+    @After fun restoreGraphicsFactory() {
+        Screen.factory = originalScreenFactory
+    }
+
     @Test fun malformedStatusCodesDoNotDumpNestedServerPayloads() {
         val responder = createStreamResponder()
         for (code in listOf(mapOf("token" to "nested-secret"), listOf("nested-secret"))) {

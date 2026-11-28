@@ -8,6 +8,98 @@ Build video compositions with [Screen][com.haishinkit.screen.Screen] and its scr
 [StreamSession][com.haishinkit.stream.StreamSession] provides a common publishing and playback
 interface; register a protocol-specific factory before building a session.
 
+## Audio mixing
+
+`MediaMixer` mixes all attached audio inputs on one continuous output clock. The default
+is 48,000 Hz, stereo, interleaved PCM16. Choose the rate and channel count **before first
+starting capture or registering outputs**; create a new mixer to change its output format
+after use. Registered streams and recorders inherit this format, including recorders
+attached through a stream. Do not overwrite their audio rate/channel count afterwards.
+The chosen output rate must be supported by the selected encoder; for example, Opus
+supports 8/12/16/24/48 kHz, while AAC also supports 44.1 kHz.
+
+```kotlin
+val mixer = MediaMixer(context)
+mixer.audioMixerSettings = AudioMixerSettings(sampleRate = 48_000, channels = 2)
+val mic = AudioRecordSource(context).apply { sampleRate = 48_000 }
+mixer.attachAudio(0, mic) // Mono microphone is copied to both stereo channels.
+
+val clip = AssetScreenObject(context).apply { startReading(videoUri) }
+mixer.screen.addChild(clip)
+mixer.attachAudio(clip.audioTrack, clip.audioSource)
+
+// On API 29+, with recording permission and an authorized MediaProjection:
+mixer.attachAudio(1, MediaProjectionAudioSource(context, projection))
+mixer.registerOutput(stream)
+mixer.startRunning()
+```
+
+Attach at least one audio input before starting publication or recording. Tracks can then
+be added, detached or muted without stopping the other tracks or their output clock.
+An absent/late input contributes silence. Independent input workers prevent a blocking
+microphone read from delaying file or projection audio. Master mute and per-track mute
+consume input, so unmuting does not replay old queued samples.
+An input instance belongs to one track in one mixer; use separate instances for separate
+mixers. Once started, the mixed audio clock continues with silence after the last input
+is detached, and `hasAudio` remains true until that clock stops.
+Audio start/stop/disposal does not wait for video device operations. A failed input read
+retires that input without stopping other tracks; explicitly attach it again to retry.
+
+```kotlin
+mixer.audioMixerSettings = mixer.audioMixerSettings.copy(
+    tracks = mapOf(
+        0 to AudioMixerTrackSettings(volume = 0.8f),
+        1 to AudioMixerTrackSettings(isMuted = true),
+        clip.audioTrack to AudioMixerTrackSettings(volume = 0.4f),
+    ),
+)
+```
+
+Gain ranges from 0 to 4. Summation uses Float32 headroom and saturates once when converting
+to PCM16; lower track gains if the sum clips. Float32 has approximately 24 bits of
+significand precision and is distinct from packed 24-bit integer PCM. The native mixer
+accepts mono/stereo PCM16 and Float32, converts rates with a cached 32-tap windowed-sinc
+filter, and bypasses resampling when rates match. Custom inputs should implement
+`PcmAudioSource` to identify their actual format; legacy `AudioSource` implementations
+are assumed to provide the configured output format. PCM must be interleaved in native
+byte order. Heap inputs use reusable direct staging; direct inputs pass through JNI
+without an intermediate Java copy.
+
+The mix thread does no capture, decoding or network I/O. Rings are bounded to roughly
+250 ms per input and discard oldest frames on overflow. Buffers/filter tables allocate
+on track/format setup; steady native rendering reuses storage. Up to 32 tracks are
+supported. ARM64 uses NEON for gain/addition and final PCM16 conversion; other ABIs use
+portable C++. Oboe input is separate from this mixing implementation.
+
+A reference Pixel 8/API 37 run on 2026-11-28 mixed 16 kHz mono, 44.1 kHz stereo and 48 kHz
+stereo into 48 kHz stereo, 480 frames per render. Including JNI append, resampling, mixing
+and PCM16 output, p50/p95/p99 were 0.146/0.153/0.171 ms per 10 ms of audio. This measures
+processing throughput, excluding hardware capture, decoding, encoding, network latency
+and UI work; results vary by device and load. Native tests also compare optimized C++
+and NEON PCM16/int32 and Float32 kernels, including clipping and non-vector-sized tails.
+
+### Projection and asset lifetime
+
+`MediaProjectionAudioSource` needs `RECORD_AUDIO`, explicit screen-capture consent and
+the appropriate foreground service. Capturable playback is limited by the producing
+application's usage, capture policy and user profile; see the
+[platform capture rules](https://developer.android.com/media/platform/av-capture).
+By default this application's playback is excluded to avoid feedback/double-mixing;
+`capturedUid` selects a single application instead. Closing the source releases its
+recorder and callback without stopping the supplied projection, which can also feed
+`MediaProjectionSource` for video. Projection revocation silences that input while
+other mixed inputs continue.
+
+Asset audio is optional: attaching `clip.audioSource` enables an additional OS audio
+decoder; no local speaker output is created. `clip.audioTrack` is a generated negative
+ID, so use distinct track IDs for application capture. Audio follows video start,
+cancel, detach and loop boundaries. Closing the asset also detaches its audio input,
+including when the mixer is stopped. Audio decoder output is limited to stereo;
+surround downmix depends on the OS decoder honoring that request. Unsupported audio
+formats report through the asset's `onError`; video playback can continue.
+When decoder lag exceeds 100 ms, expired PCM and queued stale audio are discarded until
+the decoder catches up with the current video clock. Ordinary scheduling jitter is tolerated.
+
 ## Screen snapshot compatibility
 
 [ScreenObjectSnapshot][com.haishinkit.screen.scene.ScreenObjectSnapshot] shares its JSON
@@ -127,7 +219,8 @@ See the RTMP module's Enhanced RTMP guide for publishing/playback configuration.
 `AssetScreenObject` renders a local video's first video track using Android's
 `MediaExtractor` and a device-provided `MediaCodec` decoder. No additional codec
 library is bundled. File, content and `android.resource` URIs are supported;
-audio, network playback, DRM and HDR assets are not supported by this object.
+network playback, DRM and HDR assets are not supported by this object. Its optional
+`audioSource` can be attached to the mixer as described under Audio mixing.
 SDR assets can be included in an HLG composition through the existing SDR conversion.
 
 ```kotlin
@@ -138,6 +231,7 @@ val clip = AssetScreenObject(context).apply {
     startReading(videoUri)
 }
 mixer.screen.addChild(clip)
+mixer.attachAudio(clip.audioTrack, clip.audioSource) // Optional synchronized asset audio.
 // Removing an actively playing object stops its decoder; reattaching restarts it.
 mixer.screen.removeChild(clip)
 clip.close()

@@ -4,7 +4,7 @@ require 'shellwords'
 
 private_lane :build_native_host do |options|
   component = options.fetch(:component)
-  source = component == 'vulkan' ? 'vulkan/src/test/cpp' : 'rtc/src/main/cpp'
+  source = { 'vulkan' => 'vulkan/src/test/cpp', 'rtc' => 'rtc/src/main/cpp', 'audio' => 'haishinkit/src/main/cpp' }.fetch(component)
   build = File.expand_path("../build/#{component}-native-tests", __dir__)
   configure = ['cmake', '-S', File.expand_path("../#{source}", __dir__), '-B', build]
   configure << '-DCMAKE_BUILD_TYPE=Release' if component == 'rtc'
@@ -16,16 +16,18 @@ end
 
 desc 'Warm shared native compiler outputs without building sample APKs.'
 lane :warm_native_cache do
-  %w[vulkan rtc srt].each do |component|
+  %w[haishinkit vulkan rtc srt].each do |component|
     %w[Debug Release].each do |variant|
       gradle(task: ":#{component}:assemble#{variant}")
     end
   end
-  %w[vulkan rtc].each { |component| build_native_host(component: component) }
+  %w[audio vulkan rtc].each { |component| build_native_host(component: component) }
 end
 
 desc 'Runs the PR review.'
 lane :review do
+  build_native_host(component: 'audio')
+  sh('ctest', '--test-dir', File.expand_path('../build/audio-native-tests', __dir__), '--output-on-failure')
   gradle(task: 'lint')
   # Both variants must exercise app-level R8 and packaged library consumer rules.
   gradle(task: ':app:assembleDebug')

@@ -23,6 +23,7 @@ internal class AssetVideoSource(
     uri: Uri,
     looping: () -> Boolean,
     predecessor: AssetVideoSource? = null,
+    audio: AssetAudioSource? = null,
     stopped: (Throwable?, Boolean) -> Unit,
 ) : VideoSource {
     @Volatile override var surface: Surface? = null
@@ -43,6 +44,8 @@ internal class AssetVideoSource(
     private val uri = uri
     private val looping = looping
     private val stopped = stopped
+    private val audio = audio
+    private val audioClock = AssetPlaybackClock()
 
     @Volatile private var predecessor = predecessor
 
@@ -58,6 +61,7 @@ internal class AssetVideoSource(
     fun start() = worker.start()
 
     fun cancel() {
+        audioClock.active = false
         cancelled.set(true)
         running.set(false)
         worker.interrupt()
@@ -102,6 +106,7 @@ internal class AssetVideoSource(
             val decoder = requireNotNull(MediaCodecList(MediaCodecList.REGULAR_CODECS).findDecoderForFormat(format)) { "No OS decoder supports this video." }
             if (!running.get()) return
             metadata = meta
+            audio?.bind(uri, audioClock)
             while (running.get() && surface == null) LockSupport.parkNanos(10_000_000)
             if (!running.get()) return
             var currentSurface = checkNotNull(surface)
@@ -152,6 +157,7 @@ internal class AssetVideoSource(
                                 if (firstOutputUs == null) {
                                     firstOutputUs = info.presentationTimeUs
                                     clockNanos = System.nanoTime()
+                                    audioClock.begin(info.presentationTimeUs, clockNanos)
                                 }
                                 lastOutputUs = info.presentationTimeUs
                                 waitUntil(deadline(clockNanos, (info.presentationTimeUs - checkNotNull(firstOutputUs)).coerceAtLeast(0)))
@@ -172,6 +178,8 @@ internal class AssetVideoSource(
         } catch (error: Exception) {
             if (!cancelled.get()) failure = error
         } finally {
+            audioClock.active = false
+            audio?.unbind(audioClock)
             codec?.let {
                 runCatching { it.stop() }
                 runCatching { it.release() }

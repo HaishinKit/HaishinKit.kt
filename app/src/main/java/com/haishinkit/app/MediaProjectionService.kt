@@ -1,5 +1,6 @@
 package com.haishinkit.app
 
+import android.Manifest
 import android.app.Activity
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -8,6 +9,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
 import android.graphics.Rect
 import android.media.projection.MediaProjectionManager
@@ -25,6 +27,7 @@ import androidx.core.content.ContextCompat
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import com.haishinkit.media.MediaMixer
 import com.haishinkit.media.source.AudioRecordSource
+import com.haishinkit.media.source.MediaProjectionAudioSource
 import com.haishinkit.media.source.MediaProjectionSource
 import com.haishinkit.stream.StreamSession
 import kotlinx.coroutines.CoroutineScope
@@ -112,6 +115,7 @@ class MediaProjectionService :
         startId: Int,
     ): Int {
         Log.i(TAG, "onStartCommand")
+        val captureAudio = ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
         if (notificationManager.getNotificationChannel(CHANNEL_ID) == null) {
             val channel =
                 NotificationChannel(CHANNEL_ID, CHANNEL_NAME, NotificationManager.IMPORTANCE_LOW)
@@ -129,15 +133,22 @@ class MediaProjectionService :
             }.build()
             .apply {
                 if (Build.VERSION_CODES.Q <= Build.VERSION.SDK_INT) {
-                    startForeground(ID, this, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION)
+                    val types =
+                        ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION or
+                            (if (Build.VERSION.SDK_INT >= 30 && captureAudio) ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE else 0)
+                    startForeground(ID, this, types)
                 } else {
                     startForeground(ID, this)
                 }
             }
         launch {
-            mixer.attachAudio(0, AudioRecordSource(applicationContext).apply { sampleRate = 48_000 })
+            if (captureAudio) mixer.attachAudio(0, AudioRecordSource(applicationContext).apply { sampleRate = mixer.audioMixerSettings.sampleRate })
             intent?.getParcelableExtra<Intent>(EXTRA_RESULT_DATA)?.let {
                 mediaProjectionManager.getMediaProjection(Activity.RESULT_OK, it)?.let {
+                    if (captureAudio) {
+                        mixer.attachAudio(1, MediaProjectionAudioSource(applicationContext, it))
+                            .onFailure { cause -> Log.w(TAG, "Playback audio capture is unavailable; continuing screen sharing", cause) }
+                    }
                     val source =
                         MediaProjectionSource(
                             applicationContext,

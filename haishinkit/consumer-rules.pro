@@ -1,3 +1,6 @@
+# JNI exports use this class and its native method names.
+-keep class com.haishinkit.media.audio.NativeAudioMixer { *; }
+
 # ShaderLoader and VideoEffect discover shader requirements/uniforms at runtime.
 -keepattributes RuntimeVisibleAnnotations,AnnotationDefault
 -keep @interface com.haishinkit.graphics.glsl.RequirementsDirective { *; }

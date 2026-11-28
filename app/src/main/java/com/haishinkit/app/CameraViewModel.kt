@@ -113,6 +113,7 @@ class CameraViewModel(
     private val _selectedCamera = MutableStateFlow<CameraDevice?>(null)
     private val cameraLock = Mutex()
     private val audioLock = Mutex()
+    private val microphoneSource = AudioRecordSource(application.applicationContext).apply { sampleRate = 48_000 }
     private var frontCameraObject: VideoScreenObject? = null
     private var sessionSettings: Preference.SessionSettings? = null
 
@@ -186,7 +187,10 @@ class CameraViewModel(
                     val container =
                         sceneFiles.create(loaded).also {
                             preparedContainer = it
-                            AssetScreenObject.findAssets(it).forEach { asset -> asset.onError = ::reportAssetPlaybackError }
+                            AssetScreenObject.findAssets(it).forEach { asset ->
+                                asset.onError = ::reportAssetPlaybackError
+                                mixer.attachAudio(asset.audioTrack, asset.audioSource).getOrThrow()
+                            }
                         }
                     val hadFront = frontCameraObject != null
                     val restoredFront = container.findByClass(VideoScreenObject::class.java).filterNot { it is AssetScreenObject }.firstOrNull { it.track == FRONT_CAMERA_TRACK }
@@ -343,12 +347,29 @@ class CameraViewModel(
                                     this.onError = ::reportAssetPlaybackError
                                     startReading(Uri.fromFile(file))
                                 }
-                            if (!assetPlaybackEnabled) {
-                                asset.cancelReading()
-                                pausedAssets.add(asset)
+                            var inserted = false
+                            try {
+                                mixer.attachAudio(asset.audioTrack, asset.audioSource).getOrThrow()
+                                if (sceneFileBusy) return@launch
+                                if (AssetScreenObject.findAssets(mixer.screen).size >= 4) {
+                                    onError(application.getString(R.string.asset_limit))
+                                    return@launch
+                                }
+                                if (!assetPlaybackEnabled) {
+                                    asset.cancelReading()
+                                    pausedAssets.add(asset)
+                                }
+                                screenObjectDragController.register(asset, position)
+                                mixer.screen.addChild(asset)
+                                inserted = true
+                            } finally {
+                                if (!inserted) {
+                                    pausedAssets.remove(asset)
+                                    mixer.screen.removeChild(asset)
+                                    screenObjectDragController.unregister(asset)
+                                    asset.close()
+                                }
                             }
-                            screenObjectDragController.register(asset, position)
-                            mixer.screen.addChild(asset)
                         }.onFailure { if (it is CancellationException) throw it else onError(application.getString(R.string.asset_playback_error)) }
                     }
                     return
@@ -394,8 +415,7 @@ class CameraViewModel(
     fun selectAudioDevice() {
         viewModelScope.launch {
             audioLock.withLock {
-                if (mixer.hasAudio) return@withLock
-                mixer.attachAudio(0, AudioRecordSource(application.applicationContext).apply { sampleRate = 48_000 })
+                mixer.attachAudio(0, microphoneSource)
             }
         }
     }
@@ -461,7 +481,13 @@ class CameraViewModel(
         val current = AssetScreenObject.findAssets(mixer.screen).toSet()
         pausedAssets.filter { it in current }.forEach { asset -> asset.sourceUri?.let { asset.startReading(it) } }
         pausedAssets.clear()
-        mixer.startRunning()
+        viewModelScope.launch {
+            for (asset in current) {
+                if (!assetPlaybackEnabled) return@launch
+                mixer.attachAudio(asset.audioTrack, asset.audioSource).onFailure(::reportAssetPlaybackError)
+            }
+            if (assetPlaybackEnabled) mixer.startRunning()
+        }
         DebugFrameCapture.attach(this, mixer.screen)
     }
 

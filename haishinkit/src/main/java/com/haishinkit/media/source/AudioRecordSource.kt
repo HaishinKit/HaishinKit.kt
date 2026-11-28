@@ -12,6 +12,7 @@ import androidx.core.app.ActivityCompat
 import com.haishinkit.media.MediaBuffer
 import com.haishinkit.media.MediaMixer
 import com.haishinkit.media.MediaType
+import com.haishinkit.media.audio.PcmAudioFormat
 import java.nio.ByteBuffer
 
 /**
@@ -23,8 +24,9 @@ import java.nio.ByteBuffer
 @Suppress("MemberVisibilityCanBePrivate")
 class AudioRecordSource(
     private val context: Context,
-) : AudioSource {
-    override var isMuted = false
+) : PcmAudioSource {
+    @Volatile override var isMuted = false
+    override val audioFormat: PcmAudioFormat get() = PcmAudioFormat(cachedAudioRecord?.sampleRate ?: sampleRate, cachedAudioRecord?.channelCount ?: Integer.bitCount(channel))
 
     /**
      * The input channel mask, such as `AudioFormat.CHANNEL_IN_MONO`.
@@ -74,12 +76,12 @@ class AudioRecordSource(
     private var cachedAudioRecord: AudioRecord? = null
     private var encoding = DEFAULT_ENCODING
     private var sampleCount = DEFAULT_SAMPLE_COUNT
-    private var noSignalBuffer = ByteBuffer.allocateDirect(0)
     private var byteBuffer: ByteBuffer = ByteBuffer.allocateDirect(sampleCount * 2)
 
     override suspend fun open(mixer: MediaMixer): Result<Unit> {
         try {
-            audioRecord?.startRecording()
+            val recorder = audioRecord ?: return Result.failure(SecurityException("Recording permission is required"))
+            recorder.startRecording()
         } catch (e: IllegalStateException) {
             return Result.failure(e)
         }
@@ -103,15 +105,11 @@ class AudioRecordSource(
     }
 
     override fun read(track: Int): MediaBuffer {
-        byteBuffer.rewind()
+        byteBuffer.clear()
         val result = cachedAudioRecord?.read(byteBuffer, sampleCount * 2) ?: -1
+        byteBuffer.limit(result.coerceAtLeast(0))
         if (isMuted) {
-            if (noSignalBuffer.capacity() < result) {
-                noSignalBuffer = ByteBuffer.allocateDirect(result)
-            }
-            noSignalBuffer.clear()
-            byteBuffer.clear()
-            byteBuffer.put(noSignalBuffer)
+            for (index in 0 until result.coerceAtLeast(0)) byteBuffer.put(index, 0.toByte())
         }
         return MediaBuffer(
             type = MediaType.AUDIO,

@@ -53,6 +53,10 @@ class MediaRecorder(
     override var dataSource: WeakReference<MediaOutputDataSource>? = null
         set(value) {
             field = value
+            (value?.get() as? AudioMixingDataSource)?.audioMixerSettings?.let {
+                audioSetting.sampleRate = it.sampleRate
+                audioSetting.channelCount = it.channels
+            }
             videoCodec.pixelTransform.screen = dataSource?.get()?.screen
         }
 
