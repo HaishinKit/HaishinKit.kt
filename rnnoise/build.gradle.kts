@@ -73,6 +73,7 @@ afterEvaluate {
 dependencies {
     api(project(":haishinkit"))
     testImplementation(libs.junit)
+    testImplementation(libs.robolectric)
     androidTestImplementation(libs.kotlinx.coroutines.core)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)

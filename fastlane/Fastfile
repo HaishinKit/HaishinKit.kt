@@ -34,6 +34,7 @@ lane :review do
   gradle(task: ':app:assembleRelease')
   gradle(task: ':rnnoise:assembleRelease')
   gradle(task: ':rnnoise:assembleDebugAndroidTest')
+  gradle(task: ':rnnoise:testDebugUnitTest')
   native_test_build = File.expand_path('../build/vulkan-native-tests', __dir__)
   build_native_host(component: 'vulkan')
   sh('ctest', '--test-dir', native_test_build, '--output-on-failure')

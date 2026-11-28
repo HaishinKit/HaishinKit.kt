@@ -74,7 +74,7 @@ class RnnoiseMicrophoneSource(val source: AudioRecordSource) : PcmAudioSource by
     override fun read(track: Int): MediaBuffer =
         try {
             synchronized(guard) { if (opened) verifyOsSuppression() }
-            val result = source.read(track)
+            val result = source.readChecked(track)
             synchronized(guard) {
                 // A changed or re-enabled session may already have queued processed PCM. Never
                 // return this block or attempt to repair it in place; close/reopen is required.
