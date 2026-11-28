@@ -256,6 +256,7 @@ class RtcStream internal constructor(context: Context, private val stop: () -> U
         run: Run,
         peer: NativePeer,
     ) {
+        H264.validateParameterSets(run.videoConfiguration)
         var sps: ByteArray? = run.videoConfiguration.firstOrNull { it[0].toInt() and 31 == 7 }
         var pps: ByteArray? = run.videoConfiguration.firstOrNull { it[0].toInt() and 31 == 8 }
         var appliedSps: ByteArray? = null
@@ -265,6 +266,7 @@ class RtcStream internal constructor(context: Context, private val stop: () -> U
             run.bytes.addAndGet(-sample.data.size.toLong())
             if (sample.timeUs <= lastTime) continue
             val units = H264.units(sample.data)
+            H264.validateParameterSets(units)
             units.firstOrNull { it[0].toInt() and 31 == 7 }?.let { sps = it }
             units.firstOrNull { it[0].toInt() and 31 == 8 }?.let { pps = it }
             val key = units.any { it[0].toInt() and 31 == 5 }
@@ -434,6 +436,7 @@ class RtcStream internal constructor(context: Context, private val stop: () -> U
                     mediaLink.audioTrack = MediaFormatUtil.createAudioTrack(mediaFormat, audioUsage)
                 } else if (!run.publishing && mime == MediaFormat.MIMETYPE_VIDEO_RAW) {
                     val size = Size(MediaFormatUtil.getWidth(mediaFormat), MediaFormatUtil.getHeight(mediaFormat))
+                    if (run.videoType == RtcVideoCodec.H264) H264.validateFrameSize(size.width, size.height)
                     screen.frame = Rect(0, 0, size.width, size.height)
                     video.videoSize = size
                 }

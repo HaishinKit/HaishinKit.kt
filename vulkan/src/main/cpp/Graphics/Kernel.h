@@ -69,6 +69,8 @@ namespace Graphics {
 
         vk::SurfaceCapabilitiesKHR GetSurfaceCapabilities();
 
+        vk::PhysicalDeviceLimits GetPhysicalDeviceLimits() const;
+
         vk::SurfaceFormatKHR GetSurfaceFormat();
 
         void ReadPixels(void *buffer);

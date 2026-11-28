@@ -42,6 +42,32 @@ class VkSceneTest {
     }
 
     @Test
+    fun rejectsOversizedLayerBeforeRecordingAndCanComposeTheNextFrame() {
+        assumeTrue(VkPixelTransform.isSupported())
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val bitmap = Bitmap.createBitmap(16, 16, Bitmap.Config.ARGB_8888).apply { eraseColor(Color.GREEN) }
+        VkWorker.run {
+            NativeScene(context).use { renderer ->
+                val shader = VulkanEffectRegistry.resolve(DefaultVideoEffect.shared)
+                renderer.begin(16, 16, Color.BLACK)
+                assertThrows(IllegalStateException::class.java) {
+                    renderer.layer(bitmap, null, intArrayOf(0, 0, Int.MAX_VALUE, 16, 0, 0, 0, 0), null, VkScreen.identity(), shader.assets(), shader.parameters)
+                }
+                renderer.begin(16, 16, Color.BLUE)
+                renderer.end(0, VkScreen.identity(), shader.assets(), shader.parameters, Color.BLACK)
+                val result = Bitmap.createBitmap(16, 16, Bitmap.Config.ARGB_8888)
+                try {
+                    renderer.readPixels(result)
+                    assertEquals(Color.BLUE, result.getPixel(8, 8))
+                } finally {
+                    result.recycle()
+                }
+            }
+        }
+        bitmap.recycle()
+    }
+
+    @Test
     fun bitmapOrientationAlphaAndTextComposeWithoutOpenGLFactory() {
         assumeTrue(VkPixelTransform.isSupported())
         val context = InstrumentationRegistry.getInstrumentation().targetContext

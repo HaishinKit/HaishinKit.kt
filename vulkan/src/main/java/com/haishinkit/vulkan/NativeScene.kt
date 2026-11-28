@@ -8,12 +8,16 @@ import android.view.Surface
 
 /** Calls and buffer lifetimes are serialized by VkWorker. Rendering completes before returning. */
 internal class NativeScene(context: Context) : AutoCloseable {
+    // The native pointer borrows this exact object, including after a resource configuration change.
+    // consumer-rules.pro keeps NativeScene's fields in optimized applications.
+    private val assets = context.assets
+
     @Suppress("unused")
     private var memory: Long = 0
 
     init {
         check(VkPixelTransform.isSupported()) { "Required Vulkan features are unavailable" }
-        nativeInitialize(context.assets)
+        nativeInitialize(assets)
     }
 
     external fun setSurface(

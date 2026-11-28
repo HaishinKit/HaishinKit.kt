@@ -1,5 +1,6 @@
 #include "ImageStorage.h"
 #include "Kernel.h"
+#include "LayerBounds.h"
 #include "VulkanLock.h"
 #include <android/asset_manager_jni.h>
 #include <android/bitmap.h>
@@ -148,6 +149,7 @@ class SceneRenderer {
     bool recreate = false;
     size_t cursor = 0;
     jint background = 0;
+    vk::PhysicalDeviceLimits limits;
 
     ~SceneRenderer() {
         Graphics::DispatcherScope scope(kernel.dispatcher);
@@ -162,6 +164,7 @@ class SceneRenderer {
     void initialize(AAssetManager *assets) {
         kernel.SetAssetManager(assets);
         kernel.SelectPhysicalDevice();
+        limits = kernel.GetPhysicalDeviceLimits();
         kernel.commandBuffer.commandPool = kernel.device->createCommandPoolUnique(
             vk::CommandPoolCreateInfo()
                 .setFlags(vk::CommandPoolCreateFlagBits::eResetCommandBuffer)
@@ -255,6 +258,7 @@ class SceneRenderer {
              const std::string &fragment) {
         if (!target)
             throw std::runtime_error("begin must precede layer");
+        const auto viewport = Graphics::LayerViewport(bounds, limits);
         if (cursor == layers.size())
             layers.push_back(std::make_unique<Layer>());
         auto &l = *layers[cursor++];
@@ -374,16 +378,12 @@ class SceneRenderer {
                           bounds[6] / float(desc.width), bounds[7] / float(desc.height));
         }
 
-        l.viewport = vk::Viewport(static_cast<float>(bounds[0]), static_cast<float>(bounds[1]),
-                                  static_cast<float>(bounds[2]), static_cast<float>(bounds[3]), 0.f, 1.f);
+        l.viewport = viewport;
         l.scissors.clear();
         auto addScissor = [&](int left, int top, int right, int bottom) {
-            left = std::max(left + bounds[0], 0);
-            top = std::max(top + bounds[1], 0);
-            right = std::min(right + bounds[0], static_cast<int>(target->extent.width));
-            bottom = std::min(bottom + bounds[1], static_cast<int>(target->extent.height));
-            if (left < right && top < bottom)
-                l.scissors.emplace_back(vk::Offset2D(left, top), vk::Extent2D(right - left, bottom - top));
+            const auto clip = Graphics::LayerScissor(bounds, {left, top, right, bottom}, target->extent);
+            if (clip.extent.width > 0 && clip.extent.height > 0)
+                l.scissors.push_back(clip);
         };
         if (cornerClip) {
             auto count = env->GetArrayLength(cornerClip);
