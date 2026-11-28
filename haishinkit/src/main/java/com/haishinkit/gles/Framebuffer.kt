@@ -80,10 +80,10 @@ internal class Framebuffer(private val dynamicRangeMode: DynamicRangeMode = Dyna
 
                 val status = GLES20.glCheckFramebufferStatus(GLES20.GL_FRAMEBUFFER)
                 if (status != GLES20.GL_FRAMEBUFFER_COMPLETE) {
-                    throw RuntimeException("" + status)
+                    throw RuntimeException("OpenGL framebuffer is incomplete: status=0x${status.toString(16)}")
                 }
             } catch (e: RuntimeException) {
-                Log.w(TAG, "", e)
+                Log.w(TAG, "Unable to allocate OpenGL framebuffer: width=${value.width()}, height=${value.height()}, dynamicRange=$dynamicRangeMode", e)
                 release()
                 // Allocation errors must not leak into the next valid resize.
                 while (GLES20.glGetError() != GLES20.GL_NO_ERROR) { }

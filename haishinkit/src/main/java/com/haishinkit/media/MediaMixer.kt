@@ -8,6 +8,7 @@ import androidx.lifecycle.DefaultLifecycleObserver
 import com.haishinkit.graphics.DynamicRangeMode
 import com.haishinkit.graphics.effect.VideoEffect
 import com.haishinkit.lang.Running
+import com.haishinkit.media.audio.AudioMixer
 import com.haishinkit.media.source.AudioSource
 import com.haishinkit.media.source.Camera2Source
 import com.haishinkit.media.source.VideoSource
@@ -19,7 +20,6 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -38,7 +38,7 @@ import kotlin.coroutines.CoroutineContext
 class MediaMixer(
     context: Context,
     override val isRunning: AtomicBoolean = AtomicBoolean(false),
-) : MediaOutputDataSource,
+) : AudioMixingDataSource,
     CoroutineScope,
     DefaultLifecycleObserver,
     Running {
@@ -57,18 +57,19 @@ class MediaMixer(
     /**
      * Specifies the audio mixer settings.
      */
-    var audioMixerSettings = AudioMixerSettings()
+    override var audioMixerSettings = AudioMixerSettings()
         set(value) {
-            if (field.isMuted != value.isMuted) {
-                audioSources.values.forEach {
-                    it.isMuted = value.isMuted
+            synchronized(audioConfigurationLock) {
+                if (field.sampleRate != value.sampleRate || field.channels != value.channels) {
+                    check(!audioFormatLocked && !isRunning.get() && outputs.isEmpty) { "Configure the mixed audio format before first starting capture or registering outputs; use a new mixer to change formats later" }
                 }
+                field = value
+                audioMixer.settings = value
             }
-            field = value
         }
 
     override val hasAudio: Boolean
-        get() = audioSources.isNotEmpty()
+        get() = audioMixer.hasAudio
 
     override val hasVideo: Boolean
         get() = videoSources.isNotEmpty() || (screenDelegate.isInitialized() && AssetScreenObject.hasReadingAssets(screen))
@@ -90,16 +91,16 @@ class MediaMixer(
         }
 
     private val outputs = MediaOutputRegistry(this)
+    private val audioConfigurationLock = Any()
+    private var audioFormatLocked = false
+    private val audioMixer = AudioMixer(this) { buffer -> outputs.forEach { it.append(buffer) } }
 
-    @Volatile
-    private var keepAlive = true
     private val isDisposed = AtomicBoolean(false)
     private val videoLock = Mutex()
     private val openVideoTracks = mutableSetOf<Int>()
 
     @Volatile
     private var videoSources = emptyMap<Int, VideoSource>()
-    private var audioSources = mutableMapOf<Int, AudioSource>()
     private val windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
     private val defaultVideo: VideoScreenObject by lazy {
         VideoScreenObject().apply {
@@ -137,13 +138,8 @@ class MediaMixer(
         track: Int,
         audio: AudioSource?,
     ): Result<Unit> {
-        if (audio != null) {
-            attachAudio(track, null)
-            audioSources[track] = audio
-            return audio.open(this)
-        }
-        audioSources.remove(track)?.close()
-        return Result.success(Unit)
+        if (isDisposed.get()) return Result.failure(IllegalStateException("MediaMixer is disposed"))
+        return audioMixer.attach(track, audio)
     }
 
     /**
@@ -215,7 +211,11 @@ class MediaMixer(
         }
     }
 
-    override fun registerOutput(output: MediaOutput) = outputs.register(output)
+    override fun registerOutput(output: MediaOutput) =
+        synchronized(audioConfigurationLock) {
+            audioFormatLocked = true
+            outputs.register(output)
+        }
 
     override fun unregisterOutput(output: MediaOutput) = outputs.unregister(output)
 
@@ -223,17 +223,18 @@ class MediaMixer(
      * Starts capture and schedules attached sources to open asynchronously. Does nothing if already running.
      */
     override fun startRunning() {
-        if (isDisposed.get() || !isRunning.compareAndSet(false, true)) return
+        synchronized(audioConfigurationLock) {
+            if (isDisposed.get() || !isRunning.compareAndSet(false, true)) return
+            audioFormatLocked = true
+        }
         updateDeviceOrientation()
         orientationEventListener.enable()
-        keepAlive = true
+        launch { audioMixer.start() }
         launch {
             videoLock.withLock {
                 if (isRunning.get()) openVideos(videoSources.filterKeys { it !in openVideoTracks })
             }
-            audioSources.values.forEach { it.open(this@MediaMixer) }
         }
-        startAudioCapturing()
     }
 
     /**
@@ -241,13 +242,12 @@ class MediaMixer(
      */
     override fun stopRunning() {
         if (!isRunning.compareAndSet(true, false)) return
-        keepAlive = false
         orientationEventListener.disable()
+        launch { audioMixer.stop() }
         launch {
             videoLock.withLock {
                 if (!isRunning.get() && !isDisposed.get()) closeOpenVideos()
             }
-            audioSources.values.forEach { it.close() }
         }
     }
 
@@ -257,16 +257,14 @@ class MediaMixer(
     fun dispose() {
         if (!isDisposed.compareAndSet(false, true)) return
         isRunning.set(false)
-        keepAlive = false
         orientationEventListener.disable()
+        launch { audioMixer.stop(dispose = true) }
         launch {
             videoLock.withLock {
                 closeOpenVideos()
                 videoSources = emptyMap()
-                screen.dispose()
+                if (screenDelegate.isInitialized()) screen.dispose()
             }
-            audioSources.values.forEach { it.close() }
-            audioSources.clear()
         }
     }
 
@@ -318,21 +316,6 @@ class MediaMixer(
         source.close()
         screen.attachVideo(track, null)
     }
-
-    private fun startAudioCapturing() =
-        launch {
-            while (keepAlive) {
-                if (audioSources.isEmpty()) {
-                    delay(1000)
-                }
-                audioSources.forEach { audio ->
-                    val buffer = audio.value.read(audio.key)
-                    outputs.forEach { output ->
-                        output.append(buffer)
-                    }
-                }
-            }
-        }
 
     private companion object {
         private val TAG = MediaMixer::class.java.simpleName

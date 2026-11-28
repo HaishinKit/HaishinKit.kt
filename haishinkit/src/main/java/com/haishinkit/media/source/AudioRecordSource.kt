@@ -13,6 +13,7 @@ import androidx.core.app.ActivityCompat
 import com.haishinkit.media.MediaBuffer
 import com.haishinkit.media.MediaMixer
 import com.haishinkit.media.MediaType
+import com.haishinkit.media.audio.PcmAudioFormat
 import java.nio.ByteBuffer
 
 /**
@@ -24,8 +25,13 @@ import java.nio.ByteBuffer
 @Suppress("MemberVisibilityCanBePrivate")
 class AudioRecordSource(
     private val context: Context,
-) : AudioSource {
-    override var isMuted = false
+) : PcmAudioSource {
+    @Volatile override var isMuted = false
+    override val audioFormat: PcmAudioFormat
+        get() =
+            synchronized(recorderLock) {
+                PcmAudioFormat(cachedAudioRecord?.sampleRate ?: sampleRate, cachedAudioRecord?.channelCount ?: Integer.bitCount(channel))
+            }
 
     /**
      * The input channel mask, such as `AudioFormat.CHANNEL_IN_MONO`.
@@ -96,7 +102,7 @@ class AudioRecordSource(
     override suspend fun open(mixer: MediaMixer): Result<Unit> {
         return synchronized(recorderLock) {
             try {
-                val recorder = audioRecord ?: return@synchronized Result.success(Unit)
+                val recorder = audioRecord ?: return@synchronized Result.failure(SecurityException("Recording permission is required"))
                 recoveryFormat = null
                 nextRecoveryTime = 0
                 if (preferBluetoothMicrophone && bluetoothRoute == null) {

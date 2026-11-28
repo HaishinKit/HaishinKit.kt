@@ -53,6 +53,10 @@ class MediaRecorder(
     override var dataSource: WeakReference<MediaOutputDataSource>? = null
         set(value) {
             field = value
+            (value?.get() as? AudioMixingDataSource)?.audioMixerSettings?.let {
+                audioSetting.sampleRate = it.sampleRate
+                audioSetting.channelCount = it.channels
+            }
             videoCodec.pixelTransform.screen = dataSource?.get()?.screen
         }
 
@@ -74,7 +78,7 @@ class MediaRecorder(
         if (muxer != null || dataSource == null) {
             throw IllegalStateException()
         }
-        Log.i(TAG, "Start recordings to $path.")
+        Log.i(TAG, "Starting media recording: outputFormat=$format")
         muxer = MediaRecorderMuxer(dataSource, MediaMuxer(path, format))
         startRunning()
     }

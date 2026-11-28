@@ -73,7 +73,7 @@ class RtmpConnection : EventDispatcher(null) {
         override fun handleEvent(event: Event) {
             val data = EventUtils.toMap(event)
             if (VERBOSE) {
-                Log.i(TAG, data.toString())
+                Log.i(TAG, "RTMP connection status received: code=${data["code"] as? String ?: "unknown"}")
             }
             when (data["code"].toString()) {
                 Code.CONNECT_SUCCESS.rawValue -> {
@@ -375,7 +375,7 @@ class RtmpConnection : EventDispatcher(null) {
                 }
 
                 override fun onStatus(arguments: List<Any?>) {
-                    Log.w("$TAG#onStatus", arguments.toString())
+                    Log.w(TAG, "RTMP createStream command failed: code=${(arguments.firstOrNull() as? Map<*, *>)?.get("code") as? String ?: "unknown"}")
                 }
             },
         )
@@ -386,7 +386,7 @@ class RtmpConnection : EventDispatcher(null) {
         readyState: RtmpSocket.ReadyState,
     ) {
         if (VERBOSE) {
-            Log.d(TAG, readyState.toString())
+            Log.d(TAG, "RTMP socket state changed: state=$readyState")
         }
         when (readyState) {
             RtmpSocket.ReadyState.Closed -> {
@@ -448,7 +448,7 @@ class RtmpConnection : EventDispatcher(null) {
         message.commandObject = commandObject
         message.arguments = arguments
         if (VERBOSE) {
-            Log.d(TAG, message.toString())
+            Log.d(TAG, "Sending RTMP connection command: name=${message.commandName}, transactionId=${message.transactionID}")
         }
         return message
     }

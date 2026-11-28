@@ -15,6 +15,9 @@ internal object Sdp {
         return parameter.substringAfter('=').split(',').map { value ->
             Base64.decode(value).also {
                 require(it.isNotEmpty() && it.size <= 65536 && it[0].toInt() and 31 in 7..8) { "Invalid SDP H.264 parameter set" }
+                require((0 until it.size - 2).none { index -> it[index] == 0.toByte() && it[index + 1] == 0.toByte() && it[index + 2] == 1.toByte() }) {
+                    "Expected a single SDP H.264 parameter set"
+                }
             }
         }
     }

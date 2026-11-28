@@ -187,7 +187,7 @@ abstract class Codec :
         synchronized(lifecycleLock) {
             if (isRunning.get()) return@synchronized
             if (BuildConfig.DEBUG) {
-                Log.d(TAG, "startRunning($inputMimeType)")
+                Log.d(TAG, "Starting codec: mode=${if (mode == MODE_ENCODE) "encode" else "decode"}, codecMime=${if (mode == MODE_ENCODE) outputMimeType else inputMimeType}")
             }
             try {
                 val codec = codec ?: return@synchronized
@@ -203,7 +203,7 @@ abstract class Codec :
                     isRunning.set(true)
                 }
             } catch (e: MediaCodec.CodecException) {
-                Log.w(TAG, "", e)
+                Log.w(TAG, "Unable to configure or start codec: mode=${if (mode == MODE_ENCODE) "encode" else "decode"}, codecMime=${if (mode == MODE_ENCODE) outputMimeType else inputMimeType}", e)
             }
         }
 
@@ -211,15 +211,15 @@ abstract class Codec :
         synchronized(lifecycleLock) {
             if (!isRunning.get()) return@synchronized
             if (BuildConfig.DEBUG) {
-                Log.d(TAG, "stopRunning($inputMimeType)")
+                Log.d(TAG, "Stopping codec: mode=${if (mode == MODE_ENCODE) "encode" else "decode"}, inputMime=$inputMimeType, outputMime=$outputMimeType")
             }
             try {
                 isRunning.set(false)
                 dispose()
             } catch (e: MediaCodec.CodecException) {
-                Log.w(TAG, "", e)
+                Log.w(TAG, "Unable to release codec while stopping: mode=${if (mode == MODE_ENCODE) "encode" else "decode"}, inputMime=$inputMimeType, outputMime=$outputMimeType", e)
             } catch (e: IllegalStateException) {
-                Log.w(TAG, "", e)
+                Log.w(TAG, "Unable to release codec while stopping: mode=${if (mode == MODE_ENCODE) "encode" else "decode"}, inputMime=$inputMimeType, outputMime=$outputMimeType", e)
             }
         }
 
@@ -288,7 +288,7 @@ abstract class Codec :
             callback.first?.onInputBufferAvailable(callback.second, codec, index)
         } catch (e: IllegalStateException) {
             if (BuildConfig.DEBUG) {
-                Log.w(TAG, e)
+                Log.w(TAG, "Unable to process codec input buffer: index=$index, outputMime=${callback.second}", e)
             }
         }
     }
@@ -306,7 +306,7 @@ abstract class Codec :
             }
         } catch (e: IllegalStateException) {
             if (BuildConfig.DEBUG) {
-                Log.w(TAG, "$index/${info.flags}", e)
+                Log.w(TAG, "Unable to process codec output buffer: index=$index, flags=${info.flags}, size=${info.size}, mime=$outputMimeType", e)
             }
         }
     }
@@ -321,7 +321,7 @@ abstract class Codec :
                 listener to outputMimeType
             }
         if (BuildConfig.DEBUG) {
-            Log.w(TAG, e.toString())
+            Log.w(TAG, "Codec reported an asynchronous error: mime=${callback.second}, diagnostic=${e.diagnosticInfo}", e)
         }
         callback.first?.onError(callback.second, e)
     }
@@ -355,7 +355,7 @@ abstract class Codec :
                 (outputFormat !== format).also { outputFormat = format }
             }
         if (changed) {
-            Log.i(TAG, format.toString())
+            Log.i(TAG, "Codec output format changed: mode=${if (mode == MODE_ENCODE) "encode" else "decode"}, format=$format")
             format.getString("mime")?.let { mime -> listener?.onFormatChanged(mime, format) }
         }
     }

@@ -6,6 +6,7 @@ import java.util.concurrent.CopyOnWriteArrayList
 /** Registration is serialized; delivery iterates a stable snapshot without holding the lock. */
 internal class MediaOutputRegistry(private val source: MediaOutputDataSource) {
     private val outputs = CopyOnWriteArrayList<MediaOutput>()
+    val isEmpty: Boolean get() = outputs.isEmpty()
 
     fun register(output: MediaOutput) {
         synchronized(outputs) {

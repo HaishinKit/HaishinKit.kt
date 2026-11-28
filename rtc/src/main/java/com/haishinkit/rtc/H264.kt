@@ -62,6 +62,27 @@ internal object H264 {
         }
     }
 
+    fun validateParameterSets(units: List<ByteArray>) {
+        units.filter { it.isNotEmpty() && it[0].toInt() and 31 == 7 }.forEach { dimensions(it) }
+    }
+
+    fun validateFrameSize(
+        width: Int,
+        height: Int,
+    ) {
+        require(width > 0 && height > 0) { "Invalid H.264 frame dimensions" }
+        validateCodedSize((width.toLong() + 15) / 16, (height.toLong() + 15) / 16)
+    }
+
+    private fun validateCodedSize(
+        columns: Long,
+        rows: Long,
+    ) {
+        require(columns * rows <= 3600 && columns * columns <= 28_800 && rows * rows <= 28_800) {
+            "H.264 coded dimensions exceed level 3.1 limits"
+        }
+    }
+
     private fun avcDimensions(bits: Bits): Pair<Int, Int> {
         bits.skip(8)
         val profile = bits.read(8)
@@ -103,9 +124,12 @@ internal object H264 {
         }
         bits.ue()
         bits.skip(1)
-        val width = (bits.ue() + 1) * 16
-        val mapHeight = bits.ue() + 1
+        val columns = bits.ue().toLong() + 1
+        val mapHeight = bits.ue().toLong() + 1
         val frameOnly = bits.read(1)
+        val rows = mapHeight * (2 - frameOnly)
+        // Match our level 3.1 receive offer before cropping or allocating a surface.
+        validateCodedSize(columns, rows)
         if (frameOnly == 0) bits.skip(1)
         bits.skip(1)
         var left = 0
@@ -121,7 +145,10 @@ internal object H264 {
         val format = if (separate) 0 else chroma
         val cropX = if (format == 1 || format == 2) 2 else 1
         val cropY = (if (format == 1) 2 else 1) * (2 - frameOnly)
-        return width - (left + right) * cropX to mapHeight * 16 * (2 - frameOnly) - (top + bottom) * cropY
+        val width = columns * 16 - (left.toLong() + right) * cropX
+        val height = rows * 16 - (top.toLong() + bottom) * cropY
+        require(width > 0 && height > 0) { "Invalid H.264 crop" }
+        return width.toInt() to height.toInt()
     }
 
     private class Bits(val data: ByteArray) {

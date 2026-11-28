@@ -251,7 +251,7 @@ class RtmpStream(
     internal var id = 0
     internal var readyState = ReadyState.INITIALIZED
         set(value) {
-            Log.d(TAG, "current=$field, change=$value")
+            Log.d(TAG, "RTMP stream state change: streamId=$id, previous=$field, requested=$value")
             when (field) {
                 ReadyState.PLAYING -> {
                     videoTimestamp = DEFAULT_TIMESTAMP
@@ -659,7 +659,7 @@ class RtmpStream(
             return true
         } catch (cause: Exception) {
             if (cause !is IllegalArgumentException && cause !is IllegalStateException && cause !is NoSuchElementException && cause !is IOException) throw cause
-            Log.w(TAG, "Audio decoder rejected the configuration", cause)
+            Log.w(TAG, "Audio decoder rejected the RTMP configuration: mime=$mime", cause)
             runCatching { audioCodec.dispose() }
             return false
         }
@@ -842,12 +842,12 @@ class RtmpStream(
                         if (vpDecoderName != null) videoCodec.codec = MediaCodec.createByCodecName(vpDecoderName)
                         videoCodec.startRunning()
                     } catch (cause: IOException) {
-                        Log.w(TAG, "The platform decoder could not be created", cause)
+                        Log.w(TAG, "Unable to create the RTMP video decoder: mime=${decoderConfigurationRecord.mime}", cause)
                         releaseFailedVideoDecoder()
                         return@synchronized false
                     } catch (cause: RuntimeException) {
                         if (cause !is IllegalArgumentException && cause !is IllegalStateException) throw cause
-                        Log.w(TAG, "The platform decoder rejected this configuration", cause)
+                        Log.w(TAG, "Video decoder rejected the RTMP configuration: mime=${decoderConfigurationRecord.mime}", cause)
                         releaseFailedVideoDecoder()
                         return@synchronized false
                     }
@@ -919,7 +919,7 @@ class RtmpStream(
                 }
 
                 else -> {
-                    Log.w(TAG, "not set a videocodecid for ${videoCodec.profileLevel.mime}")
+                    Log.w(TAG, "Omitting legacy RTMP video codec metadata for MIME type: ${videoCodec.profileLevel.mime}")
                 }
             }
             metadata["videodatarate"] = videoCodec.bitRate / 1000
@@ -935,7 +935,7 @@ class RtmpStream(
         try {
             videoCodec.dispose()
         } catch (cause: IllegalStateException) {
-            Log.w(TAG, "Decoder release after failed startup", cause)
+            Log.w(TAG, "Unable to release the video decoder after startup failed", cause)
         }
     }
 

@@ -145,7 +145,7 @@ class AudioCodec : Codec() {
                 encoder.queueInputBuffer(index, 0, count, buffer.presentationTimestamp, 0)
             }
         } catch (cause: IllegalStateException) {
-            Log.w(TAG, cause)
+            Log.w(TAG, "Unable to queue PCM audio for encoding: mime=$outputMimeType, pendingBuffers=${inputIndices.size}", cause)
         }
     }
 

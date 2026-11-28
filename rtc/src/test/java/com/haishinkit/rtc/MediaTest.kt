@@ -43,6 +43,25 @@ class MediaTest {
         assertThrows(IllegalArgumentException::class.java) { Sdp.videoConfiguration(answer.replace(parameter, "invalid!")) }
     }
 
+    @Test fun sdpParameterSetsContainExactlyOneNalUnit() {
+        val first = hex("6742000af841a2")
+        val second = hex("68ce3c80")
+
+        fun description(data: ByteArray): String {
+            val encoded = java.util.Base64.getEncoder().encodeToString(data)
+            return "v=0\r\nm=video 9 UDP/TLS/RTP/SAVPF 96\r\na=fmtp:96 sprop-parameter-sets=$encoded\r\n"
+        }
+        assertArrayEquals(first, Sdp.videoConfiguration(description(first)).single())
+        // Emulation prevention preserves byte sequences inside a single NAL.
+        val escaped = first + byteArrayOf(0, 0, 3, 1)
+        assertArrayEquals(escaped, Sdp.videoConfiguration(description(escaped)).single())
+        for (delimiter in listOf(byteArrayOf(0, 0, 1), byteArrayOf(0, 0, 0, 1))) {
+            assertThrows(IllegalArgumentException::class.java) { Sdp.videoConfiguration(description(first + delimiter + second)) }
+            assertThrows(IllegalArgumentException::class.java) { Sdp.videoConfiguration(description(second + delimiter + first)) }
+            assertThrows(IllegalArgumentException::class.java) { Sdp.videoConfiguration(description(first + delimiter)) }
+        }
+    }
+
     @Test fun rejectsIncompatibleH264ReceiveCapabilities() {
         fun answer(
             profile: String,

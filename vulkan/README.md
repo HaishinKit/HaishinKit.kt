@@ -83,7 +83,7 @@ paths; malformed/missing assets fail rather than loading a default shader. Compl
 validated against Vulkan 1.1 with the pinned SPIRV-Tools core validator before calling the driver.
 The validator and its matching SPIRV-Headers are git submodules; initialize them with
 `git submodule update --init --recursive`. CMake builds only the core static library, not the
-optimizer or command-line tools; upstream table generation requires host Python 3. Licenses are
+optimizer or command-line tools; upstream table generation requires host Python 3.8 or newer. Licenses are
 packaged under `assets/licenses/`. Unregister with
 VulkanEffectRegistry.unregister(TintEffect::class.java).
 

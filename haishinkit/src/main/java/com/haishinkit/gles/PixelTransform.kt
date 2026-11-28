@@ -112,7 +112,7 @@ internal class PixelTransform(
         if (isRunning.get()) return
         if (screen == null || surface == null) return
         if (BuildConfig.DEBUG) {
-            Log.d(TAG, "startRunning()")
+            Log.d(TAG, "Starting OpenGL output rendering")
         }
         isRunning.set(true)
         video.videoGravity = videoGravity
@@ -131,7 +131,7 @@ internal class PixelTransform(
     override fun stopRunning() {
         if (!isRunning.get()) return
         if (BuildConfig.DEBUG) {
-            Log.d(TAG, "stopRunning()")
+            Log.d(TAG, "Stopping OpenGL output rendering")
         }
         clearColor(backgroundColor)
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT)
@@ -185,7 +185,7 @@ internal class PixelTransform(
                 graphicsContext.setPresentationTime(timestamp)
                 graphicsContext.swapBuffers()
             } catch (e: RuntimeException) {
-                Log.e(TAG, "", e)
+                Log.e(TAG, "Unable to render or present an OpenGL output frame", e)
             }
         }
     }

@@ -47,6 +47,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.PermissionStatus
 import com.google.accompanist.permissions.isGranted
+import com.haishinkit.app.chatgpt.AiChatSheet
 import com.haishinkit.compose.HaishinKitView
 import com.haishinkit.compose.rememberMediaRecorderState
 import com.haishinkit.compose.rememberStreamSessionState
@@ -73,6 +74,7 @@ fun CameraScreen(
     onOpenSettings: () -> Unit = {},
     onSceneFileBusy: (Boolean) -> Unit = {},
 ) {
+    var showAiChat by remember { mutableStateOf(false) }
     var showIngest by remember { mutableStateOf(false) }
     var applyingIngest by remember { mutableStateOf(false) }
     var selectedIngest by remember { mutableStateOf<String?>(null) }
@@ -119,6 +121,10 @@ fun CameraScreen(
                 if (state.status == PermissionStatus.Granted) viewModel.selectCameraDevice(viewModel.selectedCamera.value, retry = false)
             },
         )
+
+    if (showAiChat && !pictureInPicture) {
+        AiChatSheet(camera = viewModel, onDismiss = { showAiChat = false })
+    }
 
     if (showIngest && !pictureInPicture) {
         IngestDestinationDialog(
@@ -320,6 +326,7 @@ fun CameraScreen(
                 errorMessage = errorMessage,
                 onDismissError = { errorMessage = null },
                 onOpenSettings = onOpenSettings,
+                onOpenAiChat = { showAiChat = true },
                 onOpenIngest =
                     if (applyingIngest) {
                         null

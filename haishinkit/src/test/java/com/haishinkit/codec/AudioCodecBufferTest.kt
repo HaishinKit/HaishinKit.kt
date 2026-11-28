@@ -9,6 +9,62 @@ import java.nio.ByteBuffer
 
 class AudioCodecBufferTest {
     @Test
+    fun overflowingTheQueuePreservesTheMissingAudioDuration() {
+        for (channels in 1..2) {
+            val buffer =
+                AudioCodecBuffer().apply {
+                    sampleRate = 48000
+                    channelCount = channels
+                }
+            val pcm = ByteBuffer.allocate(480 * channels * 2)
+            val input = ByteBuffer.allocate(pcm.capacity())
+            buffer.append(pcm)
+            buffer.render(input)
+            val firstTime = buffer.presentationTimestamp
+            repeat(6) { buffer.append(pcm) }
+            for (block in 3..6) {
+                input.clear()
+                assertEquals(pcm.capacity(), buffer.render(input))
+                assertEquals(block * 10_000L, buffer.presentationTimestamp - firstTime)
+            }
+            assertNull(buffer.render(ByteBuffer.allocate(pcm.capacity())))
+        }
+    }
+
+    @Test
+    fun droppingQueuedAudioDoesNotMoveTheTimestampOfAPartiallyConsumedBlock() {
+        val buffer =
+            AudioCodecBuffer().apply {
+                sampleRate = 48000
+                channelCount = 2
+            }
+        val pcm = ByteBuffer.allocate(480 * 4)
+        buffer.append(pcm)
+        buffer.render(ByteBuffer.allocate(240 * 4))
+        val firstTime = buffer.presentationTimestamp
+        repeat(5) { buffer.append(pcm) }
+        assertEquals(240 * 4, buffer.render(ByteBuffer.allocate(240 * 4)))
+        assertEquals(5000L, buffer.presentationTimestamp - firstTime)
+        assertEquals(pcm.capacity(), buffer.render(ByteBuffer.allocate(pcm.capacity())))
+        assertEquals(20_000L, buffer.presentationTimestamp - firstTime)
+    }
+
+    @Test
+    fun overflowUsesTheDroppedFrameCountRatherThanAssumingEqualSizedBlocks() {
+        val buffer = AudioCodecBuffer().apply { sampleRate = 44100 }
+        buffer.append(ByteBuffer.allocate(441 * 2))
+        buffer.render(ByteBuffer.allocate(441 * 2))
+        val firstTime = buffer.presentationTimestamp
+        for (frames in listOf(100, 200, 300, 400, 500)) buffer.append(ByteBuffer.allocate(frames * 2))
+        var frameOffset = 441L + 100
+        for (frames in listOf(200, 300, 400, 500)) {
+            assertEquals(frames * 2, buffer.render(ByteBuffer.allocate(frames * 2)))
+            assertEquals(frameOffset * 1_000_000 / 44100, buffer.presentationTimestamp - firstTime)
+            frameOffset += frames
+        }
+    }
+
+    @Test
     fun aacFrameTimestampsAdvanceInMicrosecondsWithoutAccumulatingRoundingError() {
         for (channels in 1..2) {
             val buffer =
