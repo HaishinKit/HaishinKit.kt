@@ -93,9 +93,20 @@ internal class AudioMixer(private val owner: MediaMixer, private val output: (Me
             lock.withLock {
                 if (running || disposed || !owner.isRunning.get()) return@withLock
                 running = true
-                for (binding in bindings) if (!binding.opened) {
-                    binding.source.open(owner).getOrThrow()
-                    binding.opened = true
+                for (binding in bindings) {
+                    if ((binding.source as? PushAudioSource)?.isClosed == true) {
+                        detach(binding)
+                    } else if (!binding.opened) {
+                        try {
+                            binding.source.open(owner).getOrThrow()
+                            binding.opened = true
+                        } catch (cause: Exception) {
+                            withContext(NonCancellable) { runCatching { binding.source.close() } }
+                            detach(binding)
+                            if (cause is CancellationException) throw cause
+                            Log.w(TAG, "Unable to reopen audio track ${binding.track}", cause)
+                        }
+                    }
                 }
                 if (bindings.isNotEmpty()) startEngine()
             }

@@ -40,6 +40,57 @@ class AudioCompositionTest {
 
     @Test fun callersCanSelect44100HzMonoWithoutChangingInputSources() = exercise(44100, 1)
 
+    @Test fun failedInputReopenDoesNotPreventOtherInputsFromRestarting() =
+        runBlocking {
+            val context = InstrumentationRegistry.getInstrumentation().targetContext
+            val mixer = MediaMixer(context)
+            val healthy = ConstantSource(PcmAudioFormat(48000, 1), 1000)
+            val failing = ConstantSource(PcmAudioFormat(48000, 1), 2000)
+            val latest = java.util.concurrent.atomic.AtomicInteger(Int.MIN_VALUE)
+            val output =
+                object : MediaOutput {
+                    override var dataSource: WeakReference<MediaOutputDataSource>? = null
+
+                    override fun append(buffer: MediaBuffer) {
+                        latest.set(checkNotNull(buffer.payload).getShort(200).toInt())
+                    }
+                }
+
+            fun awaitValue(expected: Int) {
+                val deadline = SystemClock.uptimeMillis() + 3000
+                while (SystemClock.uptimeMillis() < deadline) {
+                    if (latest.get() == expected) return
+                    SystemClock.sleep(5)
+                }
+                assertEquals(expected, latest.get())
+            }
+            try {
+                mixer.attachAudio(0, healthy).getOrThrow()
+                mixer.attachAudio(
+                    1,
+                    object : PcmAudioSource by failing {
+                        override suspend fun open(mixer: MediaMixer): Result<Unit> =
+                            if (failing.opens.get() > 0) Result.failure(IllegalStateException("Synthetic input unavailable")) else failing.open(mixer)
+                    },
+                ).getOrThrow()
+                mixer.registerOutput(output)
+                mixer.startRunning()
+                awaitValue(3000)
+                mixer.stopRunning()
+                val deadline = SystemClock.uptimeMillis() + 3000
+                while (failing.closes.get() == 0 && SystemClock.uptimeMillis() < deadline) SystemClock.sleep(5)
+                assertTrue(failing.closes.get() > 0)
+                latest.set(Int.MIN_VALUE)
+                mixer.startRunning()
+                awaitValue(1000)
+                assertTrue("Failed reopen was not cleaned up", failing.closes.get() >= 2)
+            } finally {
+                mixer.stopRunning()
+                mixer.unregisterOutput(output)
+                mixer.dispose()
+            }
+        }
+
     @Test fun gainAndMuteSurviveCaptureRestartAndTrackReplacement() =
         runBlocking {
             val context = InstrumentationRegistry.getInstrumentation().targetContext
