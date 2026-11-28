@@ -3,6 +3,9 @@ package com.haishinkit.gles
 import android.content.Context
 import android.graphics.Color
 import android.opengl.GLES20
+import android.os.Build
+import android.os.SystemClock
+import android.os.Trace
 import android.util.Log
 import android.util.Size
 import android.view.Choreographer
@@ -183,7 +186,15 @@ internal class PixelTransform(
                 program?.bind(videoEffect)
                 program?.draw(video)
                 graphicsContext.setPresentationTime(timestamp)
-                graphicsContext.swapBuffers()
+                if (Build.VERSION.SDK_INT >= 29 && Trace.isEnabled()) {
+                    val begin = SystemClock.elapsedRealtimeNanos()
+                    val accepted = graphicsContext.swapBuffers()
+                    val end = SystemClock.elapsedRealtimeNanos()
+                    Trace.beginSection("HK.Input.GL:$timestamp:$begin:$end:${if (accepted) 1 else 0}")
+                    Trace.endSection()
+                } else {
+                    graphicsContext.swapBuffers()
+                }
             } catch (e: RuntimeException) {
                 Log.e(TAG, "Unable to render or present an OpenGL output frame", e)
             }
