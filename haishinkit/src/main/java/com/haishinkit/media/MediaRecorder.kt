@@ -74,7 +74,7 @@ class MediaRecorder(
         if (muxer != null || dataSource == null) {
             throw IllegalStateException()
         }
-        Log.i(TAG, "Start recordings to $path.")
+        Log.i(TAG, "Starting media recording: outputFormat=$format")
         muxer = MediaRecorderMuxer(dataSource, MediaMuxer(path, format))
         startRunning()
     }

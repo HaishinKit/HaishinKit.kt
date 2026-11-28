@@ -81,7 +81,7 @@ internal class RtmpSocket(
                 override fun onSocketError() {
                     if (closeTransport(transport, false)) {
                         connection.dispatchEventWith(Event.IO_ERROR, false)
-                        Log.i(TAG, "a connection was failed")
+                        Log.w(TAG, "RTMP transport connection failed; dispatched IO_ERROR")
                     }
                 }
             }
@@ -155,11 +155,11 @@ internal class RtmpSocket(
         try {
             connection.listen(buffer)
         } catch (e: IndexOutOfBoundsException) {
-            if (VERBOSE) Log.d(TAG, "", e)
+            if (VERBOSE) Log.d(TAG, "RTMP input is incomplete; waiting for more data", e)
         } catch (e: BufferUnderflowException) {
-            if (VERBOSE) Log.d(TAG, "", e)
+            if (VERBOSE) Log.d(TAG, "RTMP input is incomplete; waiting for more data", e)
         } catch (e: IllegalArgumentException) {
-            if (VERBOSE) Log.w(TAG, "", e)
+            if (VERBOSE) Log.w(TAG, "Invalid RTMP input; propagating the parsing error", e)
             throw e
         }
     }

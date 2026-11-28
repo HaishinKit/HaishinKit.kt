@@ -102,7 +102,7 @@ class NetSocketImpl :
             queueBytesOut.addAndGet(buffer.remaining().toLong())
             outputQueue.put(buffer)
         } catch (e: InterruptedException) {
-            Log.v(TAG, "", e)
+            Log.v(TAG, "Interrupted while queuing outgoing socket data", e)
         }
     }
 
@@ -139,10 +139,10 @@ class NetSocketImpl :
                 close(true)
             }
         } catch (e: SocketException) {
-            Log.w(TAG, "", e)
+            Log.w(TAG, "Socket read failed; closing the connection", e)
             close(true)
         } catch (e: IOException) {
-            Log.w(TAG, "", e)
+            Log.w(TAG, "Socket read failed; closing the connection", e)
             close(true)
         }
     }
@@ -165,10 +165,10 @@ class NetSocketImpl :
                     outputBufferPool.release(buffer)
                 }
             } catch (e: SocketException) {
-                Log.w(TAG, "", e)
+                Log.w(TAG, "Socket write failed; closing the connection", e)
                 close(false)
             } catch (e: IOException) {
-                Log.w(TAG, "", e)
+                Log.w(TAG, "Socket write failed; closing the connection", e)
                 close(false)
             }
         }
@@ -184,7 +184,7 @@ class NetSocketImpl :
         try {
             this.socket = createSocket(dstName, dstPort, isSecure)
         } catch (e: Exception) {
-            Log.w(TAG, "", e)
+            Log.w(TAG, "Unable to establish the socket connection: secure=$isSecure", e)
             if (keepAlive) {
                 close(true)
                 listener?.onSocketError()
@@ -205,12 +205,12 @@ class NetSocketImpl :
                     try {
                         Thread.sleep(KEEP_ALIVE_SLEEP_INTERVAL)
                     } catch (e: InterruptedException) {
-                        Log.w(TAG, "", e)
+                        Log.w(TAG, "Interrupted while waiting for incoming socket data", e)
                     }
                 }
             }
         } catch (e: Exception) {
-            Log.w(TAG, "", e)
+            Log.w(TAG, "Socket setup or input processing failed; closing the connection", e)
             close(true)
         }
     }

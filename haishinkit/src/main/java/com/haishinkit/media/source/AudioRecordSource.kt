@@ -96,7 +96,7 @@ class AudioRecordSource(
                 recorder.release()
             }
         } catch (e: java.lang.IllegalStateException) {
-            Log.w(TAG, e)
+            Log.w(TAG, "Unable to stop or release microphone capture", e)
             return Result.failure(e)
         }
         return Result.success(Unit)

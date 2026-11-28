@@ -197,7 +197,7 @@ abstract class ScreenObject(
         try {
             renderer.draw(this)
         } catch (e: RuntimeException) {
-            Log.w(TAG, this.toString(), e)
+            Log.w(TAG, "Unable to draw screen object: type=$type, id=$id", e)
         }
     }
 

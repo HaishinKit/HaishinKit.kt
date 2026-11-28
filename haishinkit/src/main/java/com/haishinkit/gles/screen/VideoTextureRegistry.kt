@@ -48,7 +48,7 @@ internal class VideoTextureRegistry : SurfaceTexture.OnFrameAvailableListener {
             }
         } catch (e: RuntimeException) {
             if (BuildConfig.DEBUG) {
-                Log.e(TAG, "", e)
+                Log.e(TAG, "Unable to update an OpenGL video texture from its SurfaceTexture", e)
             }
         }
     }

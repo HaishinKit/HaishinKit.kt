@@ -210,7 +210,7 @@ internal class RtmpVideoMessage(
                 }
 
                 else -> {
-                    if (VERBOSE) Log.d(TAG, "code=$packetType")
+                    if (VERBOSE) Log.d(TAG, "Ignoring unsupported RTMP video packet: packetType=$packetType")
                 }
             }
         } else {
@@ -245,7 +245,7 @@ internal class RtmpVideoMessage(
                 }
 
                 else -> {
-                    if (VERBOSE) Log.d(TAG, "code=$packetType")
+                    if (VERBOSE) Log.d(TAG, "Ignoring unsupported RTMP video packet: packetType=$packetType")
                 }
             }
         }

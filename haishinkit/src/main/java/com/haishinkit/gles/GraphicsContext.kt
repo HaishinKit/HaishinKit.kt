@@ -134,7 +134,7 @@ internal class GraphicsContext {
                 release()
             }
         } catch (e: RuntimeException) {
-            Log.e(TAG, "", e)
+            Log.e(TAG, "Unable to release EGL resources", e)
         }
     }
 
