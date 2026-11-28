@@ -40,7 +40,10 @@ internal data class AiChatState(
     val welcome: Boolean = false,
     val notice: String? = null,
     val usageLimited: Boolean = false,
-)
+) {
+    fun withAccount(id: String?): AiChatState =
+        if (id == account) this else copy(account = id, models = emptyList(), model = null)
+}
 
 internal class AiChatViewModel(application: Application) : AndroidViewModel(application) {
     val state get() = mutableState.asStateFlow()
@@ -246,7 +249,7 @@ internal class AiChatViewModel(application: Application) : AndroidViewModel(appl
         val accounts = auth.accounts()
         val id = selected?.takeIf { id -> accounts.any { it.id == id } } ?: accounts.lastOrNull()?.id
         val welcome = accounts.any { it.id == id && it.planEnabled } && auth.needsPlanNotice()
-        mutableState.update { it.copy(accounts = accounts, account = id, welcome = welcome) }
+        mutableState.update { it.withAccount(id).copy(accounts = accounts, welcome = welcome) }
     }
 
     private suspend fun loadModels() {

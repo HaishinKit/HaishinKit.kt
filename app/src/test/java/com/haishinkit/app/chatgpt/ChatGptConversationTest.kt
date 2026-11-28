@@ -115,5 +115,26 @@ class ChatGptConversationTest {
         assertEquals(5, requests)
     }
 
+    @Test
+    fun replayPreservesAssistantPhasesAndToolOrderingAcrossTurns() =
+        runBlocking {
+            val first = json("""{"output":[{"type":"reasoning","id":"r1","encrypted_content":"opaque"},{"type":"message","role":"assistant","phase":"commentary","content":[{"type":"output_text","text":"Checking the camera."}]},{"type":"function_call","name":"hello_android","namespace":"haishinkit","call_id":"c1","arguments":"{}"}]}""")
+            val final = json("""{"output":[{"type":"message","role":"assistant","phase":"final_answer","content":[{"type":"output_text","text":"Connected."}]}]}""")
+            val requests = mutableListOf<JsonObject>()
+            val chat =
+                ChatGptConversation(
+                    ChatGptInference { _, body, _ ->
+                        requests.add(body)
+                        if (requests.size == 1) first else final
+                    },
+                )
+            assertEquals("Connected.", chat.send("model", "Check connection", { "token" }, JsonArray(emptyList()), { _, _ -> McpToolReply("Connected") }, { error("No image approval expected") }, {}, {}))
+            assertEquals(first["output"]!!.jsonArray.toList(), requests[1]["input"]!!.jsonArray.drop(1).take(3))
+            chat.send("model", "What next?", { "token" }, JsonArray(emptyList()), { _, _ -> error("Unexpected tool") }, { false }, {}, {})
+            val history = requests[2]["input"]!!.jsonArray
+            assertEquals(first["output"]!!.jsonArray.toList(), history.drop(1).take(3))
+            assertEquals(final["output"]!!.jsonArray.single(), history[5])
+        }
+
     private fun json(text: String): JsonObject = Json.parseToJsonElement(text).jsonObject
 }

@@ -84,6 +84,9 @@ internal class ChatGptAuth(context: Context, private val http: ChatGptAccountsHt
                 if (selectedId == null) parameters["agent_name_hint"] = "HaishinKit Android sample"
                 selected?.textOrNull("id_token")?.let { parameters["id_token_hint"] = it }
                 selected?.textOrNull("email")?.let { parameters["login_hint"] = it }
+                if (selected?.textOrNull("id_token") != null && ChatGptProtocol.PLAN_SCOPE !in selected.scopes()) {
+                    parameters["prompt"] = "consent"
+                }
                 withContext(Dispatchers.Main) { openBrowser("${ChatGptProtocol.ISSUER}/api/accounts/authorize?${encode(parameters)}") }
                 val callback = withTimeout(180_000) { receiveCallback(listener, expectedState) }
                 callback["error"]?.let { throw OpenAiFailure(if (it == "access_denied") "access_denied" else "sign_in_failed") }

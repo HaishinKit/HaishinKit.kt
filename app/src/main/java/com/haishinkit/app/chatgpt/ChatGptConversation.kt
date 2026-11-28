@@ -66,13 +66,8 @@ internal class ChatGptConversation(private val http: ChatGptInference) {
                         else -> null
                     }
                 }.joinToString("\n")
-            output.forEach { item ->
-                when (item.textOrNull("type")) {
-                    "function_call" -> turn.add(item)
-                    "reasoning" -> if (item.textOrNull("encrypted_content") != null) turn.add(item)
-                }
-            }
-            if (text.isNotBlank()) turn.add(message("assistant", text))
+            // Replay the original sequence, including assistant phases and encrypted reasoning.
+            turn.addAll(output)
             if (calls.isEmpty()) {
                 check(text.isNotBlank()) { "The model did not return a message" }
                 turns.add(turn.toList())

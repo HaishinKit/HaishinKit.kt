@@ -96,6 +96,29 @@ class ChatGptAuthTest {
             }
         }
 
+    @Test
+    fun missingPlanPermissionRequestsConsentOnlyForExplicitEnablement() =
+        runBlocking {
+            val context = isolatedContext()
+            try {
+                withTimeout(15_000) {
+                    val http = FakeAccountsHttp().apply { grantedScopes = "openid profile email" }
+                    val auth = ChatGptAuth(context, http)
+                    val id = auth.signIn(null, http::browser)
+                    assertFalse(auth.accounts().single().planEnabled)
+                    assertEquals(null, http.lastPrompt)
+                    http.grantedScopes = ChatGptProtocol.SCOPES
+                    auth.signIn(id, http::browser)
+                    assertEquals("consent", http.lastPrompt)
+                    assertTrue(auth.accounts().single().planEnabled)
+                    auth.signIn(id, http::browser)
+                    assertEquals(null, http.lastPrompt)
+                }
+            } finally {
+                context.noBackupFilesDir.deleteRecursively()
+            }
+        }
+
     private fun isolatedContext(): Context {
         val base = InstrumentationRegistry.getInstrumentation().targetContext
         val directory = File(base.cacheDir, "chatgpt-auth-test-${UUID.randomUUID()}").apply { mkdirs() }
@@ -110,6 +133,8 @@ class ChatGptAuthTest {
         var failExchange = false
         var subject = "fake-subject"
         var lastAuthorizeClient: String? = null
+        var lastPrompt: String? = null
+        var grantedScopes = ChatGptProtocol.SCOPES
         private var nonce = ""
         private val pair = KeyPairGenerator.getInstance("RSA").apply { initialize(2048) }.generateKeyPair()
 
@@ -166,7 +191,7 @@ class ChatGptAuthTest {
                 put("refresh_token", if (refresh) "rotated-refresh" else "original-refresh")
                 put("expires_in", if (refresh) 3600 else 0)
                 if (!refresh) {
-                    put("scope", ChatGptProtocol.SCOPES)
+                    put("scope", grantedScopes)
                     put("id_token", identity())
                 }
             }
@@ -176,6 +201,7 @@ class ChatGptAuthTest {
             val parameters = URI(url).rawQuery.split('&').associate { it.substringBefore('=') to URLDecoder.decode(it.substringAfter('='), "UTF-8") }
             nonce = parameters.getValue("nonce")
             lastAuthorizeClient = parameters.getValue("client_id")
+            lastPrompt = parameters["prompt"]
             val redirect = URI(parameters.getValue("redirect_uri"))
             val state = URLEncoder.encode(parameters.getValue("state"), "UTF-8")
             Thread {
