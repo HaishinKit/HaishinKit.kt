@@ -22,8 +22,9 @@ noiseProcessor.get()?.isBypassed = false // B
 
 Obtain `RECORD_AUDIO` permission. This module also declares the normal
 `MODIFY_AUDIO_SETTINGS` permission for session-effect control. The microphone wrapper owns and closes its source.
-It disables Android's session NoiseSuppressor, checks the actual enabled state on every read,
-and reapplies this when the recorder's session changes. If the state cannot be confirmed off,
+It disables Android's session NoiseSuppressor before starting capture and checks the actual
+enabled state before and after each read. A changed/re-enabled session fails the input
+without delivering the affected block; close/reopen is required. If the state cannot be confirmed off,
 only that input fails. `osNoiseSuppression` distinguishes disabled, unavailable and unconfirmed.
 This cannot disable processing performed inside headset firmware. The system's default voice
 processing is therefore a separate comparison, not a claim of raw microphone audio.
@@ -49,3 +50,10 @@ fan-only noise, ordinary speech, soft speech and word endings. Check a visible c
 marker for A/V offset and a longer run for drift. Log route/session/OS suppression state after
 Bluetooth disconnect/reconnect, and repeat the listening comparison on built-in and Bluetooth
 microphones. Synthetic tests cannot establish speech quality or headset firmware behavior.
+
+## Sample controls
+
+The camera publish tools include an RNNoise switch. Initially OFF uses the normal microphone.
+The first ON starts comparison capture; subsequent ON/OFF changes use warm RNNoise/dry
+paths with equal 30 ms delay and OS noise suppression disabled. Restore normal microphone
+input to exit comparison mode and release the processor. Only microphone audio is affected.

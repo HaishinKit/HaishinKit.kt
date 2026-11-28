@@ -57,6 +57,20 @@ class RnnoiseAudioProcessorTest {
         }
     }
 
+    @Test fun floatDryPathPreservesFullScaleAndSmallSignals() {
+        RnnoiseAudioProcessor(PcmAudioFormat(48000, 1, AudioFormat.ENCODING_PCM_FLOAT)).use { processor ->
+            processor.isBypassed = true
+            val values = floatArrayOf(-1f, 1f, 0.000001f, -0.000001f, 0f)
+            val frames = processor.latencyFrames + values.size
+            val input = ByteBuffer.allocateDirect(frames * 4).order(ByteOrder.nativeOrder())
+            repeat(frames) { input.putFloat(values.getOrElse(it) { 0f }) }
+            input.flip()
+            val output = processor.process(input).order(ByteOrder.nativeOrder())
+            output.position(processor.latencyFrames * 4)
+            for (value in values) assertEquals(value, output.float, 0f)
+        }
+    }
+
     @Test fun floatInputSanitizesNonFiniteSamplesAndPreservesFrameCount() {
         RnnoiseAudioProcessor(PcmAudioFormat(48000, 1, AudioFormat.ENCODING_PCM_FLOAT)).use {
             val input = ByteBuffer.allocateDirect(5000 * 4).order(ByteOrder.nativeOrder())

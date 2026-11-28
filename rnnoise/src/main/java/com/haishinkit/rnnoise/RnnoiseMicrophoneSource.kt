@@ -6,6 +6,7 @@ import com.haishinkit.media.MediaBuffer
 import com.haishinkit.media.MediaMixer
 import com.haishinkit.media.source.AudioRecordSource
 import com.haishinkit.media.source.PcmAudioSource
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * Owns [source] while attached and disables the Android session's NoiseSuppressor for A/B tests.
@@ -22,17 +23,27 @@ class RnnoiseMicrophoneSource(val source: AudioRecordSource) : PcmAudioSource by
     private var session = 0
     private var suppressionAvailable = false
 
+    private var suppressionWasEnabled = AtomicBoolean()
+
     @Volatile private var opened = false
     private val guard = Any()
 
-    override suspend fun open(mixer: MediaMixer): Result<Unit> {
-        val result = source.open(mixer)
-        if (result.isFailure) return result
-        return try {
+    override suspend fun open(mixer: MediaMixer): Result<Unit> =
+        try {
             synchronized(guard) {
+                // Prepare the recorder/session, but do not start capturing default-processed PCM.
+                requireNotNull(source.audioRecord) { "Recording permission is required" }
                 require(source.audioFormat.sampleRate == 48_000) { "Configure microphone input to 48 kHz before attaching RNNoise" }
-                suppressionAvailable = NoiseSuppressor.isAvailable()
+                suppressionAvailable = requireNoiseSuppressionCapability(AudioEffect.queryEffects())
                 disableOsSuppression()
+                val enabledSignal = suppressionWasEnabled
+                // Each capture owns its latch; stale callbacks cannot taint a later session.
+                // Avoid taking our guard inside the framework listener lock.
+                effect?.setEnableStatusListener { _, enabled -> if (enabled) enabledSignal.set(true) }
+            }
+            source.open(mixer).getOrThrow()
+            synchronized(guard) {
+                verifyOsSuppression()
                 opened = true
             }
             Result.success(Unit)
@@ -40,12 +51,13 @@ class RnnoiseMicrophoneSource(val source: AudioRecordSource) : PcmAudioSource by
             close()
             Result.failure(cause)
         }
-    }
 
     override suspend fun close(): Result<Unit> {
         synchronized(guard) {
             opened = false
+            runCatching { effect?.setEnableStatusListener(null) }
             runCatching { effect?.release() }
+            suppressionWasEnabled = AtomicBoolean()
             effect = null
             session = 0
             osNoiseSuppression = OsNoiseSuppression.UNCONFIRMED
@@ -54,26 +66,44 @@ class RnnoiseMicrophoneSource(val source: AudioRecordSource) : PcmAudioSource by
     }
 
     override fun read(track: Int): MediaBuffer {
+        synchronized(guard) { if (opened) verifyOsSuppression() }
         val result = source.read(track)
         synchronized(guard) {
-            if (opened && result.payload?.hasRemaining() == true) disableOsSuppression()
+            // A changed or re-enabled session may already have queued processed PCM. Never
+            // return this block or attempt to repair it in place; close/reopen is required.
+            if (opened && result.payload?.hasRemaining() == true) verifyOsSuppression()
         }
         return result
     }
 
+    private fun verifyOsSuppression() {
+        try {
+            check(source.audioSessionId == session) { "Microphone session changed; reopen the input" }
+            check(!suppressionWasEnabled.get()) { "Android noise suppression was re-enabled; reopen the input" }
+            if (suppressionAvailable) {
+                check(effect != null && effect?.enabled == false) { "Android noise suppression is enabled or unconfirmed; reopen the input" }
+                osNoiseSuppression = OsNoiseSuppression.DISABLED
+            } else {
+                osNoiseSuppression = OsNoiseSuppression.UNAVAILABLE
+            }
+        } catch (cause: Exception) {
+            osNoiseSuppression = OsNoiseSuppression.UNCONFIRMED
+            throw cause
+        }
+    }
+
     private fun disableOsSuppression() {
         osNoiseSuppression = OsNoiseSuppression.UNCONFIRMED
+        session = requireNotNull(source.audioSessionId)
+        suppressionWasEnabled = AtomicBoolean()
         if (!suppressionAvailable) {
             osNoiseSuppression = OsNoiseSuppression.UNAVAILABLE
             return
         }
-        val currentSession = requireNotNull(source.audioSessionId)
-        if (session != currentSession || effect == null) {
-            effect?.release()
-            effect = null
-            session = currentSession
-            effect = NoiseSuppressor.create(session)
-        }
+        effect?.setEnableStatusListener(null)
+        effect?.release()
+        effect = null
+        effect = NoiseSuppressor.create(session)
         val current = checkNotNull(effect) { "Cannot inspect Android noise suppression" }
         if (current.enabled) {
             check(current.hasControl() && current.setEnabled(false) == AudioEffect.SUCCESS) { "Cannot disable Android noise suppression" }

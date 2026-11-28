@@ -13,6 +13,7 @@ import com.haishinkit.media.MediaMixer
 import com.haishinkit.media.source.AudioRecordSource
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeTrue
 import org.junit.Test
@@ -68,8 +69,11 @@ class NoiseSuppressionDeviceTest {
                         val effect = field.get(input) as? NoiseSuppressor
                         if (effect != null && effect.hasControl()) {
                             assertEquals(0, effect.setEnabled(true))
-                            input.read(0)
-                            assertTrue(!effect.enabled)
+                            assertThrows(IllegalStateException::class.java) { input.read(0) }
+                            assertEquals(RnnoiseMicrophoneSource.OsNoiseSuppression.UNCONFIRMED, input.osNoiseSuppression)
+                            input.close().getOrThrow()
+                            input.open(mixer).getOrThrow()
+                            assertTrue(input.read(0).payload!!.hasRemaining())
                             assertEquals(RnnoiseMicrophoneSource.OsNoiseSuppression.DISABLED, input.osNoiseSuppression)
                         }
                     } finally {

@@ -1,0 +1,7 @@
+<resources>
+    <string name="rnnoise_title">マイクのノイズ抑制（RNNoise）</string>
+    <string name="rnnoise_start_detail">ONにするとA/B比較を開始します。開始時はマイクの入力が一時中断します。</string>
+    <string name="rnnoise_comparison_detail">OFFはRNNoise適用前の音声です。どちらも比較用の遅延30msで、OSのノイズ抑制は無効です。イヤホン本体の処理は残る場合があります。</string>
+    <string name="rnnoise_restore_system">通常のマイク入力に戻す</string>
+    <string name="rnnoise_input_unavailable">マイクの処理が停止しました。スイッチで再試行するか、通常のマイク入力に戻してください。</string>
+</resources>

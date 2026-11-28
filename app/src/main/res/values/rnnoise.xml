@@ -1,0 +1,7 @@
+<resources>
+    <string name="rnnoise_title">Microphone noise suppression (RNNoise)</string>
+    <string name="rnnoise_start_detail">Turn on to start an A/B comparison. The microphone briefly reconnects when starting.</string>
+    <string name="rnnoise_comparison_detail">OFF bypasses RNNoise. Both use a 30 ms comparison delay with OS noise suppression off. Headset processing may remain active.</string>
+    <string name="rnnoise_restore_system">Restore normal microphone input</string>
+    <string name="rnnoise_input_unavailable">Microphone processing stopped. Toggle to retry, or restore normal microphone input.</string>
+</resources>

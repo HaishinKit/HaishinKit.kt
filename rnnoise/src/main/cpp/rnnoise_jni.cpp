@@ -62,12 +62,12 @@ Java_com_haishinkit_rnnoise_RnnoiseAudioProcessor_nativeProcess(
             if (floating) { std::memcpy(&value, in + at, 4); value *= 32768.f; }
             else { int16_t sample; std::memcpy(&sample, in + at, 2); value = sample; }
             if (!std::isfinite(value)) value = 0;
-            value = std::clamp(value, -32768.f, 32767.f);
+            value = std::clamp(value, -32768.f, floating ? 32768.f : 32767.f);
             auto& ch = p->channel[c];
             const float result = bypass ? ch.dry[p->dryPosition] : ch.wet[p->framePosition];
             ch.dry[p->dryPosition] = value;
             ch.input[p->framePosition] = value;
-            const float clipped = std::clamp(std::isfinite(result) ? result : 0.f, -32768.f, 32767.f);
+            const float clipped = std::clamp(std::isfinite(result) ? result : 0.f, -32768.f, floating ? 32768.f : 32767.f);
             if (floating) { const float sample = clipped / 32768.f; std::memcpy(out + at, &sample, 4); }
             else { const auto sample = static_cast<int16_t>(std::lrintf(clipped)); std::memcpy(out + at, &sample, 2); }
         }

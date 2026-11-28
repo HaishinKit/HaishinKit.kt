@@ -107,6 +107,15 @@ class CameraViewModel(
     internal var onCompositionStopping: (() -> Unit)? = null
     internal val compositionScreen get() = mixer.screen
 
+    internal var noiseReductionEnabled by mutableStateOf(false)
+        private set
+    internal var noiseComparisonActive by mutableStateOf(false)
+        private set
+    internal var noiseReductionBusy by mutableStateOf(false)
+        private set
+    internal var noiseReductionError: String? by mutableStateOf(null)
+        private set
+
     private var cameraDeviceManager: CameraDeviceManager =
         CameraDeviceManager(context = application.applicationContext)
     private var mixer: MediaMixer = MediaMixer(application.applicationContext, dynamicRangeMode)
@@ -114,6 +123,7 @@ class CameraViewModel(
     private val cameraLock = Mutex()
     private val audioLock = Mutex()
     private val microphoneSource = AudioRecordSource(application.applicationContext).apply { sampleRate = 48_000 }
+    private val noiseReduction = MicrophoneNoiseReduction(microphoneSource)
     private var frontCameraObject: VideoScreenObject? = null
     private var sessionSettings: Preference.SessionSettings? = null
 
@@ -415,8 +425,58 @@ class CameraViewModel(
     fun selectAudioDevice() {
         viewModelScope.launch {
             audioLock.withLock {
-                mixer.attachAudio(0, microphoneSource)
+                attachMicrophone().onFailure { noiseReductionError = it.localizedMessage }
             }
+        }
+    }
+
+    internal fun setNoiseReductionEnabled(enabled: Boolean) {
+        if (noiseReductionBusy) return
+        noiseReductionBusy = true
+        viewModelScope.launch {
+            try {
+                audioLock.withLock {
+                    noiseReduction.setEnabled(enabled)
+                    val result = mixer.attachAudio(0, noiseReduction.source, noiseReduction.factory)
+                    if (result.isSuccess) {
+                        noiseComparisonActive = true
+                        noiseReductionEnabled = enabled
+                        noiseReductionError = null
+                    } else {
+                        noiseComparisonActive = false
+                        noiseReductionEnabled = false
+                        noiseReduction.setEnabled(false)
+                        noiseReductionError = result.exceptionOrNull()?.localizedMessage
+                        mixer.attachAudio(0, microphoneSource)
+                    }
+                }
+            } finally {
+                noiseReductionBusy = false
+            }
+        }
+    }
+
+    internal fun restoreSystemMicrophone() {
+        if (noiseReductionBusy) return
+        noiseReductionBusy = true
+        viewModelScope.launch {
+            try {
+                audioLock.withLock {
+                    val result = mixer.attachAudio(0, microphoneSource)
+                    noiseComparisonActive = false
+                    noiseReductionEnabled = false
+                    noiseReduction.setEnabled(false)
+                    noiseReductionError = result.exceptionOrNull()?.localizedMessage
+                }
+            } finally {
+                noiseReductionBusy = false
+            }
+        }
+    }
+
+    internal fun refreshNoiseReductionStatus() {
+        if (noiseComparisonActive && !noiseReductionBusy && mixer.isRunning.get() && noiseReduction.isUnconfirmed) {
+            noiseReductionError = getApplication<Application>().getString(R.string.rnnoise_input_unavailable)
         }
     }
 
@@ -548,6 +608,13 @@ class CameraViewModel(
         mixer.dispose()
         sceneFiles.close()
     }
+
+    private suspend fun attachMicrophone(): Result<Unit> =
+        if (noiseComparisonActive) {
+            mixer.attachAudio(0, noiseReduction.source, noiseReduction.factory)
+        } else {
+            mixer.attachAudio(0, microphoneSource)
+        }
 
     private fun reportAssetPlaybackError(cause: Throwable) {
         android.util.Log.w("SampleAsset", "Video playback failed", cause)
