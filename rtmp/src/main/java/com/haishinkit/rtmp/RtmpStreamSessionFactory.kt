@@ -18,4 +18,12 @@ object RtmpStreamSessionFactory : StreamSessionFactory {
         uri: Uri,
         mode: StreamSession.Mode,
     ): StreamSession = RtmpStreamSession(context, uri, mode)
+
+    /** Creates a session with an explicit playback range. HLG requires API level 33+ and OpenGL. */
+    fun create(
+        context: Context,
+        uri: Uri,
+        mode: StreamSession.Mode,
+        playbackDynamicRangeMode: com.haishinkit.graphics.DynamicRangeMode,
+    ): StreamSession = RtmpStreamSession(context, uri, mode, playbackDynamicRangeMode)
 }

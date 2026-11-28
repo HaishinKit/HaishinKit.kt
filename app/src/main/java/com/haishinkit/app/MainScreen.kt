@@ -70,7 +70,10 @@ private fun TabIcon(tab: MainScreenTab) {
 
 @Suppress("ktlint:standard:function-naming")
 @Composable
-fun MainScreen(onApplyRenderer: suspend (Renderer) -> Unit) {
+fun MainScreen(
+    onApplyHdr: suspend (HdrSettings) -> Unit = {},
+    onApplyRenderer: suspend (Renderer) -> Unit,
+) {
     val pictureInPicture = LocalContext.current.mainActivity()?.pictureInPicture == true
     var changingRenderer by remember { mutableStateOf(false) }
     var sceneFileBusy by remember { mutableStateOf(false) }
@@ -96,7 +99,14 @@ fun MainScreen(onApplyRenderer: suspend (Renderer) -> Unit) {
             composable(MainScreenTab.Playback.id) { PlaybackScreen(onOpenSettings = { navigate(MainScreenTab.Preference) }) }
             composable("main/codecs") { DeviceCodecScreen(onBack = { navController.popBackStack() }) }
             composable(MainScreenTab.Preference.id) {
-                PreferenceScreen(onOpenCodecs = { if (!changingRenderer) navController.navigate("main/codecs") }, onApplyRenderer = { renderer ->
+                PreferenceScreen(onApplyHdr = { settings ->
+                    changingRenderer = true
+                    try {
+                        onApplyHdr(settings)
+                    } finally {
+                        changingRenderer = false
+                    }
+                }, onOpenCodecs = { if (!changingRenderer) navController.navigate("main/codecs") }, onApplyRenderer = { renderer ->
                     changingRenderer = true
                     try {
                         onApplyRenderer(renderer)
@@ -106,6 +116,13 @@ fun MainScreen(onApplyRenderer: suspend (Renderer) -> Unit) {
                 })
             }
         }
+    }
+    if (changingRenderer) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = {},
+            confirmButton = {},
+            text = { Text(stringResource(R.string.studio_applying)) },
+        )
     }
 }
 

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="studio_hdr_title">HDR / HLG</string>
+    <string name="studio_hdr_apply">Apply HDR settings</string>
+    <string name="studio_hdr_publish_label">Camera publishing</string>
+    <string name="studio_hdr_help">Verify 10-bit BT.2020 HLG with HEVC or AV1 over RTMP. Screen sharing stays SDR.</string>
+    <string name="studio_hdr_restart">Apply stops active sessions and rebuilds the preview with OpenGL, resetting the scene. SDR camera video and images are converted to HLG. HLG uses the Normal effect; recording, snapshots and quality capture are unavailable.</string>
+    <string name="studio_hdr_android">HLG requires Android 13 or later.</string>
+    <string name="studio_hdr_rtmp_only">HLG verification requires an RTMP or RTMPS destination. Select SDR for SRT or WHIP/WHEP.</string>
+    <string name="studio_hdr_opengl">HLG uses OpenGL. Select SDR for both directions before enabling Vulkan.</string>
+    <string name="studio_hdr_encoding">HLG · 10-bit Main10 · BT.2020</string>
+    <string name="studio_sdr_encoding">SDR · 8-bit</string>
+    <string name="studio_hdr_playback">HLG playback · HEVC / AV1</string>
+    <string name="studio_sdr_playback">SDR playback</string>
+</resources>

@@ -16,7 +16,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume
 
-internal class RtmpStreamSession(applicationContext: Context, uri: Uri, val mode: StreamSession.Mode) : StreamSession, IEventListener {
+internal class RtmpStreamSession(applicationContext: Context, uri: Uri, val mode: StreamSession.Mode, private val playbackDynamicRangeMode: com.haishinkit.graphics.DynamicRangeMode = com.haishinkit.graphics.DynamicRangeMode.SDR) : StreamSession, IEventListener {
     override val stream: Stream get() = rtmpStream
     override val isConnected: Boolean get() = connection.isConnected
     override val readyState: StateFlow<ReadyState> get() = state.asStateFlow()
@@ -26,7 +26,7 @@ internal class RtmpStreamSession(applicationContext: Context, uri: Uri, val mode
     private val uri = RtmpUri(uri)
     private val connection = RtmpConnection()
     private val rtmpStream: RtmpStream by lazy {
-        RtmpStream(applicationContext, connection).apply {
+        RtmpStream(applicationContext, connection, playbackDynamicRangeMode).apply {
             addEventListener(Event.RTMP_STATUS, this@RtmpStreamSession)
         }
     }

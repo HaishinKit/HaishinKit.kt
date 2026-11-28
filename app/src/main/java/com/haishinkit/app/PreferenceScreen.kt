@@ -54,6 +54,7 @@ import kotlinx.coroutines.launch
 fun PreferenceScreen(
     modifier: Modifier = Modifier,
     onOpenCodecs: () -> Unit,
+    onApplyHdr: suspend (HdrSettings) -> Unit = {},
     onApplyRenderer: suspend (Renderer) -> Unit,
 ) {
     Box(modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
@@ -155,6 +156,7 @@ fun PreferenceScreen(
                     )
                 }
             }
+            HdrSettingsControls(streamUrl, onApplyHdr)
             val context = LocalContext.current
 
             val scope = rememberCoroutineScope()
@@ -165,7 +167,7 @@ fun PreferenceScreen(
             var rendererError by remember { mutableStateOf<String?>(null) }
             StudioSection(stringResource(R.string.studio_renderer), stringResource(R.string.studio_renderer_help)) {
                 Renderer.entries.forEach { renderer ->
-                    val enabled = !applyingRenderer && (renderer != Renderer.VULKAN || vulkanAvailable)
+                    val enabled = !applyingRenderer && (renderer != Renderer.VULKAN || (vulkanAvailable && !HdrPreference.selected(context).enabled))
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier =
@@ -184,10 +186,11 @@ fun PreferenceScreen(
                         Text(renderer.label)
                     }
                 }
+                if (HdrPreference.selected(context).enabled) Text(stringResource(R.string.studio_hdr_opengl))
                 if (!vulkanAvailable) Text(stringResource(R.string.studio_renderer_unavailable))
                 Text(stringResource(R.string.studio_renderer_warning), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Button(
-                    enabled = !applyingRenderer && selectedRenderer != currentRenderer && (selectedRenderer != Renderer.VULKAN || vulkanAvailable),
+                    enabled = !applyingRenderer && selectedRenderer != currentRenderer && (selectedRenderer != Renderer.VULKAN || (vulkanAvailable && !HdrPreference.selected(context).enabled)),
                     onClick = {
                         applyingRenderer = true
                         rendererError = null

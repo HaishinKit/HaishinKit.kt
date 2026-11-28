@@ -297,7 +297,7 @@ fun CameraScreen(
                         onDelete = { if (!viewModel.sceneFileBusy) viewModel.removeFocusedScreenObject() },
                     )
 
-                    if (filterFeedbackVisible) {
+                    if (filterFeedbackVisible && viewModel.videoEffectItems.size > 1) {
                         Surface(modifier = Modifier.align(Alignment.Center), color = PreviewColors.container) {
                             Column(Modifier.padding(horizontal = 16.dp, vertical = 10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                                 Text("‹ ${viewModel.videoEffectItems[selectedEffect].name} ›", color = PreviewColors.content)
@@ -331,6 +331,7 @@ fun CameraScreen(
                     selectedIngest?.let { Text(stringResource(R.string.ingest_selected, it)) }
                     PublishEncodingControls(
                         settings = viewModel.encoding,
+                        dynamicRange = viewModel.dynamicRangeMode,
                         protocol = viewModel.publishingProtocol,
                         publishing = sessionActive,
                         onUpdate = { settings ->
@@ -388,7 +389,7 @@ fun CameraScreen(
                         }
                     }
                     if (BuildConfig.VQMETRIX_AVAILABLE) {
-                        Button(onClick = { viewModel.captureQuality(context) }) {
+                        Button(enabled = viewModel.dynamicRangeMode == com.haishinkit.graphics.DynamicRangeMode.SDR, onClick = { viewModel.captureQuality(context) }) {
                             Text(stringResource(R.string.vq_capture_action))
                         }
                     }
@@ -397,6 +398,7 @@ fun CameraScreen(
                     CameraControllerView(
                         isRecording = recorderState.isRecording,
                         controlsEnabled = !viewModel.sceneFileBusy,
+                        mediaToolsEnabled = viewModel.dynamicRangeMode == com.haishinkit.graphics.DynamicRangeMode.SDR,
                         isConnected = sessionActive,
                         readyState = sessionReadyState,
                         canCancelConnection = sessionState.stream is SrtStream || sessionState.stream is RtcStream,

@@ -90,6 +90,8 @@ class CameraViewModel(
                 else -> PublishingProtocol.RTMP
             }
 
+    internal val dynamicRangeMode = HdrPreference.selected(application).publishing
+
     internal var encoding by mutableStateOf(Preference.shared.encoding)
         private set
 
@@ -104,7 +106,7 @@ class CameraViewModel(
 
     private var cameraDeviceManager: CameraDeviceManager =
         CameraDeviceManager(context = application.applicationContext)
-    private var mixer: MediaMixer = MediaMixer(application.applicationContext)
+    private var mixer: MediaMixer = MediaMixer(application.applicationContext, dynamicRangeMode)
     private val _selectedCamera = MutableStateFlow<CameraDevice?>(null)
     private val cameraLock = Mutex()
     private val audioLock = Mutex()
@@ -120,9 +122,11 @@ class CameraViewModel(
     init {
         val _videoEffectItems = mutableListOf<VideoEffectItem>()
         _videoEffectItems.add(VideoEffectItem("Normal", null))
-        _videoEffectItems.add(VideoEffectItem("Monochrome", MonochromeVideoEffect()))
-        _videoEffectItems.add(VideoEffectItem("Mosaic", MosaicVideoEffect()))
-        _videoEffectItems.add(VideoEffectItem("Sepia", SepiaVideoEffect()))
+        if (dynamicRangeMode == com.haishinkit.graphics.DynamicRangeMode.SDR) {
+            _videoEffectItems.add(VideoEffectItem("Monochrome", MonochromeVideoEffect()))
+            _videoEffectItems.add(VideoEffectItem("Mosaic", MosaicVideoEffect()))
+            _videoEffectItems.add(VideoEffectItem("Sepia", SepiaVideoEffect()))
+        }
         this.videoEffectItems = _videoEffectItems
         val cameras = cameraDeviceManager.getDeviceList()
         _selectedCamera.value = cameras.firstOrNull { it.position == CameraDevice.Position.BACK } ?: cameras.firstOrNull()
@@ -156,7 +160,7 @@ class CameraViewModel(
         screenObjectDragController = ScreenObjectDragController(mixer.screen, listOf(image, text, lottie))
 
         recorder.audioSetting.sampleRate = 48_000
-        mixer.registerOutput(recorder)
+        if (dynamicRangeMode == com.haishinkit.graphics.DynamicRangeMode.SDR) mixer.registerOutput(recorder)
         RendererPreference.register(this)
     }
 
@@ -239,7 +243,9 @@ class CameraViewModel(
     suspend fun refreshSession(): Result<Unit> {
         var replacement: StreamSession? = null
         try {
-            val settings = Preference.shared.sessionSettings()
+            val requested = Preference.shared.sessionSettings()
+            require(dynamicRangeMode != com.haishinkit.graphics.DynamicRangeMode.HLG || requested.uri.scheme in setOf("rtmp", "rtmps")) { application.getString(R.string.studio_hdr_rtmp_only) }
+            val settings = requested.copy(encoding = requested.encoding?.forDynamicRange(dynamicRangeMode))
             if (settings == sessionSettings && session != null) {
                 sessionError = null
                 return Result.success(Unit)
