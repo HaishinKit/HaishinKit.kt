@@ -1,0 +1,8 @@
+// Select optimized native code without changing the library's normal test variant.
+allprojects { p ->
+    if (p.path == ':vulkan') {
+        p.afterEvaluate {
+            p.android.testBuildType = 'release'
+        }
+    }
+}

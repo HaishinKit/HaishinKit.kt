@@ -1,6 +1,9 @@
 #include "Kernel.h"
 #include "Queue.h"
 #include <stdexcept>
+#include <android/trace.h>
+#include <cstdio>
+#include <ctime>
 
 using namespace Graphics;
 
@@ -89,6 +92,9 @@ Queue::DrawFrame(Kernel &kernel, const std::function<void(uint32_t)> &lambda) {
 
     vk::PresentTimeGOOGLE time(0, presentationTime);
     vk::PresentTimesInfoGOOGLE timing(1, &time);
+    const bool traceInput = ATrace_isEnabled();
+    timespec begin{}, end{};
+    if (traceInput) clock_gettime(CLOCK_BOOTTIME, &begin);
     result = queue.presentKHR(
             presentInfo
                     .setPNext(&timing)
@@ -97,6 +103,18 @@ Queue::DrawFrame(Kernel &kernel, const std::function<void(uint32_t)> &lambda) {
                     .setWaitSemaphores(signalSemaphores[currentFrame].get())
                     .setPResults(&result)
     );
+    if (traceInput) {
+        clock_gettime(CLOCK_BOOTTIME, &end);
+        char name[128];
+        const auto beginNs = int64_t(begin.tv_sec) * 1000000000 + begin.tv_nsec;
+        const auto endNs = int64_t(end.tv_sec) * 1000000000 + end.tv_nsec;
+        const int accepted = result == vk::Result::eSuccess || result == vk::Result::eSuboptimalKHR;
+        std::snprintf(name, sizeof(name), "HK.Input.VK:%lld:%lld:%lld:%d",
+                      static_cast<long long>(presentationTime), static_cast<long long>(beginNs),
+                      static_cast<long long>(endNs), accepted);
+        ATrace_beginSection(name);
+        ATrace_endSection();
+    }
 
     currentFrame = (currentFrame + 1) % DEFAULT_MAX_FRAMES;
 
