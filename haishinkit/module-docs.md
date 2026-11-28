@@ -39,6 +39,9 @@ be added, detached or muted without stopping the other tracks or their output cl
 An absent/late input contributes silence. Independent input workers prevent a blocking
 microphone read from delaying file or projection audio. Master mute and per-track mute
 consume input, so unmuting does not replay old queued samples.
+An input instance belongs to one track in one mixer; use separate instances for separate
+mixers. Once started, the mixed audio clock continues with silence after the last input
+is detached, and `hasAudio` remains true until that clock stops.
 
 ```kotlin
 mixer.audioMixerSettings = mixer.audioMixerSettings.copy(

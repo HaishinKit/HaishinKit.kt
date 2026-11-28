@@ -145,6 +145,7 @@ class AudioCompositionTest {
                 latest.set(Int.MIN_VALUE)
                 await("Rapid restart stranded the mixer") { latest.get() == 500 }
                 mixer.attachAudio(0, null).getOrThrow()
+                assertTrue("The continuing silent clock must still advertise audio", mixer.hasAudio)
                 await("Detached input remains audible") { latest.get() == 0 }
                 mixer.attachAudio(1, ConstantSource(PcmAudioFormat(48000, 1), 2000)).getOrThrow()
                 await("Replacement inherited stale gain") { latest.get() == 2000 }

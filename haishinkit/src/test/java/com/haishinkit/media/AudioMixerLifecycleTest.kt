@@ -1,7 +1,10 @@
 package com.haishinkit.media
 
+import android.Manifest
+import android.media.AudioRecord
 import com.haishinkit.media.audio.AudioMixer
 import com.haishinkit.media.audio.PcmAudioFormat
+import com.haishinkit.media.source.AudioRecordSource
 import com.haishinkit.media.source.AudioSource
 import com.haishinkit.media.source.PcmAudioSource
 import com.haishinkit.screen.AssetScreenObject
@@ -17,6 +20,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
+import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import java.nio.ByteBuffer
 import java.util.concurrent.atomic.AtomicInteger
@@ -24,6 +28,64 @@ import java.util.concurrent.atomic.AtomicInteger
 @RunWith(RobolectricTestRunner::class)
 @Config(manifest = Config.NONE, sdk = [28])
 class AudioMixerLifecycleTest {
+    @Test fun microphoneAttachCanRecoverAfterRecordingPermissionIsGranted() =
+        runBlocking {
+            val context = RuntimeEnvironment.getApplication()
+            val owner = MediaMixer(context)
+            val source = AudioRecordSource(context)
+            shadowOf(context).denyPermissions(Manifest.permission.RECORD_AUDIO)
+            try {
+                assertTrue(owner.attachAudio(0, source).isFailure)
+                assertFalse(owner.hasAudio)
+                shadowOf(context).grantPermissions(Manifest.permission.RECORD_AUDIO)
+                owner.attachAudio(0, source).getOrThrow()
+                assertEquals(AudioRecord.RECORDSTATE_RECORDING, source.audioRecord!!.recordingState)
+                assertTrue(owner.hasAudio)
+                owner.attachAudio(0, null).getOrThrow()
+                assertFalse(owner.hasAudio)
+            } finally {
+                owner.dispose()
+                shadowOf(context).denyPermissions(Manifest.permission.RECORD_AUDIO)
+            }
+        }
+
+    @Test fun duplicateSourceRejectionPreservesBothExistingTracks() =
+        runBlocking {
+            val owner = MediaMixer(RuntimeEnvironment.getApplication())
+            val mixer = AudioMixer(owner) {}
+            val closes = AtomicInteger()
+            val otherCloses = AtomicInteger()
+
+            fun source(counter: AtomicInteger) =
+                object : AudioSource {
+                    override var isMuted = false
+
+                    override suspend fun open(mixer: MediaMixer) = Result.success(Unit)
+
+                    override suspend fun close() = Result.success(Unit).also { counter.incrementAndGet() }
+
+                    override fun read(track: Int) = MediaBuffer(MediaType.AUDIO, track, ByteBuffer.allocateDirect(0))
+                }
+            val first = source(closes)
+            val second = source(otherCloses)
+            try {
+                mixer.attach(0, first).getOrThrow()
+                mixer.attach(1, second).getOrThrow()
+                assertTrue(mixer.attach(1, first).isFailure)
+                assertEquals(0, closes.get())
+                assertEquals(0, otherCloses.get())
+                mixer.attach(0, null).getOrThrow()
+                assertTrue(mixer.hasAudio)
+                assertEquals(1, closes.get())
+                mixer.attach(1, null).getOrThrow()
+                assertEquals(1, otherCloses.get())
+                assertFalse(mixer.hasAudio)
+            } finally {
+                mixer.stop(dispose = true)
+                owner.dispose()
+            }
+        }
+
     @Test fun invalidInputFormatIsClosedBeforeItCanDisruptHealthyInputs() =
         runBlocking {
             val owner = MediaMixer(RuntimeEnvironment.getApplication())

@@ -26,13 +26,14 @@ import java.util.concurrent.locks.LockSupport
 /** A single output clock; blocking capture never runs on the mixing thread. */
 internal class AudioMixer(private val owner: MediaMixer, private val output: (MediaBuffer) -> Unit) {
     @Volatile var settings = AudioMixerSettings()
-    val hasAudio: Boolean get() = bindings.any { (it.source as? PushAudioSource)?.isClosed != true }
+    val hasAudio: Boolean get() = engine != null || bindings.any { (it.source as? PushAudioSource)?.isClosed != true }
 
     @Volatile private var bindings = emptyArray<Binding>()
 
     @Volatile private var running = false
     private var disposed = false
-    private var engine: NativeAudioMixer? = null
+
+    @Volatile private var engine: NativeAudioMixer? = null
     private var renderThread: Thread? = null
     private val lock = Mutex()
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -47,6 +48,9 @@ internal class AudioMixer(private val owner: MediaMixer, private val output: (Me
             lock.withLock {
                 if (disposed) return@withLock Result.failure(IllegalStateException("Audio mixer is disposed"))
                 for (ended in bindings.filter { (it.source as? PushAudioSource)?.isClosed == true }) detach(ended)
+                if (source != null && bindings.any { it.source === source && it.track != track }) {
+                    return@withLock Result.failure(IllegalArgumentException("An audio source can only occupy one track"))
+                }
                 bindings.firstOrNull { it.track == track && it.source === source }?.let {
                     if (!it.opened) {
                         val opened = openSource(it.source)

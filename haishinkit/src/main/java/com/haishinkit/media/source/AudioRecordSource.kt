@@ -80,7 +80,8 @@ class AudioRecordSource(
 
     override suspend fun open(mixer: MediaMixer): Result<Unit> {
         try {
-            audioRecord?.startRecording()
+            val recorder = audioRecord ?: return Result.failure(SecurityException("Recording permission is required"))
+            recorder.startRecording()
         } catch (e: IllegalStateException) {
             return Result.failure(e)
         }

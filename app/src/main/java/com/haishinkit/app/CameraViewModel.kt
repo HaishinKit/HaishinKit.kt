@@ -344,13 +344,29 @@ class CameraViewModel(
                                     this.onError = ::reportAssetPlaybackError
                                     startReading(Uri.fromFile(file))
                                 }
-                            if (!assetPlaybackEnabled) {
-                                asset.cancelReading()
-                                pausedAssets.add(asset)
+                            var inserted = false
+                            try {
+                                mixer.attachAudio(asset.audioTrack, asset.audioSource).getOrThrow()
+                                if (sceneFileBusy) return@launch
+                                if (AssetScreenObject.findAssets(mixer.screen).size >= 4) {
+                                    onError(application.getString(R.string.asset_limit))
+                                    return@launch
+                                }
+                                if (!assetPlaybackEnabled) {
+                                    asset.cancelReading()
+                                    pausedAssets.add(asset)
+                                }
+                                screenObjectDragController.register(asset, position)
+                                mixer.screen.addChild(asset)
+                                inserted = true
+                            } finally {
+                                if (!inserted) {
+                                    pausedAssets.remove(asset)
+                                    mixer.screen.removeChild(asset)
+                                    screenObjectDragController.unregister(asset)
+                                    asset.close()
+                                }
                             }
-                            screenObjectDragController.register(asset, position)
-                            mixer.attachAudio(asset.audioTrack, asset.audioSource).getOrThrow()
-                            mixer.screen.addChild(asset)
                         }.onFailure { if (it is CancellationException) throw it else onError(application.getString(R.string.asset_playback_error)) }
                     }
                     return
