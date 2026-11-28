@@ -8,6 +8,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
@@ -166,7 +167,13 @@ class ChatGptAuthTest {
                         val replacementHttp = FakeAccountsHttp()
                         val restored = ChatGptAuth(context, replacementHttp)
                         if (terminal) {
-                            assertFalse(restored.accounts().single().connected)
+                            val accounts = restored.accounts()
+                            assertFalse(accounts.single().connected)
+                            val previous = AiChatState(accounts = listOf(ChatGptAccount(id, "Saved account", true)), account = id, models = listOf(ChatModel("model", "Model")), model = "model")
+                            val synchronized = previous.withAccounts(accounts, id, welcome = false, reconnectNotice = "Reconnect")
+                            assertFalse(synchronized.accounts.single().planEnabled)
+                            assertEquals(null, synchronized.model)
+                            assertEquals("Reconnect", synchronized.notice)
                         } else {
                             assertEquals("refreshed-access", restored.accessToken(id))
                         }
@@ -245,6 +252,54 @@ class ChatGptAuthTest {
                     assertTrue(auth.accounts().single().connected)
                     auth.close()
                     assertTrue(http.closed)
+                }
+            } finally {
+                context.noBackupFilesDir.deleteRecursively()
+            }
+        }
+
+    @Test
+    fun newOwnerWaitsForAnOlderOwnersRenewalAndDoesNotOverwriteIt() =
+        runBlocking {
+            val context = isolatedContext()
+            try {
+                withTimeout(20_000) {
+                    val entered = CompletableDeferred<Unit>()
+                    val release = CompletableDeferred<Unit>()
+                    val firstHttp =
+                        FakeAccountsHttp().apply {
+                            refreshEntered = entered
+                            refreshRelease = release
+                        }
+                    val oldOwner = ChatGptAuth(context, firstHttp)
+                    val id = oldOwner.signIn(null, firstHttp::browser)
+                    val newHttp = FakeAccountsHttp()
+                    val newOwner = ChatGptAuth(context, newHttp)
+                    assertTrue(newOwner.accounts().single().connected)
+                    val oldRequest = launch { oldOwner.accessToken(id) }
+                    entered.await()
+                    oldRequest.cancel()
+                    val resumed =
+                        async {
+                            newOwner.acknowledgePlanNotice()
+                            newOwner.accessToken(id)
+                        }
+                    val shutdown = launch { oldOwner.close() }
+                    yield()
+                    assertFalse(resumed.isCompleted)
+                    assertEquals(0, newHttp.refreshes)
+                    release.complete(Unit)
+                    assertEquals("refreshed-access", resumed.await())
+                    oldRequest.join()
+                    shutdown.join()
+                    assertEquals(1, firstHttp.refreshes + newHttp.refreshes)
+                    val restoredHttp = FakeAccountsHttp()
+                    val restored = ChatGptAuth(context, restoredHttp)
+                    assertEquals("refreshed-access", restored.accessToken(id))
+                    assertFalse(restored.needsPlanNotice())
+                    assertEquals(0, restoredHttp.refreshes)
+                    newOwner.close()
+                    restored.close()
                 }
             } finally {
                 context.noBackupFilesDir.deleteRecursively()

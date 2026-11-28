@@ -31,4 +31,5 @@
     <string name="ai_got_it">Got it</string>
     <string name="ai_using_plan">Using ChatGPT plan</string>
     <string name="ai_sign_in_required">Your ChatGPT connection expired or was revoked. Continue with ChatGPT to reconnect.</string>
+    <string name="ai_not_eligible">ChatGPT plan usage is unavailable for this account or workspace under its eligibility or policy. Check the account/workspace settings or choose another eligible account.</string>
 </resources>

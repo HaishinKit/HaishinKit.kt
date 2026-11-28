@@ -1,6 +1,7 @@
 package com.haishinkit.app.chatgpt
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -29,5 +30,14 @@ class AiChatAccountStateTest {
         val revoked = account.withAccount("account-a", planEnabled = false)
         assertTrue(revoked.models.isEmpty())
         assertNull(revoked.model)
+    }
+
+    @Test
+    fun canceledTerminalRefreshUpdatesMetadataWithoutAnotherQuestion() {
+        val original = AiChatState(accounts = listOf(ChatGptAccount("a", "A", true)), account = "a", models = listOf(ChatModel("m", "Model")), model = "m")
+        val next = original.withAccounts(listOf(ChatGptAccount("a", "A", false)), "a", welcome = false, reconnectNotice = "Reconnect")
+        assertFalse(next.accounts.single().connected)
+        assertNull(next.model)
+        assertEquals("Reconnect", next.notice)
     }
 }

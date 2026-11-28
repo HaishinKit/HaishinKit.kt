@@ -157,7 +157,9 @@ The suffix shown in the account picker distinguishes their issued client IDs.
 
 Credentials and a stable installation host ID are stored as one AES-GCM encrypted
 atomic record in Android's no-backup directory; the key remains in AndroidKeyStore.
-Refreshes are serialized and rotated credentials are saved atomically. Once renewal
+Refreshes for the same credential file are serialized across Activity owners in
+the app process; each operation reloads the atomic record before modifying it.
+Rotated credentials are saved atomically. Once renewal
 starts, stopping inference leaves only that renewal running, with a 15-second
 network deadline followed by atomic storage; HTTP cleanup waits for it. A canceled
 caller never proceeds to inference. Confirmed terminal refresh errors clear tokens
@@ -184,6 +186,9 @@ next model request. Images may include people, text and private information visi
 in the scene. This is still-image analysis, not continuous audio/video transmission.
 
 Chat history and approved images remain in memory for at most six completed turns.
+Pending questions are discarded after a failed or stopped turn. The UI retains
+only image-presence metadata, and connection metadata synchronizes after a stopped
+renewal finishes.
 Later requests in the same chat may resend these images as context. **New chat**,
 account changes and successful sign-out clear them from future requests. These
 controls do not recall data already sent to OpenAI. Closing the sheet or backgrounding

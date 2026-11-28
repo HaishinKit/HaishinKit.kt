@@ -11,6 +11,8 @@ import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
@@ -33,7 +35,8 @@ internal data class AiChatState(
     val model: String? = null,
     val lines: List<ChatLine> = emptyList(),
     val partial: String = "",
-    val image: String? = null,
+    val pendingPrompt: String? = null,
+    val imageApproved: Boolean = false,
     val busy: Boolean = false,
     val mcpReady: Boolean = false,
     val approval: Boolean = false,
@@ -41,6 +44,32 @@ internal data class AiChatState(
     val notice: String? = null,
     val usageLimited: Boolean = false,
 ) {
+    val canChangeModel get() = !busy && lines.isEmpty()
+
+    fun beginTurn(prompt: String): AiChatState = copy(busy = true, pendingPrompt = prompt, partial = "", notice = null, usageLimited = false)
+
+    fun completeTurn(
+        prompt: String,
+        answer: String,
+        hasImages: Boolean,
+    ): AiChatState =
+        copy(busy = false, lines = (lines + ChatLine(true, prompt) + ChatLine(false, answer)).takeLast(12), pendingPrompt = null, partial = "", imageApproved = hasImages)
+
+    fun discardPendingTurn(hasImages: Boolean): AiChatState = copy(pendingPrompt = null, partial = "", imageApproved = hasImages, approval = false)
+
+    fun withAccounts(
+        accounts: List<ChatGptAccount>,
+        selected: String?,
+        welcome: Boolean,
+        reconnectNotice: String? = null,
+    ): AiChatState {
+        val id = selected?.takeIf { id -> accounts.any { it.id == id } } ?: accounts.lastOrNull()?.id
+        val selectedAccount = accounts.firstOrNull { it.id == id }
+        val disconnected = account == id && this.accounts.any { it.id == id && it.connected } && selectedAccount?.connected != true
+        val next = withAccount(id, planEnabled = selectedAccount?.planEnabled == true).copy(accounts = accounts, welcome = welcome)
+        return if (disconnected && reconnectNotice != null) next.copy(notice = reconnectNotice, usageLimited = false) else next
+    }
+
     fun withAccount(
         id: String?,
         planEnabled: Boolean = true,
@@ -60,6 +89,7 @@ internal class AiChatViewModel(application: Application) : AndroidViewModel(appl
     private var bridgeJob: Job? = null
     private var authJob: Job? = null
     private var chatJob: Job? = null
+    private var accountSyncJob: Job? = null
     private var approval: CompletableDeferred<Boolean>? = null
     private var tools = JsonArray(emptyList())
     private var generation = 0
@@ -73,6 +103,7 @@ internal class AiChatViewModel(application: Application) : AndroidViewModel(appl
     }
 
     fun visible(screen: Screen) {
+        queueAccountSync()
         if (bridge != null) return
         val next = LocalMcpBridge(screen)
         bridge = next
@@ -137,7 +168,7 @@ internal class AiChatViewModel(application: Application) : AndroidViewModel(appl
     }
 
     fun selectModel(slug: String) {
-        if (!mutableState.value.busy && mutableState.value.lines.isEmpty()) mutableState.update { it.copy(model = slug) }
+        if (mutableState.value.canChangeModel) mutableState.update { it.copy(model = slug) }
     }
 
     fun signOut() {
@@ -158,7 +189,7 @@ internal class AiChatViewModel(application: Application) : AndroidViewModel(appl
         val connection = bridge ?: return
         if (current.busy || current.welcome || !current.mcpReady || prompt.isBlank()) return
         val turn = ++generation
-        mutableState.update { it.copy(busy = true, partial = "", notice = null, usageLimited = false, lines = it.lines + ChatLine(true, prompt)) }
+        mutableState.update { it.beginTurn(prompt) }
         chatJob =
             viewModelScope.launch {
                 try {
@@ -177,15 +208,15 @@ internal class AiChatViewModel(application: Application) : AndroidViewModel(appl
                                 }
                             },
                             onDelta = { delta -> if (generation == turn) mutableState.update { it.copy(partial = it.partial + delta) } },
-                            onImage = { image -> if (generation == turn) mutableState.update { it.copy(image = image) } },
+                            onImage = { if (generation == turn) mutableState.update { it.copy(imageApproved = true) } },
                         )
-                    if (generation == turn) mutableState.update { it.copy(lines = (it.lines + ChatLine(false, answer)).takeLast(12), partial = "") }
+                    if (generation == turn) mutableState.update { it.completeTurn(prompt, answer, conversation.hasImages) }
                 } catch (error: CancellationException) {
                     throw error
                 } catch (error: Exception) {
                     if (generation == turn) recover(error)
                 } finally {
-                    if (generation == turn) mutableState.update { it.copy(busy = false, partial = "") }
+                    if (generation == turn) mutableState.update { it.discardPendingTurn(conversation.hasImages).copy(busy = false) }
                 }
             }
     }
@@ -217,13 +248,14 @@ internal class AiChatViewModel(application: Application) : AndroidViewModel(appl
         chatJob?.cancel()
         approval?.complete(false)
         approval = null
-        mutableState.update { it.copy(busy = authJob?.isActive == true, approval = false, partial = "") }
+        mutableState.update { it.discardPendingTurn(conversation.hasImages).copy(busy = authJob?.isActive == true) }
+        queueAccountSync()
     }
 
     fun clearConversation() {
         cancelChat()
         conversation.clear()
-        mutableState.update { it.copy(lines = emptyList(), partial = "", image = null, notice = null, usageLimited = false) }
+        mutableState.update { it.copy(lines = emptyList(), partial = "", pendingPrompt = null, imageApproved = false, notice = null, usageLimited = false) }
     }
 
     override fun onCleared() {
@@ -252,7 +284,31 @@ internal class AiChatViewModel(application: Application) : AndroidViewModel(appl
         val accounts = auth.accounts()
         val id = selected?.takeIf { id -> accounts.any { it.id == id } } ?: accounts.lastOrNull()?.id
         val welcome = accounts.any { it.id == id && it.planEnabled } && auth.needsPlanNotice()
-        mutableState.update { it.withAccount(id, planEnabled = accounts.any { account -> account.id == id && account.planEnabled }).copy(accounts = accounts, welcome = welcome) }
+        mutableState.update { it.withAccounts(accounts, id, welcome) }
+    }
+
+    private fun queueAccountSync() {
+        val selected = mutableState.value.account
+        val attempt = authGeneration
+        accountSyncJob?.cancel()
+        accountSyncJob =
+            viewModelScope.launch {
+                try {
+                    // Wait behind any started renewal, then update metadata without restarting inference.
+                    val accounts = auth.accounts()
+                    val id = selected?.takeIf { id -> accounts.any { it.id == id } } ?: accounts.lastOrNull()?.id
+                    val welcome = accounts.any { it.id == id && it.planEnabled } && auth.needsPlanNotice()
+                    currentCoroutineContext().ensureActive()
+                    if (attempt == authGeneration) {
+                        mutableState.update { current ->
+                            if (current.account == selected) current.withAccounts(accounts, selected, welcome, text(R.string.ai_sign_in_required)) else current
+                        }
+                    }
+                } catch (error: Exception) {
+                    currentCoroutineContext().ensureActive()
+                    if (attempt == authGeneration && mutableState.value.account == selected) report(error)
+                }
+            }
     }
 
     private suspend fun loadModels() {
@@ -273,15 +329,18 @@ internal class AiChatViewModel(application: Application) : AndroidViewModel(appl
 
     private fun report(error: Exception) {
         if (error is CancellationException && error !is TimeoutCancellationException) return
-        val message =
-            when {
-                (error as? OpenAiFailure)?.requiresSignIn == true -> R.string.ai_sign_in_required
-                (error as? OpenAiFailure)?.code == "access_denied" -> R.string.ai_denied
-                (error as? OpenAiFailure)?.code in setOf("subscription_sharing_usage_limit_exceeded", "subscription_sharing_usage_unavailable") -> R.string.ai_usage_limit
-                else -> R.string.ai_request_failed
-            }
+        val message = chatErrorMessage(error)
         mutableState.update { it.copy(notice = text(message), usageLimited = message == R.string.ai_usage_limit) }
     }
 
     private fun text(resource: Int): String = getApplication<Application>().getString(resource)
 }
+
+internal fun chatErrorMessage(error: Exception): Int =
+    when {
+        (error as? OpenAiFailure)?.requiresSignIn == true -> R.string.ai_sign_in_required
+        (error as? OpenAiFailure)?.code == "access_denied" -> R.string.ai_denied
+        (error as? OpenAiFailure)?.code == "subscription_sharing_user_not_eligible" -> R.string.ai_not_eligible
+        (error as? OpenAiFailure)?.code in setOf("subscription_sharing_usage_limit_exceeded", "subscription_sharing_usage_unavailable") -> R.string.ai_usage_limit
+        else -> R.string.ai_request_failed
+    }

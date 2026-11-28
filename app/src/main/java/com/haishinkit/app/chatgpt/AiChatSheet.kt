@@ -137,8 +137,9 @@ internal fun AiChatContent(
     var modelsExpanded by remember { mutableStateOf(false) }
     val list = rememberLazyListState()
     val account = state.accounts.firstOrNull { it.id == state.account }
-    LaunchedEffect(state.lines.size, state.partial, state.image, state.notice) {
-        val count = 1 + state.lines.size + (if (state.partial.isNotBlank()) 1 else 0) + (if (state.image != null) 1 else 0) + (if (state.notice != null) 1 else 0)
+    val displayedLines = state.lines + listOfNotNull(state.pendingPrompt?.let { ChatLine(true, it) })
+    LaunchedEffect(displayedLines.size, state.partial, state.imageApproved, state.notice) {
+        val count = 1 + displayedLines.size + (if (state.partial.isNotBlank()) 1 else 0) + (if (state.imageApproved) 1 else 0) + (if (state.notice != null) 1 else 0)
         list.scrollToItem(count - 1)
     }
 
@@ -188,7 +189,7 @@ internal fun AiChatContent(
                     if (account?.planEnabled == true) Text(stringResource(R.string.ai_using_plan), style = MaterialTheme.typography.labelMedium)
                     if (state.models.isNotEmpty()) {
                         Column {
-                            TextButton(onClick = { modelsExpanded = true }, enabled = !state.busy && state.lines.isEmpty()) {
+                            TextButton(onClick = { modelsExpanded = true }, enabled = state.canChangeModel) {
                                 Text(stringResource(R.string.ai_model, state.models.firstOrNull { it.slug == state.model }?.label.orEmpty()))
                             }
                             DropdownMenu(expanded = modelsExpanded, onDismissRequest = { modelsExpanded = false }) {
@@ -204,7 +205,7 @@ internal fun AiChatContent(
                     HorizontalDivider()
                 }
             }
-            items(state.lines) { line ->
+            items(displayedLines) { line ->
                 Surface(color = if (line.user) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceContainer, shape = MaterialTheme.shapes.medium) {
                     Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text(stringResource(if (line.user) R.string.ai_you else R.string.ai_assistant), style = MaterialTheme.typography.labelMedium)
@@ -213,7 +214,7 @@ internal fun AiChatContent(
                 }
             }
             if (state.partial.isNotBlank()) item { Text(state.partial, Modifier.padding(12.dp)) }
-            if (state.image != null) item { Text(stringResource(R.string.ai_image_sent), style = MaterialTheme.typography.labelMedium) }
+            if (state.imageApproved) item { Text(stringResource(R.string.ai_image_sent), style = MaterialTheme.typography.labelMedium) }
             state.notice?.let { notice ->
                 item {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {

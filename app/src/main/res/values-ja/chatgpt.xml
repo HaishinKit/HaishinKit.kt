@@ -31,4 +31,5 @@
     <string name="ai_got_it">わかりました</string>
     <string name="ai_using_plan">ChatGPTプランを使用中</string>
     <string name="ai_sign_in_required">ChatGPTの接続が期限切れまたは解除済みです。Continue with ChatGPTから再接続してください。</string>
+    <string name="ai_not_eligible">このアカウントまたはワークスペースでは、利用条件・ポリシーによりChatGPTプランを使用できません。設定を確認するか、利用可能な別のアカウントを選択してください。</string>
 </resources>

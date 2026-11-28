@@ -11,6 +11,14 @@ import kotlinx.serialization.json.put
 
 /** Local function execution is used because SIWC does not support hosted MCP tools. */
 internal class ChatGptConversation(private val http: ChatGptInference) {
+    val hasImages: Boolean
+        get() =
+            turns.any { turn ->
+                turn.any { item ->
+                    (item["content"] as? JsonArray)?.any { (it as? JsonObject)?.textOrNull("type") == "input_image" } == true
+                }
+            }
+
     private val turns = mutableListOf<List<JsonObject>>()
 
     fun clear() {

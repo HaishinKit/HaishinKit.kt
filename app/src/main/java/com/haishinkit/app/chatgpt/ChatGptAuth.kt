@@ -26,17 +26,20 @@ import java.net.InetAddress
 import java.net.ServerSocket
 import java.net.SocketTimeoutException
 import java.net.URLEncoder
+import java.util.concurrent.ConcurrentHashMap
 
 internal data class ChatGptAccount(val id: String, val label: String, val planEnabled: Boolean, val connected: Boolean = planEnabled)
 
 /** OAuth public client: this app has its own registration, never a Codex application's client ID. */
 internal class ChatGptAuth(context: Context, private val http: ChatGptAccountsHttp) {
     private val store = ChatGptStore(context)
-    private val mutex = Mutex()
+    private val mutex = credentialLocks.computeIfAbsent(context.noBackupFilesDir.canonicalPath) { Mutex() }
     private var state: JsonObject? = null
     private var closed = false
 
     private companion object {
+        // Old and new Activity owners can overlap while a rotating token is being saved.
+        val credentialLocks = ConcurrentHashMap<String, Mutex>()
         val TERMINAL_REFRESH_ERRORS =
             setOf(
                 "invalid_grant",
@@ -230,11 +233,10 @@ internal class ChatGptAuth(context: Context, private val http: ChatGptAccountsHt
 
     private suspend fun initialize() {
         check(!closed) { "The ChatGPT connection is closed" }
-        if (state == null) {
-            val initial = store.read()
-            store.write(initial)
-            state = initial
-        }
+        // The file is authoritative across owners; never write back an instance's stale cache.
+        val current = store.read()
+        store.write(current)
+        state = current
     }
 
     private fun profiles(): List<JsonObject> = state!!["profiles"]!!.jsonArray.map { it.jsonObject }

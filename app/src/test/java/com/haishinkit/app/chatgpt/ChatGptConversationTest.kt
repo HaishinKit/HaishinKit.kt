@@ -136,5 +136,16 @@ class ChatGptConversationTest {
             assertEquals(final["output"]!!.jsonArray.single(), history[5])
         }
 
+    @Test
+    fun imagePresenceExpiresWithItsCompletedTurn() =
+        runBlocking {
+            var requests = 0
+            val chat = ChatGptConversation(ChatGptInference { _, _, _ -> if (requests++ == 0) capture else answer })
+            chat.send("model", "Look", { "token" }, JsonArray(emptyList()), { _, _ -> McpToolReply("Captured", listOf("data:image/jpeg;base64,aW1hZ2U=")) }, { true }, {}, {})
+            assertTrue(chat.hasImages)
+            repeat(6) { chat.send("model", "Text only", { "token" }, JsonArray(emptyList()), { _, _ -> error("No new image expected") }, { false }, {}, {}) }
+            assertFalse(chat.hasImages)
+        }
+
     private fun json(text: String): JsonObject = Json.parseToJsonElement(text).jsonObject
 }
